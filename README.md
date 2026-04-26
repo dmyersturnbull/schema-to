@@ -1,56 +1,197 @@
 # schema-to
 
-Transpile JSON Schema 2020-12 into PostgreSQL DDLs, TypeScript defs, and Python types,
-and transpile OpenAPI 3.1 and 3.2 docs into FastAPI endpoints.
+A modern transpiler for [JSON Schema 2020-12](https://json-schema.org/) and [OpenAPI 3.1+](https://www.openapis.org/), converting schema definitions into production-ready code and database migrations.
 
-### Rationale
+**Status:** Early development (v0.0.1). Core transpilation pipeline under active development.
+
+Transpile JSON Schema 2020-12 into PostgreSQL DDLs, TypeScript types, and Python dataclasses/Pydantic models. Transpile OpenAPI 3.1+ into FastAPI endpoints with proper type hints.
+
+## Table of Contents
+
+- [Rationale](#rationale)
+- [Goals](#goals)
+- [Planned Targets](#planned-targets)
+- [Non-Goals](#non-goals)
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Architecture](#architecture)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Rationale
 
 [OpenAPI 3.1](https://www.openapis.org/blog/2021/02/16/migrating-from-openapi-3-0-to-3-1-0)
-introduced very important features, including full compatibility with JSON Schema, specifically the still-current version 2020-12.
-Unfortunately, 4 years later, most OpenAPI tools are still limited to 3.0.
-Similarly, most JSON Schema tools are stuck on 2019-09.
+introduced a critical feature: full compatibility with [JSON Schema 2020-12](https://json-schema.org/specification), the current standard.
+Unfortunately, four years later, most tooling is still stuck on OpenAPI 3.0 and JSON Schema 2019-09, which lack essential modern features.
 
-We need better tools for schema-first projects.
-`schema-to` transpiles modern OpenAPI and JSON Schema docs into SQL, TypeScript, Python, and CommonMark.
-It should be easy to add new languages to that list.
+**The problem:** Schema-first development requires tooling that understands current specifications. Most generators either:
+- Ignore recent schema features
+- Use ad-hoc workarounds instead of standard keywords
+- Split effort between incompatible schema and API specs
+- Miss opportunities for composition and validation
 
-### Goals
+**The solution:** `schema-to` provides a unified transpilation pipeline that:
+- Leverages the full JSON Schema 2020-12 specification
+- Composes transpilation stages cleanly (input → CST → AST → output)
+- Supports nested transpilation (e.g., Markdown in descriptions, JSON Schema in OpenAPI)
+- Generates code in multiple languages from a single source of truth
 
-- Define abstractions formally and expose them in an API.
-  Keep transpilation stages decoupled.
-  Use a concrete syntax tree (CST) for the input (OpenAPI / JSON Schema),
-  with dedicated support for all standard keywords.
-- Support composing or "nesting" transpilation pipelines.
-  This means for nested input, such as OpenAPI containing JSON Schema (as `schema`) and CommonMark (as `description`).
-  It also means for nested output, such as
-  [pg_jsonschema](https://github.com/supabase/pg_jsonschema) validation of `jsonb` types.
-- Allow reading multiple sources, exposing their filenames.
-  E.g. to generate a table per `table-name.schema.json`.
-- High performance.
-- No non-obvious/magic special cases, and minimal behavior-changing switches (e.g. no `--text-as-github-flavored-markdown`).
+## Goals
 
-### Planned targets
+- **Formal abstractions:** Define transformation stages explicitly and decouple them.
+  Use a concrete syntax tree (CST) for input with comprehensive support for all standard keywords.
+- **Nested pipelines:** Support OpenAPI containing JSON Schema (as `schema`) and Markdown (as `description`), plus outputs that compose other formats (e.g., pg_jsonschema for JSON validation).
+- **Multi-source:** Read from multiple files, e.g., auto-generating a table per `table-name.schema.json`.
+- **Performance:** Fast transpilation for large schemas.
+- **Simplicity:** No magic, minimal behavior-changing flags. Consistent, predictable behavior across targets.
 
-- JSON Schema → PostgreSQL.
-  Define JSON Schema extensions if/as needed (e.g. `x-is-table` and `x-is-fk`).
-- JSON Schema → [pg_jsonschema](https://github.com/supabase/pg_jsonschema).
-- JSON Schema → TypeScript types.
-- JSON Schema → Python (dataclass OR Pydantic 2).
-- OpenAPI → FastAPI endpoints (with dataclasses or Pydantic types)
-- JSON Schema → (SQL comment OR TSDoc OR Google-style docstring OR simple CommonMark) of
-  `title`, `description`, `examples`, `deprecated`, `readOnly`, `writeOnly`, `contentEncoding`, and `contentMediaType`.
+## Planned Targets
 
-### Non-goals
+### Input Formats
+- JSON Schema 2020-12 (primary)
+- OpenAPI 3.1, 3.2
 
-- Support for all OpenAPI and JSON Schema features with all (or even any) targets.
-  Keywords like `if`, `else`, `then`, and `not` don't even make sense for some targets.
-  Keywords can be ignored as long as warnings are emitted when seen.
-- Tons of target languages.
-  PRs for more languages are welcome, however.
-- Extensive variants on otherwise-implemented target languages.
-- Support for source languages other than OpenAPI and JSON Schema.
-- Support for pre-3.1 OpenAPI or pre-2020-12 JSON Schema.
+### Output Formats
+- **SQL:**
+  - PostgreSQL DDL with JSON Schema validation via [pg_jsonschema](https://github.com/supabase/pg_jsonschema)
+  - Custom extensions: `x-is-table`, `x-is-fk`, `x-is-index`, etc.
+- **Backend:**
+  - TypeScript types
+  - Python dataclasses or Pydantic 2 models
+  - FastAPI endpoints from OpenAPI
+- **Documentation:**
+  - SQL comments (from `title`, `description`, `examples`, etc.)
+  - TypeScript/JSDoc comments
+  - Python docstrings (Google-style)
+  - CommonMark
 
-### Architecture
+## Non-Goals
 
-raw → ⟨read⟩ → `Input` → ⟨resolve refs⟩ → ⟨verify⟩ → `InputCst` → **⟨generate⟩** → `OutputAst` → ⟨reify⟩ → raw
+- **Exhaustive feature coverage:** Keywords like `if`/`else`/`then`/`not` don't apply to all targets; we emit warnings when unsupported keywords are encountered.
+- **Every language:** PRs for additional languages are welcome, but we maintain a curated focus.
+- **Variants:** We avoid extensive target-specific variants of otherwise-supported languages.
+- **Other input formats:** Only JSON Schema and OpenAPI 3.1+; no XML, Protocol Buffers, GraphQL schemas, etc.
+- **Legacy support:** No pre-3.1 OpenAPI or pre-2020-12 JSON Schema.
+
+## Quick Start
+
+### Minimal example
+
+Create a schema file `user.schema.json`:
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "User",
+  "type": "object",
+  "properties": {
+    "id": { "type": "integer" },
+    "email": { "type": "string", "format": "email" },
+    "name": { "type": "string" }
+  },
+  "required": ["id", "email"]
+}
+```
+
+Transpile to TypeScript:
+
+```bash
+schema-to --input user.schema.json --output user.ts --target typescript
+```
+
+Generate PostgreSQL DDL:
+
+```bash
+schema-to --input user.schema.json --output user.sql --target postgres
+```
+
+## Installation
+
+### From PyPI
+
+```bash
+pip install schema-to
+```
+
+### From source (development)
+
+```bash
+git clone https://github.com/dmyersturnbull/schema-to.git
+cd schema-to
+pip install -e ".[dev]"
+```
+
+Requires Python 3.14+.
+
+## Usage
+
+### Command-line interface
+
+```bash
+schema-to --help
+```
+
+### As a library
+
+```python
+from schema_to import transpile
+
+result = transpile(
+    source="path/to/schema.json",
+    target="typescript",
+    output="generated/types.ts"
+)
+```
+
+### Examples
+
+- Converting a full OpenAPI spec to FastAPI application
+- Generating TypeScript types from JSON Schema with full `$ref` resolution
+- Creating PostgreSQL migrations from nested schemas
+- Composing multiple schema files into a single output
+
+See `examples/` for complete samples (coming soon).
+
+## Architecture
+
+```
+raw
+ ├─ ⟨read⟩ → Input
+ │   └─ ⟨resolve $refs, verify⟩ → InputCst
+ │       └─ ⟨generate⟩ → OutputAst
+ │           └─ ⟨reify⟩ → raw
+```
+
+**Stages:**
+1. **Read:** Parse JSON/YAML into typed input representation
+2. **Resolve & Verify:** Dereference `$ref` links, validate against spec
+3. **CST:** Concrete syntax tree with full keyword information
+4. **Generate:** Transform CST to language-specific AST
+5. **Reify:** Emit code or SQL from AST
+
+Each stage exposes a stable API for extensibility.
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Add tests for your changes
+4. Ensure linting passes: `ruff check .` and `ruff format .`
+5. Run tests: `pytest`
+6. Commit with clear messages
+7. Push and open a pull request
+
+### Development setup
+
+```bash
+pip install -e ".[dev]"
+ruff check . --fix
+pytest
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE) for details.
