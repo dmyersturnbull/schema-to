@@ -13,11 +13,9 @@ Transpile JSON Schema 2020-12 into PostgreSQL DDLs, TypeScript types, and Python
 - [Planned Targets](#planned-targets)
 - [Non-Goals](#non-goals)
 - [Quick Start](#quick-start)
-- [Installation](#installation)
-- [Usage](#usage)
+- [Python API Design](#python-api-design)
 - [Architecture](#architecture)
 - [Contributing](#contributing)
-- [License](#license)
 
 ## Rationale
 
@@ -76,57 +74,15 @@ Unfortunately, four years later, most tooling is still stuck on OpenAPI 3.0 and 
 
 ## Quick Start
 
-### Minimal example
+### Command-line
 
-Create a schema file `user.schema.json`:
-
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "User",
-  "type": "object",
-  "properties": {
-    "id": { "type": "integer" },
-    "email": { "type": "string", "format": "email" },
-    "name": { "type": "string" }
-  },
-  "required": ["id", "email"]
-}
-```
-
-Transpile to TypeScript:
+Install with `uv`:
 
 ```bash
-schema-to --input user.schema.json --output user.ts --target typescript
+uv tool install schema-to
 ```
 
-Generate PostgreSQL DDL:
-
-```bash
-schema-to --input user.schema.json --output user.sql --target postgres
-```
-
-## Installation
-
-### From PyPI
-
-```bash
-pip install schema-to
-```
-
-### From source (development)
-
-```bash
-git clone https://github.com/dmyersturnbull/schema-to.git
-cd schema-to
-pip install -e ".[dev]"
-```
-
-Requires Python 3.14+.
-
-## Usage
-
-### Command-line interface
+Explore available options:
 
 ```bash
 schema-to --help
@@ -134,64 +90,91 @@ schema-to --help
 
 ### As a library
 
-```python
-from schema_to import transpile
+Add to your project:
 
-result = transpile(
-    source="path/to/schema.json",
-    target="typescript",
-    output="generated/types.ts"
-)
+```bash
+uv add schema-to
 ```
 
-### Examples
+Use the Python API:
 
-- Converting a full OpenAPI spec to FastAPI application
-- Generating TypeScript types from JSON Schema with full `$ref` resolution
-- Creating PostgreSQL migrations from nested schemas
-- Composing multiple schema files into a single output
+```python
+from schema_to import JsonSchemaSource, TypeScriptTarget, Pipeline
 
-See `examples/` for complete samples (coming soon).
+# Define the pipeline
+pipeline = Pipeline([
+    JsonSchemaSource(),
+    TypeScriptTarget(output="generated/types.ts"),
+])
+
+# Apply to your schema
+pipeline.process("user.schema.json")
+```
+
+Requires Python 3.14+.
+
+## Python API Design
+
+The Python API emphasizes composition and immutability:
+
+**Core principles:**
+- **Pipeline first:** Define the entire transpilation pipeline before processing files. The pipeline is immutable once created.
+- **Inversion of control:** Pass sources and targets to the pipeline; let it orchestrate the stages.
+- **Separated inputs:** `JsonSchemaSource` and `OpenAPISource` provide distinct type-safe APIs for their respective formats.
+- **Immutable types:** Inputs, intermediate representations (CST, AST), and outputs are immutable. Changes produce new instances.
+- **Composable stages:** Each pipeline stage (read → resolve → generate → reify) exposes a clean API for custom extensions.
+
+**Example with multiple sources:**
+
+```python
+from schema_to import (
+    Pipeline,
+    JsonSchemaSource,
+    OpenAPISource,
+    PostgresTarget,
+    TypeScriptTarget,
+)
+
+# Build a multi-target pipeline
+pipeline = Pipeline([
+    JsonSchemaSource("schemas/"),  # Read all .schema.json files
+    OpenAPISource("api.openapi.yaml"),  # Also include OpenAPI
+    PostgresTarget(output="migrations/"),
+    TypeScriptTarget(output="types/"),
+])
+
+# Process all sources in a single pass
+pipeline.process()
+```
 
 ## Architecture
 
-```
-raw
- ├─ ⟨read⟩ → Input
- │   └─ ⟨resolve $refs, verify⟩ → InputCst
- │       └─ ⟨generate⟩ → OutputAst
- │           └─ ⟨reify⟩ → raw
+```mermaid
+graph LR
+    Raw["Raw<br/>(JSON/YAML)"]
+    Input["Input<br/>(Typed)"]
+    Cst["InputCST<br/>(Concrete Syntax Tree)"]
+    OutputAst["OutputAST<br/>(Language-specific)"]
+    Code["Output<br/>(Code/SQL/Docs)"]
+    
+    Raw -->|read| Input
+    Input -->|resolve & verify| Cst
+    Cst -->|generate| OutputAst
+    OutputAst -->|reify| Code
 ```
 
-**Stages:**
-1. **Read:** Parse JSON/YAML into typed input representation
-2. **Resolve & Verify:** Dereference `$ref` links, validate against spec
-3. **CST:** Concrete syntax tree with full keyword information
-4. **Generate:** Transform CST to language-specific AST
-5. **Reify:** Emit code or SQL from AST
+**Pipeline stages:**
 
-Each stage exposes a stable API for extensibility.
+1. **Read:** Parse JSON/YAML into typed input representation (JSON Schema or OpenAPI object)
+2. **Resolve & Verify:** Dereference `$ref` links, validate against schema spec
+3. **CST (Concrete Syntax Tree):** Full tree with all keywords and metadata preserved
+4. **Generate:** Transform CST into language-specific AST (TypeScript AST, Python AST, SQL AST, etc.)
+5. **Reify:** Emit final output (TypeScript code, Python code, SQL DDL, documentation, etc.)
+
+Each stage has a well-defined interface, allowing custom sources, targets, and transformations.
 
 ## Contributing
 
-Contributions are welcome! Please:
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Add tests for your changes
-4. Ensure linting passes: `ruff check .` and `ruff format .`
-5. Run tests: `pytest`
-6. Commit with clear messages
-7. Push and open a pull request
-
-### Development setup
-
-```bash
-pip install -e ".[dev]"
-ruff check . --fix
-pytest
-```
-
-## License
-
-MIT. See [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
