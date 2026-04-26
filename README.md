@@ -88,29 +88,6 @@ Explore available options:
 schema-to --help
 ```
 
-### As a library
-
-Add to your project:
-
-```bash
-uv add schema-to
-```
-
-Use the Python API:
-
-```python
-from schema_to import JsonSchemaSource, TypeScriptTarget, Pipeline
-
-# Define the pipeline
-pipeline = Pipeline([
-    JsonSchemaSource(),
-    TypeScriptTarget(output="generated/types.ts"),
-])
-
-# Apply to your schema
-pipeline.process("user.schema.json")
-```
-
 Requires Python 3.14+.
 
 ## Python API Design
