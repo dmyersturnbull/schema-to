@@ -53,4 +53,71 @@ It should be easy to add new languages to that list.
 
 ### Architecture
 
-raw → ⟨read⟩ → `Input` → ⟨resolve refs⟩ → ⟨verify⟩ → `InputCst` → **⟨generate⟩** → `OutputAst` → ⟨reify⟩ → raw
+The pipeline has distinct, decoupled stages:
+
+```
+raw files
+  → [read]          → Input
+  → [resolve $refs] → Input (resolved)
+  → [verify]        → InputCst
+  → [generate]      → OutputAst
+  → [reify]         → raw output
+```
+
+**Stages**
+
+| Stage | Module | Description |
+|-------|--------|-------------|
+| **Read** | `schema_to.read` | Parses raw JSON or YAML into `Input`, a loosely-typed document tree. Accepts multiple source files and tracks their filenames for use downstream (e.g. `users.schema.json` → table name `users`). |
+| **Resolve** | `schema_to.resolve` | Resolves `$ref` pointers—within and across files—into a fully-resolved document. Handles both JSON Schema `$ref` and OpenAPI component references. |
+| **Verify** | `schema_to.verify` | Validates the resolved document against its meta-schema (JSON Schema 2020-12 or OpenAPI 3.1/3.2). Emits structured diagnostics. Fails fast by default. |
+| **InputCst** | `schema_to.cst` | A typed Concrete Syntax Tree produced after verification. Preserves the full source structure 1:1—all standard keywords are represented as typed fields, not stringly-typed dicts. No normalization or lossy transformations. |
+| **Generate** | `schema_to.generate` | Walks the `InputCst` and produces an `OutputAst`—a typed tree of target-language constructs (e.g. `CreateTable`, `TsInterface`, `PyDataclass`). Each target registers its own generator. |
+| **OutputAst** | `schema_to.ast` | A target-specific abstract syntax tree. Unlike the CST it has no source positions. It can be inspected or transformed before rendering. |
+| **Reify** | `schema_to.reify` | Renders the `OutputAst` to a string or file. Handles formatting, indentation, and target-specific conventions. |
+
+**Composable pipelines**
+
+Some inputs are nested: OpenAPI embeds JSON Schema in `schema` fields and CommonMark in `description` fields.
+Pipelines compose by running a sub-pipeline on embedded nodes:
+
+- OpenAPI → FastAPI delegates `schema` nodes to a JSON Schema → Pydantic sub-pipeline.
+- JSON Schema → PostgreSQL delegates `description` fields to a CommonMark → SQL-comment sub-pipeline.
+- JSON Schema → PostgreSQL with `jsonb` columns delegates those columns to a JSON Schema → pg_jsonschema sub-pipeline.
+
+Nesting is explicit and traceable—there are no implicit format-detection heuristics.
+
+**Adding a target**
+
+Each target lives under `schema_to/targets/<name>/` and registers:
+
+1. A **generator**: `InputCst → OutputAst`
+2. A **reifier**: `OutputAst → str`
+3. Optionally: its own `OutputAst` node library if the target's constructs are novel
+
+Targets may consume only the CST nodes they understand and emit warnings for anything they skip (e.g. `if`/`then`/`else` for SQL targets).
+
+**Planned module layout**
+
+```
+schema_to/
+  __main__.py          # CLI entry point
+  read.py              # JSON/YAML → Input
+  resolve.py           # $ref resolution
+  verify.py            # meta-schema validation → InputCst
+  cst/
+    json_schema.py     # JSON Schema 2020-12 CST nodes
+    openapi.py         # OpenAPI 3.1/3.2 CST nodes
+  generate.py          # generator dispatcher
+  ast/
+    sql.py             # SQL construct nodes
+    typescript.py      # TypeScript construct nodes
+    python.py          # Python construct nodes
+  reify.py             # reifier dispatcher
+  targets/
+    postgres/          # JSON Schema → PostgreSQL DDL
+    pg_jsonschema/     # JSON Schema → pg_jsonschema CHECK constraints
+    typescript/        # JSON Schema → TypeScript type definitions
+    python/            # JSON Schema → dataclasses or Pydantic v2 models
+    fastapi/           # OpenAPI → FastAPI endpoints
+```
