@@ -10,6 +10,9 @@ readme = { file = "README.md", content-type = "text/markdown" }
 license = { text = "MIT" }
 dependencies = [
   "niquests>=3.18",
+  "ruamel.yaml>=0.18",       # YAML 1.2 parsing for JSON Schema and OpenAPI sources
+  "referencing>=0.35",       # JSON Schema $ref / $dynamicRef resolution
+  "typer>=0.12",             # CLI framework
 ]
 
 [project.scripts]

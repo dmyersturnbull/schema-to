@@ -1,0 +1,74 @@
+"""schema-to: a modern transpiler for JSON Schema 2020-12 and OpenAPI 3.1+.
+
+## Quick start
+
+```python
+from schema_to import Pipeline, Ok, Err
+
+pipeline = Pipeline(
+    sources=[...],
+    transpilers=[...],
+    sink=...,
+)
+
+match pipeline.process():
+    case Ok(summary):
+        print(f"Wrote {summary.artifacts_written} artifacts.")
+    case Err(errors):
+        for err in errors:
+            print(err.message)
+```
+
+## Module map
+
+| Module | Purpose |
+|--------|---------|
+| `schema_to.io` | `DataSource`, `DataSink`, `RawDocument`, `OutputArtifact` |
+| `schema_to.cst` | JSON Schema and OpenAPI CST node types |
+| `schema_to.ast` | Python, TypeScript, and SQL AST node types |
+| `schema_to._pipeline` | `Stage`, `Transpiler`, `Pipeline` |
+| `schema_to._result` | `Ok`, `Err`, `Result` |
+| `schema_to._errors` | `TranspilationError` subclasses |
+"""
+
+from schema_to._errors import (
+    GenerationError,
+    ParseError,
+    ReificationError,
+    ResolutionError,
+    SchemaValidationError,
+    SourceLocation,
+    TranspilationError,
+    TranspilationWarning,
+)
+from schema_to._pipeline import Pipeline, ProcessSummary, Transpiler, TypedTranspiler
+from schema_to._result import Err, Ok, Result
+from schema_to.io._sink import DataSink, OutputArtifact
+from schema_to.io._source import DataSource, MediaType, RawDocument
+
+__all__ = [
+    # I/O
+    "DataSink",
+    "DataSource",
+    "MediaType",
+    "OutputArtifact",
+    "RawDocument",
+    # Pipeline
+    "Pipeline",
+    "ProcessSummary",
+    "Transpiler",
+    "TypedTranspiler",
+    # Result
+    "Err",
+    "Ok",
+    "Result",
+    # Errors
+    "GenerationError",
+    "ParseError",
+    "ReificationError",
+    "ResolutionError",
+    "SchemaValidationError",
+    "SourceLocation",
+    "TranspilationError",
+    "TranspilationWarning",
+]
