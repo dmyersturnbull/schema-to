@@ -19,7 +19,7 @@ __all__ = ["Err", "Ok", "Result"]
 
 
 @final
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Ok[T]:
     """Successful result carrying a value of type `T`."""
 
@@ -39,7 +39,7 @@ class Ok[T]:
 
 
 @final
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Err:
     """Failed result carrying at least one `TranspilationError`.
 

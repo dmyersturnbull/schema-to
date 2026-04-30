@@ -9,14 +9,10 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass
 
-__all__ = ["CstNode", "JsonValue", "SourceRef"]
-
-# JSON value type as defined in RFC 8259.
-# Self-referential via PEP 695 lazy type alias.
-type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
+__all__ = ["CstNode", "SourceRef"]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SourceRef:
     """A provenance link from a CST node back to its origin.
 
@@ -33,7 +29,7 @@ class SourceRef:
 class CstNode(ABC):
     """Sealed marker base for every CST node.
 
-    Concrete nodes are immutable `@dataclass(frozen=True)` subclasses.  The
+    Concrete nodes are immutable `@dataclass(frozen=True, slots=True)` subclasses.  The
     hierarchy has two independent subtrees — one rooted at `JsonSchemaDocument`
     and one at `OpenApiDocument` — reflecting the two supported input formats.
     """

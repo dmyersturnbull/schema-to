@@ -5,11 +5,35 @@ Invoked as `schema-to <command> [options]` or `python -m schema_to`.
 
 from __future__ import annotations
 
+import enum
+from enum import StrEnum
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Final, Literal, override
 
 import typer
 
+
+class CliEnum(StrEnum):
+    @staticmethod
+    @override
+    def _generate_next_value_(name: str, start: int, count: int, last_values: list[str]) -> str:
+        return name.lower().replace("_", "-")
+
+
+class JsonschemaTarget(CliEnum):
+    POSTGRES = enum.auto()
+    TYPESCRIPT = enum.auto()
+    DATACLASS = enum.auto()
+    PYDANTIC = enum.auto()
+    COMMONMARK = enum.auto()
+
+
+class OpenapiTarget(CliEnum):
+    FASTAPI = enum.auto()
+    COMMONMARK = enum.auto()
+
+
+CWD: Final = Path.cwd()
 app = typer.Typer(
     name="schema-to",
     help="Transpile JSON Schema 2020-12 and OpenAPI 3.1 into code and SQL.",
@@ -26,31 +50,17 @@ def transpile(
     output: Annotated[
         Path,
         typer.Option("-o", "--output", help="Output directory."),
-    ] = Path("."),
-    target: Annotated[
-        list[str],
+    ] = CWD,
+    to: Annotated[
+        JsonschemaTarget | OpenapiTarget | Literal["pass-thru"],
         typer.Option(
             "-t",
-            "--target",
-            help=(
-                "Target format. May be repeated. "
-                "Choices: postgres, typescript, python-dataclass, python-pydantic."
-            ),
+            "--to",
+            help="Target format.",
         ),
-    ] = [],  # noqa: B006
+    ] = "pass-thru",
 ) -> None:
     """Transpile one or more schema sources into the requested target formats."""
-    ...
-
-
-@app.command()
-def validate(
-    source: Annotated[
-        list[str],
-        typer.Argument(help="Schema files or directories to validate."),
-    ],
-) -> None:
-    """Validate source documents against their meta-schemas without generating output."""
     ...
 
 

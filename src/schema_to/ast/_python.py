@@ -4,7 +4,7 @@ Nodes in this module represent Python declarations emitted by the transpiler.
 Reification produces a syntactically-valid `.py` source file that can be
 formatted by `ruff format` without modification.
 
-Supported output styles include bare `@dataclass`, `@dataclass(frozen=True)`,
+Supported output styles include bare `@dataclass`, `@dataclass(frozen=True, slots=True)`,
 and [Pydantic v2](https://docs.pydantic.dev/latest/) `BaseModel` subclasses.
 """
 
@@ -42,9 +42,9 @@ class ClassStyle(str, Enum):
     Attributes:
         PLAIN: A plain class with no decorator.
         DATACLASS: `@dataclass` — mutable by default.
-        FROZEN_DATACLASS: `@dataclass(frozen=True)` — immutable.
+        FROZEN_DATACLASS: `@dataclass(frozen=True, slots=True)` — immutable.
         PYDANTIC: `pydantic.BaseModel` subclass.
-        PYDANTIC_FROZEN: `pydantic.BaseModel` with `model_config = ConfigDict(frozen=True)`.
+        PYDANTIC_FROZEN: `pydantic.BaseModel` with `model_config = ConfigDict(frozen=True, slots=True)`.
     """
 
     PLAIN = "plain"
@@ -59,7 +59,7 @@ class ClassStyle(str, Enum):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PythonTypeAnnotation(AstNode):
     """A Python type annotation as a structured expression.
 
@@ -85,7 +85,7 @@ class PythonTypeAnnotation(AstNode):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PythonDocString(DocString):
     """A Google-style Python docstring.
 
@@ -112,7 +112,7 @@ class PythonDocString(DocString):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SimpleImport(AstNode):
     """An `import <module>` statement.
 
@@ -125,7 +125,7 @@ class SimpleImport(AstNode):
     alias: str | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FromImport(AstNode):
     """A `from <module> import <name> [as <alias>]` statement.
 
@@ -143,13 +143,13 @@ class FromImport(AstNode):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Decorator(AstNode):
     """A Python decorator applied to a class or function.
 
     Attributes:
         name: The decorator expression as a string, e.g. `"dataclass"`,
-            `"dataclass(frozen=True)"`, or `"app.get('/users')"`.
+            `"dataclass(frozen=True, slots=True)"`, or `"app.get('/users')"`.
         module: Module providing the decorator; `None` for builtins.
     """
 
@@ -162,7 +162,7 @@ class Decorator(AstNode):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FieldDef(AstNode):
     """A field declaration inside a `ClassDef`.
 
@@ -181,7 +181,7 @@ class FieldDef(AstNode):
     decorators: Sequence[Decorator] = field(default_factory=list)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Parameter(AstNode):
     """A parameter in a `FunctionDef` signature.
 
@@ -203,7 +203,7 @@ class Parameter(AstNode):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TypeAliasDef(AstNode):
     """A `type Name = ...` declaration (PEP 695).
 
@@ -218,7 +218,7 @@ class TypeAliasDef(AstNode):
     doc: PythonDocString | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FunctionDef(AstNode):
     """A function or method declaration.
 
@@ -241,7 +241,7 @@ class FunctionDef(AstNode):
     is_abstract: bool = False
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ClassDef(AstNode):
     """A Python class declaration.
 
@@ -271,7 +271,7 @@ class ClassDef(AstNode):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PythonModule(AstNode):
     """The root node of a Python output file.
 

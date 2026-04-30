@@ -17,7 +17,7 @@ from schema_to.io._source import MediaType
 __all__ = ["DataSink", "OutputArtifact"]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class OutputArtifact:
     """A single output document ready to be written to a sink.
 
@@ -43,12 +43,12 @@ class DataSink(ABC):
     @abstractmethod
     def sink_id(self) -> str:
         """Stable identifier for this sink (e.g. an output directory path or URL)."""
-        ...
+        raise NotImplementedError
 
     @abstractmethod
     def write(self, artifact: OutputArtifact) -> None:
         """Persist or collect a single output artifact."""
-        ...
+        raise NotImplementedError
 
     def write_all(self, artifacts: Iterable[OutputArtifact]) -> None:
         """Write every artifact from an iterable by delegating to `write`."""

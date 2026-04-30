@@ -35,6 +35,7 @@ each source document to the correct `Transpiler` at runtime.
 3. Pass all `OutputArtifact`s to the shared `DataSink`.
 4. Return a `Result[ProcessSummary]` with counts and accumulated warnings.
 """
+# noqa: A002
 
 from __future__ import annotations
 
@@ -54,8 +55,8 @@ __all__ = [
     "Generator",
     "Pipeline",
     "ProcessSummary",
-    "Reifier",
     "RefResolver",
+    "Reifier",
     "Stage",
     "Transpiler",
     "TypedTranspiler",
@@ -82,7 +83,7 @@ class Stage[A, B](ABC):
     @abstractmethod
     def apply(self, input: A) -> Result[B]:
         """Run this stage, returning `Ok[B]` on success or `Err` on failure."""
-        ...
+        raise NotImplementedError
 
     def then[C](self, other: Stage[B, C]) -> Stage[A, C]:
         """Compose `self` with `other`, running `other` only if `self` succeeds."""
@@ -112,12 +113,13 @@ class DocumentParser[CstT: CstNode](Stage[RawDocument, CstT]):
     """
 
     @abstractmethod
-    def apply(self, input: RawDocument) -> Result[CstT]: ...
+    def apply(self, input: RawDocument) -> Result[CstT]:
+        raise NotImplementedError
 
     @abstractmethod
     def supports(self, document: RawDocument) -> bool:
         """Return `True` if this parser can process the given document."""
-        ...
+        raise NotImplementedError
 
 
 class RefResolver[CstT: CstNode](Stage[CstT, CstT]):
@@ -130,12 +132,13 @@ class RefResolver[CstT: CstNode](Stage[CstT, CstT]):
     """
 
     @abstractmethod
-    def apply(self, input: CstT) -> Result[CstT]: ...
+    def apply(self, input: CstT) -> Result[CstT]:
+        raise NotImplementedError
 
     @abstractmethod
     def register(self, cst: CstT) -> None:
         """Add a parsed CST to the resolution registry."""
-        ...
+        raise NotImplementedError
 
 
 class Generator[CstT: CstNode, AstT: AstNode](Stage[CstT, AstT]):
@@ -148,13 +151,14 @@ class Generator[CstT: CstNode, AstT: AstNode](Stage[CstT, AstT]):
     """
 
     @abstractmethod
-    def apply(self, input: CstT) -> Result[AstT]: ...
+    def apply(self, input: CstT) -> Result[AstT]:
+        raise NotImplementedError
 
     @property
     @abstractmethod
     def warnings(self) -> Sequence[TranspilationWarning]:
         """Warnings accumulated across all `apply` calls since construction."""
-        ...
+        raise NotImplementedError
 
 
 class Reifier[AstT: AstNode](Stage[AstT, Sequence[OutputArtifact]]):
@@ -166,7 +170,8 @@ class Reifier[AstT: AstNode](Stage[AstT, Sequence[OutputArtifact]]):
     """
 
     @abstractmethod
-    def apply(self, input: AstT) -> Result[Sequence[OutputArtifact]]: ...
+    def apply(self, input: AstT) -> Result[Sequence[OutputArtifact]]:
+        raise NotImplementedError
 
 
 # ---------------------------------------------------------------------------
@@ -190,12 +195,12 @@ class Transpiler(ABC):
     @abstractmethod
     def accepts(self, document: RawDocument) -> bool:
         """Return `True` if this transpiler can process `document`."""
-        ...
+        raise NotImplementedError
 
     @abstractmethod
     def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
         """Run the full parse → resolve → generate → reify pipeline."""
-        ...
+        raise NotImplementedError
 
 
 class TypedTranspiler[CstT: CstNode, AstT: AstNode](Transpiler):
@@ -205,47 +210,46 @@ class TypedTranspiler[CstT: CstNode, AstT: AstNode](Transpiler):
     provided `transpile` implementation chains them via `Result.flat_map`.
 
     Example:
+        ```python
+        class JsonSchemaToSqlTranspiler(
+            TypedTranspiler[JsonSchemaDocument, SqlScript]
+        ):
+            def accepts(self, doc):
+                return doc.media_type == MediaType.json()
 
-    ```python
-    class JsonSchemaToSqlTranspiler(
-        TypedTranspiler[JsonSchemaDocument, SqlScript]
-    ):
-        def accepts(self, doc):
-            return doc.media_type == MediaType.json()
+            def parse(self, doc):
+                return JsonSchemaParser().apply(doc)
 
-        def parse(self, doc):
-            return JsonSchemaParser().apply(doc)
+            def resolve(self, cst):
+                return JsonSchemaRefResolver().apply(cst)
 
-        def resolve(self, cst):
-            return JsonSchemaRefResolver().apply(cst)
+            def generate(self, cst):
+                return JsonSchemaToSqlGenerator().apply(cst)
 
-        def generate(self, cst):
-            return JsonSchemaToSqlGenerator().apply(cst)
-
-        def reify(self, ast):
-            return SqlReifier().apply(ast)
-    ```
+            def reify(self, ast):
+                return SqlReifier().apply(ast)
+        ```
     """
 
     @abstractmethod
     def parse(self, document: RawDocument) -> Result[CstT]:
         """Stage 1: decode bytes and construct the CST."""
-        ...
+        raise NotImplementedError
 
     @abstractmethod
     def resolve(self, cst: CstT) -> Result[CstT]:
         """Stage 2: resolve `$ref` and validate against the meta-schema."""
-        ...
+        raise NotImplementedError
 
     @abstractmethod
     def generate(self, cst: CstT) -> Result[AstT]:
         """Stage 3: transform the CST into a target-language AST."""
-        ...
+        raise NotImplementedError
 
     @abstractmethod
     def reify(self, ast: AstT) -> Result[Sequence[OutputArtifact]]:
         """Stage 4: serialise the AST to output bytes."""
-        ...
+        raise NotImplementedError
 
     def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
         """Run all four stages sequentially, short-circuiting on any `Err`."""
@@ -257,7 +261,7 @@ class TypedTranspiler[CstT: CstNode, AstT: AstNode](Transpiler):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ProcessSummary:
     """Summary of a completed `Pipeline.process()` run.
 
@@ -287,20 +291,19 @@ class Pipeline:
         sink: Destination for all `OutputArtifact`s produced during the run.
 
     Example:
-
-    ```python
-    pipeline = Pipeline(
-        sources=[FileDataSource("schemas/")],
-        transpilers=[JsonSchemaToSqlTranspiler(), JsonSchemaToTypeScriptTranspiler()],
-        sink=DirectoryDataSink("out/"),
-    )
-    match pipeline.process():
-        case Ok(summary):
-            print(f"Wrote {summary.artifacts_written} artifacts.")
-        case Err(errors):
-            for err in errors:
-                print(err.message)
-    ```
+        ```python
+        pipeline = Pipeline(
+            sources=[FileDataSource("schemas/")],
+            transpilers=[JsonSchemaToSqlTranspiler(), JsonSchemaToTypeScriptTranspiler()],
+            sink=DirectoryDataSink("out/"),
+        )
+        match pipeline.process():
+            case Ok(summary):
+                print(f"Wrote {summary.artifacts_written} artifacts.")
+            case Err(errors):
+                for err in errors:
+                    print(err.message)
+        ```
     """
 
     sources: Sequence[DataSource]

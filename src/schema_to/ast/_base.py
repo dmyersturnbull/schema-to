@@ -29,7 +29,7 @@ class Visibility(str, Enum):
 class AstNode(ABC):
     """Sealed marker base for every target-language AST node.
 
-    Concrete nodes are immutable `@dataclass(frozen=True)` subclasses organised
+    Concrete nodes are immutable `@dataclass(frozen=True, slots=True)` subclasses organised
     into language-specific modules.  Each language module defines its own root
     node (e.g. `PythonModule`, `TypeScriptModule`, `SqlScript`) that acts as the
     entry point for reification.

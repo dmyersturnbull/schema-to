@@ -5,14 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SourceLocation:
     """A position within a source document.
 
     Attributes:
         source_id: Opaque identifier matching `RawDocument.source_id`.
-        json_pointer: [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901) pointer to the
-            offending node within the parsed document.
+        json_pointer: [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)
+            pointer to the offending node within the parsed document.
         line: 1-based line number in the raw text, if available.
         column: 1-based column number in the raw text, if available.
     """
@@ -23,7 +23,7 @@ class SourceLocation:
     column: int | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TranspilationWarning:
     """A non-fatal diagnostic emitted during transpilation.
 
@@ -38,6 +38,7 @@ class TranspilationWarning:
     location: SourceLocation | None = None
 
 
+@dataclass(frozen=True, kw_only=True)
 class TranspilationError(Exception):
     """Base class for all fatal errors produced by the transpilation pipeline.
 
@@ -45,19 +46,18 @@ class TranspilationError(Exception):
     to determine where a failure occurred without inspecting the stack trace.
     """
 
-    def __init__(
-        self,
-        message: str,
-        *,
-        location: SourceLocation | None = None,
-        cause: BaseException | None = None,
-    ) -> None: ...
+    location: SourceLocation | None = None
+    reason: str = ""
+    # Subclasses should more fields as needed.
 
-    @property
-    def message(self) -> str: ...
-
-    @property
-    def location(self) -> SourceLocation | None: ...
+    def __post_init__(self) -> None:
+        # Subclasses should override to use their additional fields in the message.
+        msg = (
+            f"{self.__class__.__name__}"
+            f" at {self.location or 'unspecified location'}"
+            f": {self.reason}" if self.reason else ""
+        )
+        Exception.__init__(self, msg)
 
 
 class ParseError(TranspilationError):

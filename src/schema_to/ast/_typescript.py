@@ -58,7 +58,7 @@ class UtilityType(str, Enum):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TypeScriptTypeAnnotation(AstNode):
     """A TypeScript type expression as a structured tree.
 
@@ -84,7 +84,7 @@ class TypeScriptTypeAnnotation(AstNode):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class JSDocComment(DocString):
     """A JSDoc comment block attached to a TypeScript declaration.
 
@@ -115,7 +115,7 @@ class JSDocComment(DocString):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ImportDecl(AstNode):
     """An ES module import statement.
 
@@ -137,7 +137,7 @@ class ImportDecl(AstNode):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PropertySignature(AstNode):
     """A property in an `InterfaceDecl` or object literal type.
 
@@ -156,7 +156,7 @@ class PropertySignature(AstNode):
     doc: JSDocComment | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class InterfaceDecl(AstNode):
     """A TypeScript `interface` declaration.
 
@@ -175,7 +175,7 @@ class InterfaceDecl(AstNode):
     exported: bool = True
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TypeAliasDecl(AstNode):
     """A `type Name = …` declaration.
 
@@ -192,7 +192,7 @@ class TypeAliasDecl(AstNode):
     exported: bool = True
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class EnumMember(AstNode):
     """A single member of a TypeScript `enum`.
 
@@ -207,7 +207,7 @@ class EnumMember(AstNode):
     doc: JSDocComment | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class EnumDecl(AstNode):
     """A TypeScript `enum` declaration.
 
@@ -226,7 +226,7 @@ class EnumDecl(AstNode):
     exported: bool = True
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FunctionDecl(AstNode):
     """A TypeScript function declaration (typically for endpoint signatures).
 
@@ -252,7 +252,7 @@ class FunctionDecl(AstNode):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TypeScriptModule(AstNode):
     """The root node of a TypeScript output file.
 

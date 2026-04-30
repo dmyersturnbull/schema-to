@@ -9,43 +9,58 @@ never assumes a filesystem is present.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Iterator
+from collections.abc import Iterator
+from dataclasses import dataclass
 
 __all__ = ["DataSource", "MediaType", "RawDocument"]
 
+from typing import NamedTuple
 
-@dataclass(frozen=True)
+
+class MediaTypeParam(NamedTuple):
+    key: str
+    value: str
+
+
+@dataclass(frozen=True, slots=True)
 class MediaType:
-    """An [IANA media type](https://www.iana.org/assignments/media-types/).
+    """An [IANA media type](https://www.iana.org/assignments/media-types/)."""
 
-    Attributes:
-        essence: The type/subtype string without parameters, e.g. `"application/json"`.
-        parameters: Optional media-type parameters, e.g. `{"charset": "utf-8"}`.
-    """
+    type: str
+    subtype: str
+    params: tuple[MediaTypeParam, ...] = ()
 
-    essence: str
-    parameters: tuple[tuple[str, str], ...] = ()
+    @property
+    def essence(self) -> str:
+        return f"{self.type}/{self.subtype}"
 
-    @classmethod
-    def json(cls) -> MediaType:
-        """Return `application/json`."""
-        ...
+    @property
+    def string(self) -> str:
+        return self.essence + "".join(f";{k}={v}" for k, v in self.params)
 
-    @classmethod
-    def yaml(cls) -> MediaType:
-        """Return `application/yaml` ([RFC 9512](https://www.rfc-editor.org/rfc/rfc9512))."""
-        ...
+    @property
+    def is_discrete(self) -> bool:
+        return self.type not in {"message", "multipart"}
+
+    def __str__(self) -> str:
+        return self.string
+
+
+class MediaTypes:
+    commonmark = MediaType("text", "markdown")
+    json = MediaType("application", "json")
+    python = MediaType("text", "x-python")
+    sql = MediaType("application", "sql")
+    typescript = MediaType("application", "typescript")
+    yaml = MediaType("application", "yaml")
 
     @classmethod
     def from_extension(cls, suffix: str) -> MediaType | None:
         """Infer a media type from a file extension such as `".json"` or `".yaml"`."""
         ...
 
-    def __str__(self) -> str: ...
 
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class RawDocument:
     """An unparsed document together with its provenance metadata.
 
@@ -84,9 +99,9 @@ class DataSource(ABC):
     @abstractmethod
     def source_id(self) -> str:
         """Stable identifier for this source (e.g. an absolute path or URL)."""
-        ...
+        raise NotImplementedError
 
     @abstractmethod
     def documents(self) -> Iterator[RawDocument]:
         """Yield each document provided by this source in an unspecified order."""
-        ...
+        raise NotImplementedError

@@ -107,7 +107,7 @@ class IndexMethod(str, Enum):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class DataType(AstNode):
     """A PostgreSQL column data type.
 
@@ -157,7 +157,7 @@ class DataType(AstNode):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ColumnConstraint(AstNode):
     """An inline constraint on a single column.
 
@@ -186,7 +186,7 @@ class ColumnConstraint(AstNode):
     constraint_name: str | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ColumnDef(AstNode):
     """A column definition within a `CREATE TABLE` statement.
 
@@ -208,7 +208,7 @@ class ColumnDef(AstNode):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TableConstraint(AstNode):
     """A table-level constraint declared after all column definitions.
 
@@ -240,7 +240,7 @@ class TableConstraint(AstNode):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class CreateTableStmt(AstNode):
     """A `CREATE TABLE` statement.
 
@@ -264,7 +264,7 @@ class CreateTableStmt(AstNode):
     source_ids: tuple[str, ...] = ()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class CreateIndexStmt(AstNode):
     """A `CREATE INDEX` statement.
 
@@ -287,7 +287,7 @@ class CreateIndexStmt(AstNode):
     where_expr: str | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class CommentOnStmt(AstNode):
     """A `COMMENT ON <object> IS '…'` statement.
 
@@ -307,7 +307,7 @@ class CommentOnStmt(AstNode):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SqlScript(AstNode):
     """The root node of a SQL migration script.
 

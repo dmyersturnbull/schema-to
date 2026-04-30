@@ -14,9 +14,10 @@ Vocabulary references:
 
 from __future__ import annotations
 
+import enum
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, StrEnum
 
 from schema_to.cst._base import CstNode, JsonValue, SourceRef
 
@@ -46,19 +47,19 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-class JsonSchemaType(str, Enum):
+class JsonSchemaType(StrEnum):
     """The seven primitive types recognised by JSON Schema.
 
     Corresponds to the allowed string values of the `type` keyword.
     """
 
-    STRING = "string"
-    NUMBER = "number"
-    INTEGER = "integer"
-    BOOLEAN = "boolean"
-    ARRAY = "array"
-    OBJECT = "object"
-    NULL = "null"
+    STRING = enum.auto()
+    NUMBER = enum.auto()
+    INTEGER = enum.auto()
+    BOOLEAN = enum.auto()
+    ARRAY = enum.auto()
+    OBJECT = enum.auto()
+    NULL = enum.auto()
 
 
 # A schema's `type` keyword is either a single type or a non-empty set of types.
@@ -72,7 +73,7 @@ type SchemaType = JsonSchemaType | frozenset[JsonSchemaType]
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class CoreKeywords:
     """Keywords from the [Core vocabulary](https://json-schema.org/draft/2020-12/json-schema-core#section-8).
 
@@ -99,7 +100,7 @@ class CoreKeywords:
     vocabulary: Mapping[str, bool] | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MetadataKeywords:
     """Keywords from the [Meta-Data vocabulary](https://json-schema.org/draft/2020-12/json-schema-validation#section-9).
 
@@ -124,30 +125,29 @@ class MetadataKeywords:
     examples: Sequence[JsonValue] | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ValidationKeywords:
     """Type-independent keywords from the [Validation vocabulary](https://json-schema.org/draft/2020-12/json-schema-validation).
 
     Attributes:
-        schema_type: `type` — restricts the instance to one or more primitive types.
+        type: `type` — restricts the instance to one or more primitive types.
         enum: `enum` — the instance must equal one of the listed values.
         const: `const` — the instance must equal this exact value.
     """
 
-    schema_type: SchemaType | None = None
+    type: SchemaType | None = None
     enum: Sequence[JsonValue] | None = None
-    # `const` is wrapped to distinguish "not set" from "set to null".
-    const: _ConstValue | None = None
+    const: ConstValue | None = None
 
 
-@dataclass(frozen=True)
-class _ConstValue:
+@dataclass(frozen=True, slots=True)
+class ConstValue:
     """Wrapper that distinguishes `const: null` from an absent `const` keyword."""
 
     value: JsonValue
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class NumericKeywords:
     """Numeric validation keywords from the [Validation vocabulary](https://json-schema.org/draft/2020-12/json-schema-validation#section-6.2).
 
@@ -166,7 +166,7 @@ class NumericKeywords:
     exclusive_minimum: int | float | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class StringKeywords:
     """String validation keywords from the [Validation vocabulary](https://json-schema.org/draft/2020-12/json-schema-validation#section-6.3).
 
@@ -181,7 +181,7 @@ class StringKeywords:
     pattern: str | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ArrayKeywords:
     """Array validation and applicator keywords.
 
@@ -208,7 +208,7 @@ class ArrayKeywords:
     unique_items: bool = False
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ObjectKeywords:
     """Object validation and applicator keywords.
 
@@ -235,7 +235,7 @@ class ObjectKeywords:
     max_properties: int | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ApplicatorKeywords:
     """Boolean logic applicators from the [Applicator vocabulary](https://json-schema.org/draft/2020-12/json-schema-core#section-10).
 
@@ -258,7 +258,7 @@ class ApplicatorKeywords:
     else_: JsonSchema | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class UnevaluatedKeywords:
     """Keywords from the [Unevaluated vocabulary](https://json-schema.org/draft/2020-12/json-schema-core#section-11).
 
@@ -276,7 +276,7 @@ class UnevaluatedKeywords:
     unevaluated_properties: JsonSchema | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ContentKeywords:
     """Keywords from the [Content vocabulary](https://json-schema.org/draft/2020-12/json-schema-validation#section-8).
 
@@ -293,7 +293,7 @@ class ContentKeywords:
     content_schema: JsonSchema | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FormatKeyword:
     """The `format` keyword from the [Format vocabulary](https://json-schema.org/draft/2020-12/json-schema-validation#section-7).
 
@@ -301,12 +301,12 @@ class FormatKeyword:
     meta-schema dialect in use.
 
     Attributes:
-        format_: The format name, e.g. `"date-time"`, `"uri"`, `"uuid"`.
+        format: The format name, e.g. `"date-time"`, `"uri"`, `"uuid"`.
         asserting: `True` when the `format-assertion` vocabulary is declared,
             making `format` a validator rather than a pure annotation.
     """
 
-    format_: str | None = None
+    format: str | None = None
     asserting: bool = False
 
 
@@ -315,7 +315,7 @@ class FormatKeyword:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class BooleanSchema(CstNode):
     """A JSON Schema that is either always-valid (`true`) or never-valid (`false`).
 
@@ -329,7 +329,7 @@ class BooleanSchema(CstNode):
     source_ref: SourceRef | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ObjectSchema(CstNode):
     """A JSON Schema expressed as a keyword-bearing object.
 
@@ -347,7 +347,7 @@ class ObjectSchema(CstNode):
         applicator: Boolean logic applicators (`allOf`, `anyOf`, `if`/`then`, …).
         unevaluated: Unevaluated-items/properties keywords.
         content: Content-encoding annotations.
-        format_annotation: The `format` keyword.
+        formatannotation: The `format` keyword.
         extensions: All `x-*` extension keywords, preserving their raw JSON values.
         source_ref: Origin in the source document.
     """
@@ -362,7 +362,7 @@ class ObjectSchema(CstNode):
     applicator: ApplicatorKeywords = field(default_factory=ApplicatorKeywords)
     unevaluated: UnevaluatedKeywords = field(default_factory=UnevaluatedKeywords)
     content: ContentKeywords = field(default_factory=ContentKeywords)
-    format_annotation: FormatKeyword = field(default_factory=FormatKeyword)
+    formatannotation: FormatKeyword = field(default_factory=FormatKeyword)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
     source_ref: SourceRef | None = None
 
@@ -371,7 +371,7 @@ class ObjectSchema(CstNode):
 type JsonSchema = BooleanSchema | ObjectSchema
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class JsonSchemaDocument(CstNode):
     """The root of a parsed JSON Schema 2020-12 document.
 

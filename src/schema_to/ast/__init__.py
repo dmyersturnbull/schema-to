@@ -6,7 +6,7 @@ Three independent sub-modules, one per supported output language:
 - `_typescript` — TypeScript interfaces, type aliases, and enums.
 - `_sql` — PostgreSQL DDL statements.
 
-All AST nodes are immutable `@dataclass(frozen=True)` subclasses of `AstNode`.
+All AST nodes are immutable `@dataclass(frozen=True, slots=True)` subclasses of `AstNode`.
 """
 
 from schema_to.ast._base import AstNode, DocString, Visibility

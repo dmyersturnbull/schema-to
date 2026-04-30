@@ -97,7 +97,7 @@ class ApiKeyLocation(str, Enum):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Contact:
     """[Contact Object](https://spec.openapis.org/oas/v3.1.0#contact-object).
 
@@ -114,7 +114,7 @@ class Contact:
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class License:
     """[License Object](https://spec.openapis.org/oas/v3.1.0#license-object).
 
@@ -131,7 +131,7 @@ class License:
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Info:
     """[Info Object](https://spec.openapis.org/oas/v3.1.0#info-object).
 
@@ -156,7 +156,7 @@ class Info:
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ServerVariable:
     """[Server Variable Object](https://spec.openapis.org/oas/v3.1.0#server-variable-object).
 
@@ -173,7 +173,7 @@ class ServerVariable:
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Server:
     """[Server Object](https://spec.openapis.org/oas/v3.1.0#server-object).
 
@@ -190,7 +190,7 @@ class Server:
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ExternalDocumentation:
     """[External Documentation Object](https://spec.openapis.org/oas/v3.1.0#external-documentation-object).
 
@@ -205,7 +205,7 @@ class ExternalDocumentation:
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Tag:
     """[Tag Object](https://spec.openapis.org/oas/v3.1.0#tag-object).
 
@@ -227,7 +227,7 @@ class Tag:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Header:
     """[Header Object](https://spec.openapis.org/oas/v3.1.0#header-object).
 
@@ -246,7 +246,7 @@ class Header:
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Encoding:
     """[Encoding Object](https://spec.openapis.org/oas/v3.1.0#encoding-object).
 
@@ -267,7 +267,7 @@ class Encoding:
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MediaTypeObject:
     """[Media Type Object](https://spec.openapis.org/oas/v3.1.0#media-type-object).
 
@@ -286,7 +286,7 @@ class MediaTypeObject:
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Parameter:
     """[Parameter Object](https://spec.openapis.org/oas/v3.1.0#parameter-object).
 
@@ -317,7 +317,7 @@ class Parameter:
     source_ref: SourceRef | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class RequestBody:
     """[Request Body Object](https://spec.openapis.org/oas/v3.1.0#request-body-object).
 
@@ -336,7 +336,7 @@ class RequestBody:
     source_ref: SourceRef | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Response:
     """[Response Object](https://spec.openapis.org/oas/v3.1.0#response-object).
 
@@ -357,7 +357,7 @@ class Response:
     source_ref: SourceRef | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Link:
     """[Link Object](https://spec.openapis.org/oas/v3.1.0#link-object).
 
@@ -385,7 +385,7 @@ class Link:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Operation:
     """[Operation Object](https://spec.openapis.org/oas/v3.1.0#operation-object).
 
@@ -423,7 +423,7 @@ class Operation:
 type SecurityRequirement = Mapping[str, Sequence[str]]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PathItem:
     """[Path Item Object](https://spec.openapis.org/oas/v3.1.0#path-item-object).
 
@@ -451,7 +451,7 @@ class PathItem:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class OAuthFlow:
     """A single [OAuth Flow Object](https://spec.openapis.org/oas/v3.1.0#oauth-flow-object).
 
@@ -470,7 +470,7 @@ class OAuthFlow:
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class OAuthFlows:
     """[OAuth Flows Object](https://spec.openapis.org/oas/v3.1.0#oauth-flows-object).
 
@@ -489,7 +489,7 @@ class OAuthFlows:
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SecurityScheme:
     """[Security Scheme Object](https://spec.openapis.org/oas/v3.1.0#security-scheme-object).
 
@@ -521,7 +521,7 @@ class SecurityScheme:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Components:
     """[Components Object](https://spec.openapis.org/oas/v3.1.0#components-object).
 
@@ -550,7 +550,7 @@ class Components:
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class OpenApiDocument(CstNode):
     """The root of a parsed OpenAPI 3.1 document.
 
