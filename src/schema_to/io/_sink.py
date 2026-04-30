@@ -52,4 +52,5 @@ class DataSink(ABC):
 
     def write_all(self, artifacts: Iterable[OutputArtifact]) -> None:
         """Write every artifact from an iterable by delegating to `write`."""
-        ...
+        for artifact in artifacts:
+            self.write(artifact)

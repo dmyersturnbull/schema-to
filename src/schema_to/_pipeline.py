@@ -87,14 +87,47 @@ class Stage[A, B](ABC):
 
     def then[C](self, other: Stage[B, C]) -> Stage[A, C]:
         """Compose `self` with `other`, running `other` only if `self` succeeds."""
-        ...
+        return _ComposedStage(self, other)  # type: ignore[return-value]
 
     def map_error(
         self,
         f: Callable[[TranspilationError], TranspilationError],
     ) -> Stage[A, B]:
         """Transform every error produced by this stage without changing its type."""
-        ...
+        return _MappedErrorStage(self, f)  # type: ignore[return-value]
+
+
+# `Stage.then` and `Stage.map_error` reference these helpers by name; the
+# references are resolved at *call* time (not class-definition time), so it is
+# safe to define the helpers here, after `Stage`.
+
+
+class _ComposedStage(Stage):  # type: ignore[type-arg]
+    """Internal: result of `Stage.then()`."""
+
+    def __init__(self, first: object, second: object) -> None:
+        self._first = first
+        self._second = second
+
+    def apply(self, input: object) -> object:  # type: ignore[override]
+        r = self._first.apply(input)  # type: ignore[attr-defined]
+        if isinstance(r, Err):
+            return r
+        return self._second.apply(r.value)  # type: ignore[attr-defined]
+
+
+class _MappedErrorStage(Stage):  # type: ignore[type-arg]
+    """Internal: result of `Stage.map_error()`."""
+
+    def __init__(self, inner: object, f: object) -> None:
+        self._inner = inner
+        self._f = f
+
+    def apply(self, input: object) -> object:  # type: ignore[override]
+        r = self._inner.apply(input)  # type: ignore[attr-defined]
+        if isinstance(r, Err):
+            return Err(tuple(self._f(e) for e in r.errors))  # type: ignore[operator]
+        return r
 
 
 # ---------------------------------------------------------------------------
@@ -202,6 +235,11 @@ class Transpiler(ABC):
         """Run the full parse → resolve → generate → reify pipeline."""
         raise NotImplementedError
 
+    @property
+    def warnings(self) -> Sequence[TranspilationWarning]:
+        """Non-fatal diagnostics from the most recent `transpile` call."""
+        return ()
+
 
 class TypedTranspiler[CstT: CstNode, AstT: AstNode](Transpiler):
     """A fully-typed transpiler with individually-overridable stage methods.
@@ -253,7 +291,16 @@ class TypedTranspiler[CstT: CstNode, AstT: AstNode](Transpiler):
 
     def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
         """Run all four stages sequentially, short-circuiting on any `Err`."""
-        ...
+        r1 = self.parse(document)
+        if isinstance(r1, Err):
+            return r1
+        r2 = self.resolve(r1.value)
+        if isinstance(r2, Err):
+            return r2
+        r3 = self.generate(r2.value)
+        if isinstance(r3, Err):
+            return r3
+        return self.reify(r3.value)
 
 
 # ---------------------------------------------------------------------------
@@ -316,4 +363,41 @@ class Pipeline:
         Returns `Ok[ProcessSummary]` if every document was transpiled without
         fatal errors, or `Err` with all accumulated errors otherwise.
         """
-        ...
+        documents_read = 0
+        artifacts_written = 0
+        errors: list[TranspilationError] = []
+        warnings: list[TranspilationWarning] = []
+
+        for source in self.sources:
+            for document in source.documents():
+                documents_read += 1
+                transpiler = next(
+                    (t for t in self.transpilers if t.accepts(document)),
+                    None,
+                )
+                if transpiler is None:
+                    warnings.append(
+                        TranspilationWarning(
+                            f"No transpiler accepts {document.source_id!r}; skipping.",
+                            code="no-transpiler",
+                        )
+                    )
+                    continue
+                result = transpiler.transpile(document)
+                warnings.extend(transpiler.warnings)
+                if isinstance(result, Err):
+                    errors.extend(result.errors)
+                    continue
+                for artifact in result.value:
+                    self.sink.write(artifact)
+                    artifacts_written += 1
+
+        if errors:
+            return Err(tuple(errors))
+        return Ok(
+            ProcessSummary(
+                documents_read=documents_read,
+                artifacts_written=artifacts_written,
+                warnings=tuple(warnings),
+            )
+        )

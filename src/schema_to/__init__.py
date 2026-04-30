@@ -43,13 +43,21 @@ from schema_to._errors import (
 )
 from schema_to._pipeline import Pipeline, ProcessSummary, Transpiler, TypedTranspiler
 from schema_to._result import Err, Ok, Result
+from schema_to.io._file import DirectoryDataSource, FileDataSink, FileDataSource
+from schema_to.io._memory import InMemoryDataSink, InMemoryDataSource
 from schema_to.io._sink import DataSink, OutputArtifact
 from schema_to.io._source import DataSource, MediaType, RawDocument
+from schema_to.parse._json_schema import JsonSchemaParser
 
 __all__ = [
     # I/O
     "DataSink",
     "DataSource",
+    "DirectoryDataSource",
+    "FileDataSink",
+    "FileDataSource",
+    "InMemoryDataSink",
+    "InMemoryDataSource",
     "MediaType",
     "OutputArtifact",
     "RawDocument",
@@ -71,4 +79,6 @@ __all__ = [
     "SourceLocation",
     "TranspilationError",
     "TranspilationWarning",
+    # Parsers
+    "JsonSchemaParser",
 ]

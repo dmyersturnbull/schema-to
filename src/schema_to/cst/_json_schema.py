@@ -25,8 +25,10 @@ __all__ = [
     "ApplicatorKeywords",
     "ArrayKeywords",
     "BooleanSchema",
+    "ConstValue",
     "ContentKeywords",
     "CoreKeywords",
+    "DefaultValue",
     "FormatKeyword",
     "JsonSchema",
     "JsonSchemaDocument",
@@ -118,7 +120,7 @@ class MetadataKeywords:
 
     title: str | None = None
     description: str | None = None
-    default: JsonValue | None = None
+    default: DefaultValue | None = None
     deprecated: bool = False
     read_only: bool = False
     write_only: bool = False
@@ -138,6 +140,17 @@ class ValidationKeywords:
     type: SchemaType | None = None
     enum: Sequence[JsonValue] | None = None
     const: ConstValue | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DefaultValue:
+    """Wrapper that distinguishes `default: null` from an absent `default` keyword.
+
+    Without this wrapper, `MetadataKeywords.default = None` would be ambiguous:
+    it could mean the keyword is absent, or that the default JSON value is `null`.
+    """
+
+    value: JsonValue
 
 
 @dataclass(frozen=True, slots=True)
@@ -362,7 +375,7 @@ class ObjectSchema(CstNode):
     applicator: ApplicatorKeywords = field(default_factory=ApplicatorKeywords)
     unevaluated: UnevaluatedKeywords = field(default_factory=UnevaluatedKeywords)
     content: ContentKeywords = field(default_factory=ContentKeywords)
-    formatannotation: FormatKeyword = field(default_factory=FormatKeyword)
+    format_annotation: FormatKeyword = field(default_factory=FormatKeyword)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
     source_ref: SourceRef | None = None
 

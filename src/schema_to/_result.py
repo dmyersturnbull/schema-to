@@ -10,10 +10,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, final
+from typing import final
 
-if TYPE_CHECKING:
-    from schema_to._errors import TranspilationError
+from schema_to._errors import TranspilationError
 
 __all__ = ["Err", "Ok", "Result"]
 
@@ -27,11 +26,11 @@ class Ok[T]:
 
     def map[U](self, f: Callable[[T], U]) -> Ok[U]:
         """Apply `f` to the wrapped value, returning a new `Ok`."""
-        ...
+        return Ok(f(self.value))
 
     def flat_map[U](self, f: Callable[[T], Ok[U] | Err]) -> Ok[U] | Err:
         """Chain a fallible computation; propagates `Err` from `f`."""
-        ...
+        return f(self.value)
 
     @property
     def is_ok(self) -> bool:
@@ -64,7 +63,7 @@ class Err:
 
     def merge(self, other: Err) -> Err:
         """Combine two `Err` values, accumulating all errors."""
-        ...
+        return Err(self.errors + other.errors)
 
 
 type Result[T] = Ok[T] | Err
