@@ -9,7 +9,9 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass
 
-__all__ = ["CstNode", "SourceRef"]
+__all__ = ["CstNode", "JsonValue", "SourceRef"]
+
+type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
 
 
 @dataclass(frozen=True, slots=True)

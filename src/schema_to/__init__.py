@@ -46,7 +46,7 @@ from schema_to._result import Err, Ok, Result
 from schema_to.io._file import DirectoryDataSource, FileDataSink, FileDataSource
 from schema_to.io._memory import InMemoryDataSink, InMemoryDataSource
 from schema_to.io._sink import DataSink, OutputArtifact
-from schema_to.io._source import DataSource, MediaType, RawDocument
+from schema_to.io._source import DataSource, MediaType, MediaTypeParam, MediaTypes, RawDocument
 from schema_to.parse._json_schema import JsonSchemaParser
 
 __all__ = [
@@ -59,6 +59,8 @@ __all__ = [
     "InMemoryDataSink",
     "InMemoryDataSource",
     "MediaType",
+    "MediaTypeParam",
+    "MediaTypes",
     "OutputArtifact",
     "RawDocument",
     # Pipeline
