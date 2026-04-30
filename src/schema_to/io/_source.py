@@ -11,10 +11,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass
-
-__all__ = ["DataSource", "MediaType", "RawDocument"]
-
 from typing import NamedTuple
+
+__all__ = ["DataSource", "MediaType", "MediaTypeParam", "MediaTypes", "RawDocument"]
 
 
 class MediaTypeParam(NamedTuple):
@@ -45,19 +44,25 @@ class MediaType:
     def __str__(self) -> str:
         return self.string
 
+    @classmethod
+    def from_extension(cls, suffix: str) -> MediaType | None:
+        """Infer a media type from a file extension such as `".json"` or `".yaml"`."""
+        return {
+            ".json": MediaTypes.json,
+            ".yaml": MediaTypes.yaml,
+            ".yml": MediaTypes.yaml,
+        }.get(suffix.lower())
+
 
 class MediaTypes:
+    """Common media type constants."""
+
     commonmark = MediaType("text", "markdown")
     json = MediaType("application", "json")
     python = MediaType("text", "x-python")
     sql = MediaType("application", "sql")
     typescript = MediaType("application", "typescript")
     yaml = MediaType("application", "yaml")
-
-    @classmethod
-    def from_extension(cls, suffix: str) -> MediaType | None:
-        """Infer a media type from a file extension such as `".json"` or `".yaml"`."""
-        ...
 
 
 @dataclass(frozen=True, slots=True)

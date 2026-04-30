@@ -38,7 +38,6 @@ class TranspilationWarning:
     location: SourceLocation | None = None
 
 
-@dataclass(frozen=True, kw_only=True)
 class TranspilationError(Exception):
     """Base class for all fatal errors produced by the transpilation pipeline.
 
@@ -46,18 +45,26 @@ class TranspilationError(Exception):
     to determine where a failure occurred without inspecting the stack trace.
     """
 
-    location: SourceLocation | None = None
-    reason: str = ""
-    # Subclasses should more fields as needed.
+    def __init__(
+        self,
+        message: str,
+        *,
+        location: SourceLocation | None = None,
+        cause: BaseException | None = None,
+    ) -> None:
+        super().__init__(message)
+        self._message = message
+        self._location = location
+        if cause is not None:
+            self.__cause__ = cause
 
-    def __post_init__(self) -> None:
-        # Subclasses should override to use their additional fields in the message.
-        msg = (
-            f"{self.__class__.__name__}"
-            f" at {self.location or 'unspecified location'}"
-            f": {self.reason}" if self.reason else ""
-        )
-        Exception.__init__(self, msg)
+    @property
+    def message(self) -> str:
+        return self._message
+
+    @property
+    def location(self) -> SourceLocation | None:
+        return self._location
 
 
 class ParseError(TranspilationError):
