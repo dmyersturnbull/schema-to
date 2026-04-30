@@ -1,0 +1,70 @@
+"""Minimal `Result[T]` sum type for error-accumulating computations.
+
+A `Result[T]` is either `Ok[T]` (success) or `Err` (one or more fatal errors).
+It models the same concept as `Either[NonEmptyList[TranspilationError], T]` in
+Haskell/Scala, providing `map` and `flat_map` for sequential composition that
+short-circuits on the first failure.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, final
+
+if TYPE_CHECKING:
+    from schema_to._errors import TranspilationError
+
+__all__ = ["Err", "Ok", "Result"]
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class Ok[T]:
+    """Successful result carrying a value of type `T`."""
+
+    value: T
+
+    def map[U](self, f: Callable[[T], U]) -> Ok[U]:
+        """Apply `f` to the wrapped value, returning a new `Ok`."""
+        ...
+
+    def flat_map[U](self, f: Callable[[T], Ok[U] | Err]) -> Ok[U] | Err:
+        """Chain a fallible computation; propagates `Err` from `f`."""
+        ...
+
+    @property
+    def is_ok(self) -> bool:
+        return True
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class Err:
+    """Failed result carrying at least one `TranspilationError`.
+
+    Multiple errors are accumulated so callers receive a complete diagnostic
+    report rather than stopping at the first problem.
+
+    Attributes:
+        errors: Non-empty tuple of accumulated errors.
+    """
+
+    errors: tuple[TranspilationError, ...]
+
+    def map(self, f: object) -> Err:
+        return self
+
+    def flat_map(self, f: object) -> Err:
+        return self
+
+    @property
+    def is_ok(self) -> bool:
+        return False
+
+    def merge(self, other: Err) -> Err:
+        """Combine two `Err` values, accumulating all errors."""
+        ...
+
+
+type Result[T] = Ok[T] | Err

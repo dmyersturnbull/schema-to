@@ -10,6 +10,11 @@ readme = { file = "README.md", content-type = "text/markdown" }
 license = { text = "MIT" }
 dependencies = [
   "niquests>=3.18",
+  "orjson>=3.11",
+  "py-yaml12>=0.1",          # YAML 1.2 library
+  "pydantic>=2.13",
+  "referencing>=0.37",       # JSON Schema $ref / $dynamicRef resolution
+  "typer>=0.25",             # CLI framework
 ]
 
 [project.scripts]
