@@ -1,15 +1,9 @@
 """Concrete Syntax Tree for [JSON Schema 2020-12](https://json-schema.org/specification).
 
-The tree mirrors the specification's vocabulary structure: each vocabulary's
-keywords are grouped into a dedicated frozen dataclass, and an `ObjectSchema`
-composes them all.  This design lets consumers pattern-match or pass only the
-vocabulary slices they care about.
-
-Vocabulary references:
-- [Core](https://json-schema.org/draft/2020-12/json-schema-core)
-- [Validation](https://json-schema.org/draft/2020-12/json-schema-validation)
-- [Applicator](https://json-schema.org/draft/2020-12/json-schema-core#section-10)
-- [Unevaluated](https://json-schema.org/draft/2020-12/json-schema-core#section-11)
+Each node type holds exactly the set of keywords defined by the specification,
+grouped by vocabulary.  The flat `ObjectSchema` avoids indirection through
+vocabulary sub-objects so that serializers and parsers can iterate
+`dataclasses.fields()` directly.
 """
 
 from __future__ import annotations
@@ -17,30 +11,19 @@ from __future__ import annotations
 import enum
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from enum import Enum, StrEnum
+from enum import StrEnum
 
 from schema_to.cst._base import CstNode, JsonValue, SourceRef
 
 __all__ = [
-    "ApplicatorKeywords",
-    "ArrayKeywords",
     "BooleanSchema",
     "ConstValue",
-    "ContentKeywords",
-    "CoreKeywords",
     "DefaultValue",
-    "FormatKeyword",
     "JsonSchema",
     "JsonSchemaDocument",
     "JsonSchemaType",
-    "MetadataKeywords",
-    "NumericKeywords",
-    "ObjectKeywords",
     "ObjectSchema",
     "SchemaType",
-    "StringKeywords",
-    "UnevaluatedKeywords",
-    "ValidationKeywords",
 ]
 
 
@@ -69,258 +52,22 @@ type SchemaType = JsonSchemaType | frozenset[JsonSchemaType]
 
 
 # ---------------------------------------------------------------------------
-# Vocabulary keyword groups
-# Each group is an independent frozen dataclass; all fields default to None /
-# empty so that a "blank" instance can be constructed with no arguments.
+# Wrapper types for distinguishing absent keywords from null values
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
-class CoreKeywords:
-    """Keywords from the [Core vocabulary](https://json-schema.org/draft/2020-12/json-schema-core#section-8).
-
-    Attributes:
-        id: `$id` — the schema's canonical URI.
-        schema: `$schema` — the meta-schema URI declaring which dialect is in use.
-        anchor: `$anchor` — a plain-name anchor for `$ref` targeting.
-        dynamic_anchor: `$dynamicAnchor` — anchor that participates in dynamic resolution.
-        ref: `$ref` — a URI reference to another schema.
-        dynamic_ref: `$dynamicRef` — a URI reference resolved via the dynamic scope.
-        defs: `$defs` — named schema definitions reusable via `$ref`.
-        comment: `$comment` — free-form annotation, never affects validation.
-        vocabulary: `$vocabulary` — maps vocabulary URIs to required/optional flags.
-    """
-
-    id: str | None = None
-    schema: str | None = None
-    anchor: str | None = None
-    dynamic_anchor: str | None = None
-    ref: str | None = None
-    dynamic_ref: str | None = None
-    defs: Mapping[str, JsonSchema] | None = None
-    comment: str | None = None
-    vocabulary: Mapping[str, bool] | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class MetadataKeywords:
-    """Keywords from the [Meta-Data vocabulary](https://json-schema.org/draft/2020-12/json-schema-validation#section-9).
-
-    These keywords carry human-readable annotations and do not affect validation.
-
-    Attributes:
-        title: Short label for the schema.
-        description: Longer prose description (CommonMark allowed).
-        default: A default JSON value that is valid against this schema.
-        deprecated: Signals that the instance's usage is discouraged.
-        read_only: The value should only be set by the server.
-        write_only: The value should only be set by the client.
-        examples: Example values valid against this schema.
-    """
-
-    title: str | None = None
-    description: str | None = None
-    default: DefaultValue | None = None
-    deprecated: bool = False
-    read_only: bool = False
-    write_only: bool = False
-    examples: Sequence[JsonValue] | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ValidationKeywords:
-    """Type-independent keywords from the [Validation vocabulary](https://json-schema.org/draft/2020-12/json-schema-validation).
-
-    Attributes:
-        type: `type` — restricts the instance to one or more primitive types.
-        enum: `enum` — the instance must equal one of the listed values.
-        const: `const` — the instance must equal this exact value.
-    """
-
-    type: SchemaType | None = None
-    enum: Sequence[JsonValue] | None = None
-    const: ConstValue | None = None
-
-
-@dataclass(frozen=True, slots=True)
 class DefaultValue:
-    """Wrapper that distinguishes `default: null` from an absent `default` keyword.
-
-    Without this wrapper, `MetadataKeywords.default = None` would be ambiguous:
-    it could mean the keyword is absent, or that the default JSON value is `null`.
-    """
+    """Distinguishes `default: null` from an absent `default` keyword."""
 
     value: JsonValue
 
 
 @dataclass(frozen=True, slots=True)
 class ConstValue:
-    """Wrapper that distinguishes `const: null` from an absent `const` keyword."""
+    """Distinguishes `const: null` from an absent `const` keyword."""
 
     value: JsonValue
-
-
-@dataclass(frozen=True, slots=True)
-class NumericKeywords:
-    """Numeric validation keywords from the [Validation vocabulary](https://json-schema.org/draft/2020-12/json-schema-validation#section-6.2).
-
-    Attributes:
-        multiple_of: `multipleOf` — the instance must be a multiple of this value.
-        maximum: `maximum` — inclusive upper bound.
-        exclusive_maximum: `exclusiveMaximum` — exclusive upper bound.
-        minimum: `minimum` — inclusive lower bound.
-        exclusive_minimum: `exclusiveMinimum` — exclusive lower bound.
-    """
-
-    multiple_of: int | float | None = None
-    maximum: int | float | None = None
-    exclusive_maximum: int | float | None = None
-    minimum: int | float | None = None
-    exclusive_minimum: int | float | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class StringKeywords:
-    """String validation keywords from the [Validation vocabulary](https://json-schema.org/draft/2020-12/json-schema-validation#section-6.3).
-
-    Attributes:
-        max_length: `maxLength` — maximum number of Unicode code points.
-        min_length: `minLength` — minimum number of Unicode code points.
-        pattern: `pattern` — ECMA-262 regular expression the string must match.
-    """
-
-    max_length: int | None = None
-    min_length: int | None = None
-    pattern: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ArrayKeywords:
-    """Array validation and applicator keywords.
-
-    Combines the `items`/`prefixItems` applicators with array-specific validators.
-
-    Attributes:
-        prefix_items: `prefixItems` — schemas for positional (tuple) items.
-        items: `items` — schema for items beyond those covered by `prefixItems`.
-        contains: `contains` — at least one item must match this schema.
-        min_contains: `minContains` — minimum number of items matching `contains`.
-        max_contains: `maxContains` — maximum number of items matching `contains`.
-        min_items: `minItems` — minimum array length.
-        max_items: `maxItems` — maximum array length.
-        unique_items: `uniqueItems` — all items must be unique when `true`.
-    """
-
-    prefix_items: Sequence[JsonSchema] | None = None
-    items: JsonSchema | None = None
-    contains: JsonSchema | None = None
-    min_contains: int | None = None
-    max_contains: int | None = None
-    min_items: int | None = None
-    max_items: int | None = None
-    unique_items: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class ObjectKeywords:
-    """Object validation and applicator keywords.
-
-    Attributes:
-        properties: `properties` — schemas for named properties.
-        pattern_properties: `patternProperties` — schemas keyed by regex patterns.
-        additional_properties: `additionalProperties` — schema for unlisted properties.
-        property_names: `propertyNames` — every property name must match this schema.
-        required: `required` — set of property names that must be present.
-        dependent_required: `dependentRequired` — conditional required property sets.
-        dependent_schemas: `dependentSchemas` — schemas applied when a key is present.
-        min_properties: `minProperties` — minimum number of properties.
-        max_properties: `maxProperties` — maximum number of properties.
-    """
-
-    properties: Mapping[str, JsonSchema] | None = None
-    pattern_properties: Mapping[str, JsonSchema] | None = None
-    additional_properties: JsonSchema | None = None
-    property_names: JsonSchema | None = None
-    required: frozenset[str] | None = None
-    dependent_required: Mapping[str, frozenset[str]] | None = None
-    dependent_schemas: Mapping[str, JsonSchema] | None = None
-    min_properties: int | None = None
-    max_properties: int | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ApplicatorKeywords:
-    """Boolean logic applicators from the [Applicator vocabulary](https://json-schema.org/draft/2020-12/json-schema-core#section-10).
-
-    Attributes:
-        all_of: `allOf` — instance must be valid against all schemas.
-        any_of: `anyOf` — instance must be valid against at least one schema.
-        one_of: `oneOf` — instance must be valid against exactly one schema.
-        not_: `not` — instance must be invalid against this schema.
-        if_: `if` — conditional applicator guard.
-        then: `then` — applied when `if_` succeeds.
-        else_: `else` — applied when `if_` fails.
-    """
-
-    all_of: Sequence[JsonSchema] | None = None
-    any_of: Sequence[JsonSchema] | None = None
-    one_of: Sequence[JsonSchema] | None = None
-    not_: JsonSchema | None = None
-    if_: JsonSchema | None = None
-    then: JsonSchema | None = None
-    else_: JsonSchema | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class UnevaluatedKeywords:
-    """Keywords from the [Unevaluated vocabulary](https://json-schema.org/draft/2020-12/json-schema-core#section-11).
-
-    These keywords apply schemas to properties/items not reached by any other
-    applicator, making them useful for catch-all validation.
-
-    Attributes:
-        unevaluated_items: `unevaluatedItems` — applied to items not matched by
-            `prefixItems`, `items`, or `contains` in any subschema.
-        unevaluated_properties: `unevaluatedProperties` — applied to properties
-            not matched by `properties`, `patternProperties`, or `additionalProperties`.
-    """
-
-    unevaluated_items: JsonSchema | None = None
-    unevaluated_properties: JsonSchema | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ContentKeywords:
-    """Keywords from the [Content vocabulary](https://json-schema.org/draft/2020-12/json-schema-validation#section-8).
-
-    These annotate strings that carry encoded content (e.g. Base64, JSON-in-string).
-
-    Attributes:
-        content_encoding: `contentEncoding` — e.g. `"base64"`.
-        content_media_type: `contentMediaType` — media type of the decoded content.
-        content_schema: `contentSchema` — schema for the decoded content.
-    """
-
-    content_encoding: str | None = None
-    content_media_type: str | None = None
-    content_schema: JsonSchema | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class FormatKeyword:
-    """The `format` keyword from the [Format vocabulary](https://json-schema.org/draft/2020-12/json-schema-validation#section-7).
-
-    Whether `format` triggers assertion or is annotation-only depends on the
-    meta-schema dialect in use.
-
-    Attributes:
-        format: The format name, e.g. `"date-time"`, `"uri"`, `"uuid"`.
-        asserting: `True` when the `format-assertion` vocabulary is declared,
-            making `format` a validator rather than a pure annotation.
-    """
-
-    format: str | None = None
-    asserting: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -330,13 +77,7 @@ class FormatKeyword:
 
 @dataclass(frozen=True, slots=True)
 class BooleanSchema(CstNode):
-    """A JSON Schema that is either always-valid (`true`) or never-valid (`false`).
-
-    Attributes:
-        value: `True` means the schema validates every instance;
-            `False` means it rejects every instance.
-        source_ref: Origin in the source document.
-    """
+    """A JSON Schema that is always-valid (`true`) or never-valid (`false`)."""
 
     value: bool
     source_ref: SourceRef | None = None
@@ -346,36 +87,94 @@ class BooleanSchema(CstNode):
 class ObjectSchema(CstNode):
     """A JSON Schema expressed as a keyword-bearing object.
 
-    Keywords are grouped by vocabulary into dedicated sub-objects so that
-    consumers can selectively access or pattern-match on vocabulary slices.
+    Fields are ordered by vocabulary: core, metadata, validation, numeric,
+    string, array, object, applicator, unevaluated, content, format.
+    Each field maps 1-to-1 to the corresponding JSON Schema keyword.
 
-    Attributes:
-        core: Core vocabulary keywords (`$id`, `$ref`, `$defs`, …).
-        metadata: Metadata annotations (`title`, `description`, `examples`, …).
-        validation: General validation constraints (`type`, `enum`, `const`).
-        numeric: Numeric constraints (`minimum`, `maximum`, `multipleOf`, …).
-        string: String constraints (`minLength`, `maxLength`, `pattern`).
-        array: Array applicators and constraints.
-        object: Object applicators and constraints.
-        applicator: Boolean logic applicators (`allOf`, `anyOf`, `if`/`then`, …).
-        unevaluated: Unevaluated-items/properties keywords.
-        content: Content-encoding annotations.
-        formatannotation: The `format` keyword.
-        extensions: All `x-*` extension keywords, preserving their raw JSON values.
-        source_ref: Origin in the source document.
+    Fields named with a trailing underscore (`not_`, `if_`, `else_`) avoid
+    collisions with Python reserved words.
     """
 
-    core: CoreKeywords = field(default_factory=CoreKeywords)
-    metadata: MetadataKeywords = field(default_factory=MetadataKeywords)
-    validation: ValidationKeywords = field(default_factory=ValidationKeywords)
-    numeric: NumericKeywords = field(default_factory=NumericKeywords)
-    string: StringKeywords = field(default_factory=StringKeywords)
-    array: ArrayKeywords = field(default_factory=ArrayKeywords)
-    object: ObjectKeywords = field(default_factory=ObjectKeywords)
-    applicator: ApplicatorKeywords = field(default_factory=ApplicatorKeywords)
-    unevaluated: UnevaluatedKeywords = field(default_factory=UnevaluatedKeywords)
-    content: ContentKeywords = field(default_factory=ContentKeywords)
-    format_annotation: FormatKeyword = field(default_factory=FormatKeyword)
+    # -- Core vocabulary --------------------------------------------------
+    id: str | None = None                              # $id
+    schema: str | None = None                          # $schema
+    anchor: str | None = None                          # $anchor
+    dynamic_anchor: str | None = None                  # $dynamicAnchor
+    ref: str | None = None                             # $ref
+    dynamic_ref: str | None = None                     # $dynamicRef
+    defs: Mapping[str, JsonSchema] | None = None       # $defs
+    comment: str | None = None                         # $comment
+    vocabulary: Mapping[str, bool] | None = None       # $vocabulary
+
+    # -- Metadata vocabulary ----------------------------------------------
+    title: str | None = None
+    description: str | None = None
+    default: DefaultValue | None = None                # null-safe wrapper
+    deprecated: bool = False
+    read_only: bool = False                            # readOnly
+    write_only: bool = False                           # writeOnly
+    examples: Sequence[JsonValue] | None = None
+
+    # -- Validation vocabulary --------------------------------------------
+    type: SchemaType | None = None
+    enum: Sequence[JsonValue] | None = None
+    const: ConstValue | None = None                    # null-safe wrapper
+
+    # -- Numeric validation -----------------------------------------------
+    multiple_of: float | None = None                   # multipleOf
+    maximum: float | None = None
+    exclusive_maximum: float | None = None             # exclusiveMaximum
+    minimum: float | None = None
+    exclusive_minimum: float | None = None             # exclusiveMinimum
+
+    # -- String validation ------------------------------------------------
+    max_length: int | None = None                      # maxLength
+    min_length: int | None = None                      # minLength
+    pattern: str | None = None
+
+    # -- Array keywords ---------------------------------------------------
+    prefix_items: Sequence[JsonSchema] | None = None   # prefixItems
+    items: JsonSchema | None = None
+    contains: JsonSchema | None = None
+    min_contains: int | None = None                    # minContains
+    max_contains: int | None = None                    # maxContains
+    min_items: int | None = None                       # minItems
+    max_items: int | None = None                       # maxItems
+    unique_items: bool = False                         # uniqueItems
+
+    # -- Object keywords --------------------------------------------------
+    properties: Mapping[str, JsonSchema] | None = None
+    pattern_properties: Mapping[str, JsonSchema] | None = None    # patternProperties
+    additional_properties: JsonSchema | None = None               # additionalProperties
+    property_names: JsonSchema | None = None                      # propertyNames
+    required: frozenset[str] | None = None
+    dependent_required: Mapping[str, frozenset[str]] | None = None  # dependentRequired
+    dependent_schemas: Mapping[str, JsonSchema] | None = None     # dependentSchemas
+    min_properties: int | None = None                             # minProperties
+    max_properties: int | None = None                             # maxProperties
+
+    # -- Applicator vocabulary --------------------------------------------
+    all_of: Sequence[JsonSchema] | None = None         # allOf
+    any_of: Sequence[JsonSchema] | None = None         # anyOf
+    one_of: Sequence[JsonSchema] | None = None         # oneOf
+    not_: JsonSchema | None = None                     # not
+    if_: JsonSchema | None = None                      # if
+    then: JsonSchema | None = None
+    else_: JsonSchema | None = None                    # else
+
+    # -- Unevaluated vocabulary -------------------------------------------
+    unevaluated_items: JsonSchema | None = None        # unevaluatedItems
+    unevaluated_properties: JsonSchema | None = None   # unevaluatedProperties
+
+    # -- Content vocabulary -----------------------------------------------
+    content_encoding: str | None = None                # contentEncoding
+    content_media_type: str | None = None              # contentMediaType
+    content_schema: JsonSchema | None = None           # contentSchema
+
+    # -- Format vocabulary ------------------------------------------------
+    format: str | None = None
+
+    # -- Extensions and provenance ----------------------------------------
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
     source_ref: SourceRef | None = None
 
@@ -386,17 +185,7 @@ type JsonSchema = BooleanSchema | ObjectSchema
 
 @dataclass(frozen=True, slots=True)
 class JsonSchemaDocument(CstNode):
-    """The root of a parsed JSON Schema 2020-12 document.
-
-    Holds the top-level schema together with the document-level provenance
-    required for cross-document `$ref` resolution.
-
-    Attributes:
-        root: The top-level schema object (usually an `ObjectSchema`).
-        source_id: Matches `RawDocument.source_id` for this document.
-        display_name: Short human-readable label (e.g. from the filename stem).
-        source_ref: Points to the document root (`""`).
-    """
+    """The root of a parsed JSON Schema 2020-12 document."""
 
     root: JsonSchema
     source_id: str

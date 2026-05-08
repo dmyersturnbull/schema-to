@@ -38,13 +38,13 @@ from schema_to.cst._openapi import (
 )
 from schema_to.io._source import RawDocument
 from schema_to.parse._json_schema import JsonSchemaParser
-from schema_to.parse._utils import _extract, _loc, _ptr
+from schema_to.parse._utils import extract, loc, ptr
 
 __all__ = ["OpenApiParser"]
 
 _SUPPORTED_ESSENCES = frozenset({"application/json", "application/yaml", "text/yaml"})
 
-_HTTP_METHODS = frozenset(m.value for m in HttpMethod)
+_HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
 
 
 class OpenApiParser(DocumentParser[OpenApiDocument]):
@@ -68,7 +68,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         data = raw.value
         if not isinstance(data, dict):
             return Err(
-                (ParseError("OpenAPI document must be a JSON object.", location=_loc(input.source_id, "")),)
+                (ParseError("OpenAPI document must be a JSON object.", location=loc(input.source_id, "")),)
             )
         return self._build_document(data, source_id=input.source_id, display_name=input.display_name)
 
@@ -88,17 +88,17 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
             errors.append(
                 SchemaValidationError(
                     f"openapi must be a '3.x' version string, got {openapi_ver!r}.",
-                    location=_loc(source_id, "/openapi"),
+                    location=loc(source_id, "/openapi"),
                 )
             )
 
         info: Info | None = None
         if not isinstance(data.get("info"), dict):
             errors.append(
-                ParseError("info must be an object.", location=_loc(source_id, "/info"))
+                ParseError("info must be an object.", location=loc(source_id, "/info"))
             )
         else:
-            info = _extract(
+            info = extract(
                 self._build_info(data["info"], source_id=source_id, pointer="/info"), errors
             )
 
@@ -108,30 +108,30 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         paths: dict[str, PathItem] = {}
         if isinstance(data.get("paths"), dict):
             for path, pi_data in data["paths"].items():
-                ptr = _ptr("", "paths", path)
+                pi_ptr = ptr("", "paths", path)
                 if isinstance(pi_data, dict):
-                    pi = _extract(
-                        self._build_path_item(pi_data, source_id=source_id, pointer=ptr), errors
+                    pi = extract(
+                        self._build_path_item(pi_data, source_id=source_id, pointer=pi_ptr), errors
                     )
                     if pi is not None:
                         paths[path] = pi
                 else:
                     errors.append(
-                        ParseError(f"Path item for {path!r} must be an object.", location=_loc(source_id, ptr))
+                        ParseError(f"Path item for {path!r} must be an object.", location=loc(source_id, pi_ptr))
                     )
 
         webhooks: dict[str, PathItem] = {}
         if isinstance(data.get("webhooks"), dict):
             for name, pi_data in data["webhooks"].items():
-                ptr = _ptr("", "webhooks", name)
+                wh_ptr = ptr("", "webhooks", name)
                 if isinstance(pi_data, dict):
-                    pi = _extract(
-                        self._build_path_item(pi_data, source_id=source_id, pointer=ptr), errors
+                    pi = extract(
+                        self._build_path_item(pi_data, source_id=source_id, pointer=wh_ptr), errors
                     )
                     if pi is not None:
                         webhooks[name] = pi
 
-        components = _extract(
+        components = extract(
             self._build_components(
                 data.get("components", {}),
                 source_id=source_id,
@@ -151,7 +151,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
 
         external_docs: ExternalDocumentation | None = None
         if isinstance(data.get("externalDocs"), dict):
-            external_docs = _extract(
+            external_docs = extract(
                 self._build_external_docs(data["externalDocs"], source_id=source_id, pointer="/externalDocs"),
                 errors,
             )
@@ -188,11 +188,11 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         version = data.get("version")
         if not isinstance(title, str):
             errors.append(
-                SchemaValidationError("info.title must be a string.", location=_loc(source_id, _ptr(pointer, "title")))
+                SchemaValidationError("info.title must be a string.", location=loc(source_id, ptr(pointer, "title")))
             )
         if not isinstance(version, str):
             errors.append(
-                SchemaValidationError("info.version must be a string.", location=_loc(source_id, _ptr(pointer, "version")))
+                SchemaValidationError("info.version must be a string.", location=loc(source_id, ptr(pointer, "version")))
             )
         if errors:
             return Err(tuple(errors))
@@ -309,7 +309,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         url = data.get("url")
         if not isinstance(url, str):
             return Err(
-                (SchemaValidationError("externalDocs.url must be a string.", location=_loc(source_id, _ptr(pointer, "url"))),)
+                (SchemaValidationError("externalDocs.url must be a string.", location=loc(source_id, ptr(pointer, "url"))),)
             )
         return Ok(
             ExternalDocumentation(
@@ -325,16 +325,15 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         self, data: dict[str, Any], *, source_id: str, pointer: str
     ) -> Result[PathItem]:
         errors: list[TranspilationError] = []
-        operations: dict[HttpMethod, Operation] = {}
+        method_ops: dict[str, Operation] = {}
         for method_str in _HTTP_METHODS:
             if method_str in data and isinstance(data[method_str], dict):
-                op_ptr = _ptr(pointer, method_str)
-                op = _extract(
-                    self._build_operation(data[method_str], source_id=source_id, pointer=op_ptr),
+                op = extract(
+                    self._build_operation(data[method_str], source_id=source_id, pointer=ptr(pointer, method_str)),
                     errors,
                 )
                 if op is not None:
-                    operations[HttpMethod(method_str)] = op
+                    method_ops[method_str] = op
 
         parameters = self._build_parameter_list(
             data, source_id=source_id, pointer=pointer, errors=errors
@@ -348,7 +347,14 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
             PathItem(
                 summary=data.get("summary") if isinstance(data.get("summary"), str) else None,
                 description=data.get("description") if isinstance(data.get("description"), str) else None,
-                operations=operations,
+                get=method_ops.get("get"),
+                put=method_ops.get("put"),
+                post=method_ops.get("post"),
+                delete=method_ops.get("delete"),
+                options=method_ops.get("options"),
+                head=method_ops.get("head"),
+                patch=method_ops.get("patch"),
+                trace=method_ops.get("trace"),
                 parameters=parameters,
                 servers=servers,
                 extensions={k: v for k, v in data.items() if k.startswith("x-")},
@@ -366,15 +372,15 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         if isinstance(responses_raw, dict):
             for status, resp_data in responses_raw.items():
                 if isinstance(resp_data, dict):
-                    rptr = _ptr(pointer, "responses", status)
-                    resp = _extract(
+                    rptr = ptr(pointer, "responses", status)
+                    resp = extract(
                         self._build_response(resp_data, source_id=source_id, pointer=rptr), errors
                     )
                     if resp is not None:
                         responses[status] = resp
         else:
             errors.append(
-                SchemaValidationError("responses must be an object.", location=_loc(source_id, _ptr(pointer, "responses")))
+                SchemaValidationError("responses must be an object.", location=loc(source_id, ptr(pointer, "responses")))
             )
 
         parameters = self._build_parameter_list(
@@ -383,18 +389,18 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
 
         request_body: RequestBody | None = None
         if isinstance(data.get("requestBody"), dict):
-            request_body = _extract(
+            request_body = extract(
                 self._build_request_body(
-                    data["requestBody"], source_id=source_id, pointer=_ptr(pointer, "requestBody")
+                    data["requestBody"], source_id=source_id, pointer=ptr(pointer, "requestBody")
                 ),
                 errors,
             )
 
         external_docs: ExternalDocumentation | None = None
         if isinstance(data.get("externalDocs"), dict):
-            external_docs = _extract(
+            external_docs = extract(
                 self._build_external_docs(
-                    data["externalDocs"], source_id=source_id, pointer=_ptr(pointer, "externalDocs")
+                    data["externalDocs"], source_id=source_id, pointer=ptr(pointer, "externalDocs")
                 ),
                 errors,
             )
@@ -447,8 +453,8 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         for i, p_data in enumerate(raw):
             if not isinstance(p_data, dict):
                 continue
-            pptr = _ptr(pointer, "parameters", i)
-            p = _extract(self._build_parameter(p_data, source_id=source_id, pointer=pptr), errors)
+            pptr = ptr(pointer, "parameters", i)
+            p = extract(self._build_parameter(p_data, source_id=source_id, pointer=pptr), errors)
             if p is not None:
                 parameters.append(p)
         return parameters
@@ -461,7 +467,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         in_ = data.get("in")
         if not isinstance(name, str):
             errors.append(
-                SchemaValidationError("parameter.name must be a string.", location=_loc(source_id, _ptr(pointer, "name")))
+                SchemaValidationError("parameter.name must be a string.", location=loc(source_id, ptr(pointer, "name")))
             )
         try:
             in_loc = ParameterLocation(in_) if isinstance(in_, str) else None
@@ -471,7 +477,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
             errors.append(
                 SchemaValidationError(
                     f"parameter.in must be one of query/header/path/cookie, got {in_!r}.",
-                    location=_loc(source_id, _ptr(pointer, "in")),
+                    location=loc(source_id, ptr(pointer, "in")),
                 )
             )
         if errors:
@@ -479,8 +485,8 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
 
         schema = None
         if isinstance(data.get("schema"), dict):
-            schema = _extract(
-                self._js._build_schema(data["schema"], source_id=source_id, pointer=_ptr(pointer, "schema")),  # noqa: SLF001
+            schema = extract(
+                self._js._build_schema(data["schema"], source_id=source_id, pointer=ptr(pointer, "schema")),  # noqa: SLF001
                 errors,
             )
 
@@ -509,9 +515,9 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         if isinstance(content_raw, dict):
             for media_type_str, mt_data in content_raw.items():
                 if isinstance(mt_data, dict):
-                    mt = _extract(
+                    mt = extract(
                         self._build_media_type_obj(
-                            mt_data, source_id=source_id, pointer=_ptr(pointer, "content", media_type_str)
+                            mt_data, source_id=source_id, pointer=ptr(pointer, "content", media_type_str)
                         ),
                         errors,
                     )
@@ -541,8 +547,8 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         if isinstance(data.get("headers"), dict):
             for hname, hdata in data["headers"].items():
                 if isinstance(hdata, dict):
-                    h = _extract(
-                        self._build_header(hdata, source_id=source_id, pointer=_ptr(pointer, "headers", hname)),
+                    h = extract(
+                        self._build_header(hdata, source_id=source_id, pointer=ptr(pointer, "headers", hname)),
                         errors,
                     )
                     if h is not None:
@@ -552,9 +558,9 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         if isinstance(data.get("content"), dict):
             for media_type_str, mt_data in data["content"].items():
                 if isinstance(mt_data, dict):
-                    mt = _extract(
+                    mt = extract(
                         self._build_media_type_obj(
-                            mt_data, source_id=source_id, pointer=_ptr(pointer, "content", media_type_str)
+                            mt_data, source_id=source_id, pointer=ptr(pointer, "content", media_type_str)
                         ),
                         errors,
                     )
@@ -579,8 +585,8 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         errors: list[TranspilationError] = []
         schema = None
         if isinstance(data.get("schema"), dict):
-            schema = _extract(
-                self._js._build_schema(data["schema"], source_id=source_id, pointer=_ptr(pointer, "schema")),  # noqa: SLF001
+            schema = extract(
+                self._js._build_schema(data["schema"], source_id=source_id, pointer=ptr(pointer, "schema")),  # noqa: SLF001
                 errors,
             )
         if errors:
@@ -601,8 +607,8 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         errors: list[TranspilationError] = []
         schema = None
         if isinstance(data.get("schema"), dict):
-            schema = _extract(
-                self._js._build_schema(data["schema"], source_id=source_id, pointer=_ptr(pointer, "schema")),  # noqa: SLF001
+            schema = extract(
+                self._js._build_schema(data["schema"], source_id=source_id, pointer=ptr(pointer, "schema")),  # noqa: SLF001
                 errors,
             )
         if errors:
@@ -630,8 +636,8 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         schemas: dict[str, Any] = {}
         if isinstance(data.get("schemas"), dict):
             for name, s_data in data["schemas"].items():
-                s = _extract(
-                    self._js._build_schema(s_data, source_id=source_id, pointer=_ptr(pointer, "schemas", name)),  # noqa: SLF001
+                s = extract(
+                    self._js._build_schema(s_data, source_id=source_id, pointer=ptr(pointer, "schemas", name)),  # noqa: SLF001
                     errors,
                 )
                 if s is not None:
@@ -641,8 +647,8 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         if isinstance(data.get("parameters"), dict):
             for name, p_data in data["parameters"].items():
                 if isinstance(p_data, dict):
-                    p = _extract(
-                        self._build_parameter(p_data, source_id=source_id, pointer=_ptr(pointer, "parameters", name)),
+                    p = extract(
+                        self._build_parameter(p_data, source_id=source_id, pointer=ptr(pointer, "parameters", name)),
                         errors,
                     )
                     if p is not None:
@@ -652,8 +658,8 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         if isinstance(data.get("responses"), dict):
             for name, r_data in data["responses"].items():
                 if isinstance(r_data, dict):
-                    r = _extract(
-                        self._build_response(r_data, source_id=source_id, pointer=_ptr(pointer, "responses", name)),
+                    r = extract(
+                        self._build_response(r_data, source_id=source_id, pointer=ptr(pointer, "responses", name)),
                         errors,
                     )
                     if r is not None:
@@ -663,9 +669,9 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         if isinstance(data.get("requestBodies"), dict):
             for name, rb_data in data["requestBodies"].items():
                 if isinstance(rb_data, dict):
-                    rb = _extract(
+                    rb = extract(
                         self._build_request_body(
-                            rb_data, source_id=source_id, pointer=_ptr(pointer, "requestBodies", name)
+                            rb_data, source_id=source_id, pointer=ptr(pointer, "requestBodies", name)
                         ),
                         errors,
                     )
@@ -676,8 +682,8 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         if isinstance(data.get("headers"), dict):
             for name, h_data in data["headers"].items():
                 if isinstance(h_data, dict):
-                    h = _extract(
-                        self._build_header(h_data, source_id=source_id, pointer=_ptr(pointer, "headers", name)),
+                    h = extract(
+                        self._build_header(h_data, source_id=source_id, pointer=ptr(pointer, "headers", name)),
                         errors,
                     )
                     if h is not None:

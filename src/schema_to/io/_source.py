@@ -13,7 +13,15 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import NamedTuple
 
-__all__ = ["DataSource", "MediaType", "MediaTypeParam", "MediaTypes", "RawDocument"]
+__all__ = [
+    "DataSource",
+    "JsonSchemaRawDocument",
+    "MediaType",
+    "MediaTypeParam",
+    "MediaTypes",
+    "OpenApiRawDocument",
+    "RawDocument",
+]
 
 
 class MediaTypeParam(NamedTuple):
@@ -90,6 +98,16 @@ class RawDocument:
     media_type: MediaType
     display_name: str | None = None
     base_uri: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class JsonSchemaRawDocument(RawDocument):
+    """A `RawDocument` known to contain a JSON Schema 2020-12 document."""
+
+
+@dataclass(frozen=True, slots=True)
+class OpenApiRawDocument(RawDocument):
+    """A `RawDocument` known to contain an OpenAPI 3.1 document."""
 
 
 class DataSource(ABC):
