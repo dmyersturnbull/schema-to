@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from schema_to.cst._base import JsonValue
+from dataclasses import dataclass, field
+
+from schema_to._core import JsonObject, JsonValue
 from schema_to.cst._openapi import (
     Components,
     Contact,
@@ -10,30 +12,45 @@ from schema_to.cst._openapi import (
     Header,
     Info,
     License,
+    Link,
     MediaTypeObject,
+    OAuthFlow,
+    OAuthFlows,
     OpenApiDocument,
     Operation,
     Parameter,
     PathItem,
     RequestBody,
     Response,
+    SecurityScheme,
     Server,
     ServerVariable,
     Tag,
 )
-from schema_to.serialize._json_schema import JsonSchemaSerializer, _set
+from schema_to.serialize._json_schema import JsonSchemaSerializer
 
 __all__ = ["OpenApiSerializer"]
 
+_HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
 
+
+def _set(out: JsonObject, key: str, value: object) -> None:
+    if value is not None:
+        out[key] = value  # type: ignore[assignment]
+
+
+@dataclass(frozen=True)
 class OpenApiSerializer:
-    """Convert an `OpenApiDocument` CST node to a JSON-serializable dict."""
+    """Convert an `OpenApiDocument` CST node to a JSON-serializable `JsonObject`.
 
-    def __init__(self) -> None:
-        self._js = JsonSchemaSerializer()
+    Attributes:
+        js: The JSON Schema serializer used for embedded schema fields.
+    """
 
-    def serialize(self, doc: OpenApiDocument) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {
+    js: JsonSchemaSerializer = field(default_factory=JsonSchemaSerializer)
+
+    def serialize(self, doc: OpenApiDocument) -> JsonObject:
+        out: JsonObject = {
             "openapi": doc.openapi,
             "info": self._info(doc.info),
         }
@@ -55,8 +72,8 @@ class OpenApiSerializer:
         out.update(doc.extensions)
         return out
 
-    def _info(self, info: Info) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {"title": info.title, "version": info.version}
+    def _info(self, info: Info) -> JsonObject:
+        out: JsonObject = {"title": info.title, "version": info.version}
         _set(out, "summary", info.summary)
         _set(out, "description", info.description)
         _set(out, "termsOfService", info.terms_of_service)
@@ -67,57 +84,59 @@ class OpenApiSerializer:
         out.update(info.extensions)
         return out
 
-    def _contact(self, c: Contact) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {}
+    def _contact(self, c: Contact) -> JsonObject:
+        out: JsonObject = {}
         _set(out, "name", c.name)
         _set(out, "url", c.url)
         _set(out, "email", c.email)
         out.update(c.extensions)
         return out
 
-    def _license(self, lic: License) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {"name": lic.name}
+    def _license(self, lic: License) -> JsonObject:
+        out: JsonObject = {"name": lic.name}
         _set(out, "identifier", lic.identifier)
         _set(out, "url", lic.url)
         out.update(lic.extensions)
         return out
 
-    def _server(self, s: Server) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {"url": s.url}
+    def _server(self, s: Server) -> JsonObject:
+        out: JsonObject = {"url": s.url}
         _set(out, "description", s.description)
         if s.variables:
             out["variables"] = {k: self._server_variable(v) for k, v in s.variables.items()}
         out.update(s.extensions)
         return out
 
-    def _server_variable(self, v: ServerVariable) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {"default": v.default}
+    def _server_variable(self, v: ServerVariable) -> JsonObject:
+        out: JsonObject = {"default": v.default}
         if v.enum is not None:
             out["enum"] = list(v.enum)
         _set(out, "description", v.description)
         out.update(v.extensions)
         return out
 
-    def _tag(self, t: Tag) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {"name": t.name}
+    def _tag(self, t: Tag) -> JsonObject:
+        out: JsonObject = {"name": t.name}
         _set(out, "description", t.description)
         if t.external_docs is not None:
             out["externalDocs"] = self._external_docs(t.external_docs)
         out.update(t.extensions)
         return out
 
-    def _external_docs(self, e: ExternalDocumentation) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {"url": e.url}
+    def _external_docs(self, e: ExternalDocumentation) -> JsonObject:
+        out: JsonObject = {"url": e.url}
         _set(out, "description", e.description)
         out.update(e.extensions)
         return out
 
-    def _path_item(self, pi: PathItem) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {}
+    def _path_item(self, pi: PathItem) -> JsonObject:
+        out: JsonObject = {}
         _set(out, "summary", pi.summary)
         _set(out, "description", pi.description)
-        for method, op in pi.operations.items():
-            out[method.value] = self._operation(op)
+        for method in _HTTP_METHODS:
+            op = getattr(pi, method)
+            if op is not None:
+                out[method] = self._operation(op)
         if pi.parameters:
             out["parameters"] = [self._parameter(p) for p in pi.parameters]
         if pi.servers:
@@ -125,8 +144,8 @@ class OpenApiSerializer:
         out.update(pi.extensions)
         return out
 
-    def _operation(self, op: Operation) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {
+    def _operation(self, op: Operation) -> JsonObject:
+        out: JsonObject = {
             "responses": {k: self._response(v) for k, v in op.responses.items()},
         }
         if op.tags:
@@ -149,10 +168,10 @@ class OpenApiSerializer:
         out.update(op.extensions)
         return out
 
-    def _parameter(self, p: Parameter) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {"name": p.name, "in": p.in_.value}
+    def _parameter(self, p: Parameter) -> JsonObject:
+        out: JsonObject = {"name": p.name, "in": p.in_.value}
         if p.schema is not None:
-            out["schema"] = self._js.serialize(p.schema)
+            out["schema"] = self.js.serialize(p.schema)
         _set(out, "description", p.description)
         if p.required:
             out["required"] = True
@@ -166,8 +185,8 @@ class OpenApiSerializer:
         out.update(p.extensions)
         return out
 
-    def _request_body(self, rb: RequestBody) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {
+    def _request_body(self, rb: RequestBody) -> JsonObject:
+        out: JsonObject = {
             "content": {k: self._media_type_obj(v) for k, v in rb.content.items()},
         }
         _set(out, "description", rb.description)
@@ -176,19 +195,21 @@ class OpenApiSerializer:
         out.update(rb.extensions)
         return out
 
-    def _response(self, r: Response) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {"description": r.description}
+    def _response(self, r: Response) -> JsonObject:
+        out: JsonObject = {"description": r.description}
         if r.headers:
             out["headers"] = {k: self._header(v) for k, v in r.headers.items()}
         if r.content:
             out["content"] = {k: self._media_type_obj(v) for k, v in r.content.items()}
+        if r.links:
+            out["links"] = {k: self._link(v) for k, v in r.links.items()}
         out.update(r.extensions)
         return out
 
-    def _header(self, h: Header) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {}
+    def _header(self, h: Header) -> JsonObject:
+        out: JsonObject = {}
         if h.schema is not None:
-            out["schema"] = self._js.serialize(h.schema)
+            out["schema"] = self.js.serialize(h.schema)
         _set(out, "description", h.description)
         if h.required:
             out["required"] = True
@@ -197,10 +218,10 @@ class OpenApiSerializer:
         out.update(h.extensions)
         return out
 
-    def _media_type_obj(self, mt: MediaTypeObject) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {}
+    def _media_type_obj(self, mt: MediaTypeObject) -> JsonObject:
+        out: JsonObject = {}
         if mt.schema is not None:
-            out["schema"] = self._js.serialize(mt.schema)
+            out["schema"] = self.js.serialize(mt.schema)
         if mt.example is not None:
             out["example"] = mt.example
         if mt.examples:
@@ -208,10 +229,24 @@ class OpenApiSerializer:
         out.update(mt.extensions)
         return out
 
-    def _components(self, comp: Components) -> dict[str, JsonValue]:
-        out: dict[str, JsonValue] = {}
+    def _link(self, lnk: Link) -> JsonObject:
+        out: JsonObject = {}
+        _set(out, "operationRef", lnk.operation_ref)
+        _set(out, "operationId", lnk.operation_id)
+        if lnk.parameters:
+            out["parameters"] = dict(lnk.parameters)
+        if lnk.request_body is not None:
+            out["requestBody"] = lnk.request_body
+        _set(out, "description", lnk.description)
+        if lnk.server is not None:
+            out["server"] = self._server(lnk.server)
+        out.update(lnk.extensions)
+        return out
+
+    def _components(self, comp: Components) -> JsonObject:
+        out: JsonObject = {}
         if comp.schemas:
-            out["schemas"] = {k: self._js.serialize(v) for k, v in comp.schemas.items()}
+            out["schemas"] = {k: self.js.serialize(v) for k, v in comp.schemas.items()}
         if comp.responses:
             out["responses"] = {k: self._response(v) for k, v in comp.responses.items()}
         if comp.parameters:
@@ -220,5 +255,44 @@ class OpenApiSerializer:
             out["requestBodies"] = {k: self._request_body(v) for k, v in comp.request_bodies.items()}
         if comp.headers:
             out["headers"] = {k: self._header(v) for k, v in comp.headers.items()}
+        if comp.security_schemes:
+            out["securitySchemes"] = {k: self._security_scheme(v) for k, v in comp.security_schemes.items()}
+        if comp.links:
+            out["links"] = {k: self._link(v) for k, v in comp.links.items()}
         out.update(comp.extensions)
+        return out
+
+    def _security_scheme(self, ss: SecurityScheme) -> JsonObject:
+        out: JsonObject = {"type": ss.type_.value}
+        _set(out, "description", ss.description)
+        _set(out, "name", ss.name)
+        if ss.in_ is not None:
+            out["in"] = ss.in_.value
+        _set(out, "scheme", ss.scheme)
+        _set(out, "bearerFormat", ss.bearer_format)
+        if ss.flows is not None:
+            out["flows"] = self._oauth_flows(ss.flows)
+        _set(out, "openIdConnectUrl", ss.open_id_connect_url)
+        out.update(ss.extensions)
+        return out
+
+    def _oauth_flows(self, flows: OAuthFlows) -> JsonObject:
+        out: JsonObject = {}
+        if flows.implicit is not None:
+            out["implicit"] = self._oauth_flow(flows.implicit)
+        if flows.password is not None:
+            out["password"] = self._oauth_flow(flows.password)
+        if flows.client_credentials is not None:
+            out["clientCredentials"] = self._oauth_flow(flows.client_credentials)
+        if flows.authorization_code is not None:
+            out["authorizationCode"] = self._oauth_flow(flows.authorization_code)
+        out.update(flows.extensions)
+        return out
+
+    def _oauth_flow(self, flow: OAuthFlow) -> JsonObject:
+        out: JsonObject = {"scopes": dict(flow.scopes)}
+        _set(out, "authorizationUrl", flow.authorization_url)
+        _set(out, "tokenUrl", flow.token_url)
+        _set(out, "refreshUrl", flow.refresh_url)
+        out.update(flow.extensions)
         return out

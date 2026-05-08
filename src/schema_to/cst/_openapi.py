@@ -427,10 +427,12 @@ type SecurityRequirement = Mapping[str, Sequence[str]]
 class PathItem:
     """[Path Item Object](https://spec.openapis.org/oas/v3.1.0#path-item-object).
 
+    Each HTTP method is a separate optional field mirroring the spec.
+
     Attributes:
         summary: Optional summary applied to all operations in this path.
         description: CommonMark description.
-        operations: Map from `HttpMethod` to `Operation`.
+        get/put/post/delete/options/head/patch/trace: Per-method operations.
         parameters: Parameters shared across all operations in this path.
         servers: Alternative servers for all operations in this path.
         extensions: `x-*` extension fields.
@@ -439,7 +441,14 @@ class PathItem:
 
     summary: str | None = None
     description: str | None = None
-    operations: Mapping[HttpMethod, Operation] = field(default_factory=dict)
+    get: Operation | None = None
+    put: Operation | None = None
+    post: Operation | None = None
+    delete: Operation | None = None
+    options: Operation | None = None
+    head: Operation | None = None
+    patch: Operation | None = None
+    trace: Operation | None = None
     parameters: Sequence[Parameter] = field(default_factory=list)
     servers: Sequence[Server] = field(default_factory=list)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)

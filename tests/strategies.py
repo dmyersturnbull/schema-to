@@ -1,8 +1,7 @@
 """Hypothesis strategies for generating valid JSON Schema and OpenAPI documents.
 
-All strategies produce dicts that:
-- the corresponding parser can parse without errors, and
-- the corresponding serializer can round-trip faithfully.
+All strategies produce values that the corresponding parser can parse without
+errors, and that the corresponding serializer can round-trip faithfully.
 
 Strategies are intentionally conservative: they only generate fields that the
 parser and serializer both handle, and they avoid degenerate values (NaN, Inf,
@@ -19,7 +18,6 @@ from hypothesis import strategies as st
 
 _SCHEMA_TYPES = ["string", "number", "integer", "boolean", "array", "object", "null"]
 
-# Text that round-trips through JSON without issues.
 _safe_text = st.text(
     alphabet=st.characters(
         whitelist_categories=("Lu", "Ll", "Nd", "Zs"),
@@ -28,29 +26,98 @@ _safe_text = st.text(
     max_size=40,
 )
 
-# Non-empty safe text (for required string fields).
 _nonempty_text = _safe_text.filter(lambda s: s.strip())
 
-# Simple JSON leaf values (no nested structures) that survive JSON round-trip.
 _json_leaf = st.one_of(
     st.none(),
     st.booleans(),
     st.integers(min_value=-1000, max_value=1000),
-    st.floats(
-        min_value=-1e6,
-        max_value=1e6,
-        allow_nan=False,
-        allow_infinity=False,
-    ),
+    st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False),
     _safe_text,
 )
 
-# Valid identifier-like strings for property names and schema component names.
 _identifier = st.text(
     alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="_"),
     min_size=1,
     max_size=24,
 ).filter(lambda s: s[0].isalpha())
+
+# Any syntactically valid media type string.
+_media_type_str = st.builds(
+    lambda t, s: f"{t}/{s}",
+    st.sampled_from(["application", "text", "image", "audio", "video", "model", "font"]),
+    _identifier,
+)
+
+
+# ---------------------------------------------------------------------------
+# JSON Schema sub-strategies (internal helpers)
+# ---------------------------------------------------------------------------
+
+
+@st.composite
+def _numeric_kw_st(draw: st.DrawFn, d: dict) -> None:
+    for kw in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"):
+        if draw(st.booleans()):
+            d[kw] = draw(st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False))
+    if draw(st.booleans()):
+        d["multipleOf"] = draw(st.floats(min_value=0.001, max_value=1000.0, allow_nan=False, allow_infinity=False))
+
+
+@st.composite
+def _string_kw_st(draw: st.DrawFn, d: dict) -> None:
+    if draw(st.booleans()):
+        d["minLength"] = draw(st.integers(min_value=0, max_value=200))
+    if draw(st.booleans()):
+        d["maxLength"] = draw(st.integers(min_value=0, max_value=200))
+    if draw(st.booleans()):
+        d["pattern"] = draw(_safe_text)
+    if draw(st.booleans()):
+        d["format"] = draw(_identifier)
+
+
+@st.composite
+def _array_kw_st(draw: st.DrawFn, d: dict, depth: int) -> None:
+    if draw(st.booleans()):
+        d["minItems"] = draw(st.integers(min_value=0, max_value=100))
+    if draw(st.booleans()):
+        d["maxItems"] = draw(st.integers(min_value=0, max_value=100))
+    if draw(st.booleans()):
+        d["uniqueItems"] = draw(st.booleans())
+    if depth < 2 and draw(st.booleans()):
+        d["items"] = draw(json_schema_st(depth=depth + 1))
+
+
+@st.composite
+def _object_kw_st(draw: st.DrawFn, d: dict, depth: int) -> None:
+    if depth < 2 and draw(st.booleans()):
+        prop_names = draw(st.lists(_identifier, min_size=1, max_size=4, unique=True))
+        d["properties"] = {name: draw(json_schema_st(depth=depth + 1)) for name in prop_names}
+        if draw(st.booleans()) and prop_names:
+            k = draw(st.integers(min_value=1, max_value=len(prop_names)))
+            d["required"] = sorted(
+                draw(st.lists(st.sampled_from(prop_names), min_size=k, max_size=k, unique=True))
+            )
+    if depth < 2 and draw(st.booleans()):
+        d["additionalProperties"] = draw(
+            st.one_of(st.booleans(), json_schema_st(depth=depth + 1))
+        )
+
+
+@st.composite
+def _applicator_kw_st(draw: st.DrawFn, d: dict, depth: int) -> None:
+    if depth < 2:
+        for kw in ("allOf", "anyOf", "oneOf"):
+            if draw(st.booleans()):
+                d[kw] = draw(st.lists(json_schema_st(depth=depth + 1), min_size=1, max_size=3))
+        if draw(st.booleans()):
+            d["not"] = draw(json_schema_st(depth=depth + 1))
+        if draw(st.booleans()):
+            d["if"] = draw(json_schema_st(depth=depth + 1))
+            if draw(st.booleans()):
+                d["then"] = draw(json_schema_st(depth=depth + 1))
+            if draw(st.booleans()):
+                d["else"] = draw(json_schema_st(depth=depth + 1))
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +128,6 @@ _identifier = st.text(
 @st.composite
 def json_schema_st(draw: st.DrawFn, depth: int = 0) -> object:
     """Generate a valid JSON Schema 2020-12 value (bool or object dict)."""
-    # Boolean schemas only at non-root depths to keep root tests interesting.
     if depth > 0 and draw(st.booleans()):
         return draw(st.booleans())
 
@@ -81,25 +147,18 @@ def json_schema_st(draw: st.DrawFn, depth: int = 0) -> object:
     if draw(st.booleans()):
         d["default"] = draw(_json_leaf)
     if draw(st.booleans()):
-        d["deprecated"] = True
+        d["deprecated"] = draw(st.booleans())
     if draw(st.booleans()):
-        d["readOnly"] = True
+        d["readOnly"] = draw(st.booleans())
     if draw(st.booleans()):
-        d["writeOnly"] = True
+        d["writeOnly"] = draw(st.booleans())
     if draw(st.booleans()):
         d["examples"] = draw(st.lists(_json_leaf, max_size=3))
 
     # Validation — type
     if draw(st.booleans()):
         n_types = draw(st.integers(min_value=1, max_value=3))
-        types = draw(
-            st.lists(
-                st.sampled_from(_SCHEMA_TYPES),
-                min_size=n_types,
-                max_size=n_types,
-                unique=True,
-            )
-        )
+        types = draw(st.lists(st.sampled_from(_SCHEMA_TYPES), min_size=n_types, max_size=n_types, unique=True))
         d["type"] = types[0] if len(types) == 1 else types
 
     # Validation — enum / const (mutually exclusive)
@@ -108,115 +167,49 @@ def json_schema_st(draw: st.DrawFn, depth: int = 0) -> object:
     elif draw(st.booleans()):
         d["const"] = draw(_json_leaf)
 
-    # Numeric validation
-    for kw in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"):
-        if draw(st.booleans()):
-            d[kw] = draw(
-                st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False)
-            )
-    if draw(st.booleans()):
-        d["multipleOf"] = draw(
-            st.floats(min_value=0.001, max_value=1000.0, allow_nan=False, allow_infinity=False)
-        )
-
-    # String validation
-    if draw(st.booleans()):
-        d["minLength"] = draw(st.integers(min_value=0, max_value=200))
-    if draw(st.booleans()):
-        d["maxLength"] = draw(st.integers(min_value=0, max_value=200))
-    if draw(st.booleans()):
-        d["pattern"] = draw(_safe_text)
-    if draw(st.booleans()):
-        d["format"] = draw(_identifier)
-
-    # Array validation
-    if draw(st.booleans()):
-        d["minItems"] = draw(st.integers(min_value=0, max_value=100))
-    if draw(st.booleans()):
-        d["maxItems"] = draw(st.integers(min_value=0, max_value=100))
-    if draw(st.booleans()):
-        d["uniqueItems"] = True
-
-    # Nested schemas — only within depth budget
-    if depth < 2:
-        # items
-        if draw(st.booleans()):
-            d["items"] = draw(json_schema_st(depth=depth + 1))
-
-        # properties + required
-        if draw(st.booleans()):
-            prop_names = draw(
-                st.lists(_identifier, min_size=1, max_size=4, unique=True)
-            )
-            props = {
-                name: draw(json_schema_st(depth=depth + 1)) for name in prop_names
-            }
-            d["properties"] = props
-            if draw(st.booleans()) and prop_names:
-                k = draw(st.integers(min_value=1, max_value=len(prop_names)))
-                d["required"] = sorted(
-                    draw(
-                        st.lists(
-                            st.sampled_from(prop_names),
-                            min_size=k,
-                            max_size=k,
-                            unique=True,
-                        )
-                    )
-                )
-
-        # additionalProperties
-        if draw(st.booleans()):
-            d["additionalProperties"] = draw(
-                st.one_of(st.booleans(), json_schema_st(depth=depth + 1))
-            )
-
-        # applicators
-        for kw in ("allOf", "anyOf", "oneOf"):
-            if draw(st.booleans()):
-                d[kw] = draw(
-                    st.lists(json_schema_st(depth=depth + 1), min_size=1, max_size=3)
-                )
-
-        if draw(st.booleans()):
-            d["not"] = draw(json_schema_st(depth=depth + 1))
-
-        if draw(st.booleans()):
-            d["if"] = draw(json_schema_st(depth=depth + 1))
-            if draw(st.booleans()):
-                d["then"] = draw(json_schema_st(depth=depth + 1))
-            if draw(st.booleans()):
-                d["else"] = draw(json_schema_st(depth=depth + 1))
+    draw(_numeric_kw_st(d))
+    draw(_string_kw_st(d))
+    draw(_array_kw_st(d, depth))
+    draw(_object_kw_st(d, depth))
+    draw(_applicator_kw_st(d, depth))
 
     return d
 
 
 # ---------------------------------------------------------------------------
-# OpenAPI strategy
+# OpenAPI strategies
 # ---------------------------------------------------------------------------
 
-_HTTP_METHODS = ["get", "post", "put", "delete", "patch"]
 _PARAM_LOCATIONS = ["query", "header", "path", "cookie"]
-_STATUS_CODES = ["200", "201", "400", "404", "500", "default"]
+
+# OpenAPI 3.1 allows exact codes (100-599), wildcard patterns (1xx-5xx),
+# and "default".
+_STATUS_CODES = (
+    [str(c) for c in range(100, 600, 100)]
+    + ["200", "201", "400", "404", "500"]
+    + [f"{d}xx" for d in range(1, 6)]
+    + ["default"]
+)
 
 
 @st.composite
 def _response_st(draw: st.DrawFn) -> dict:
     d: dict = {"description": draw(_safe_text)}
     if draw(st.booleans()):
-        media_types = draw(
-            st.lists(
-                st.sampled_from(["application/json", "text/plain"]),
-                min_size=1,
-                max_size=2,
-                unique=True,
-            )
-        )
+        media_types = draw(st.lists(_media_type_str, min_size=1, max_size=2, unique=True))
         d["content"] = {
-            mt: ({"schema": draw(json_schema_st())} if draw(st.booleans()) else {})
+            mt: ({"schema": draw(json_schema_st())} if draw(st.booleans()) and "/" in mt and mt.split("/")[0] in {"application", "text"} else {})
             for mt in media_types
         }
     return d
+
+
+@st.composite
+def _parameter_st(draw: st.DrawFn) -> dict:
+    return {
+        "name": draw(_identifier),
+        "in": draw(st.sampled_from(_PARAM_LOCATIONS)),
+    }
 
 
 @st.composite
@@ -226,16 +219,29 @@ def _operation_st(draw: st.DrawFn) -> dict:
     if draw(st.booleans()):
         d["summary"] = draw(_safe_text)
     if draw(st.booleans()):
+        d["description"] = draw(_safe_text)
+    if draw(st.booleans()):
         d["operationId"] = draw(_identifier)
     if draw(st.booleans()):
-        d["deprecated"] = True
+        d["deprecated"] = draw(st.booleans())
+    if draw(st.booleans()):
+        d["tags"] = draw(st.lists(_identifier, min_size=1, max_size=3, unique=True))
+    if draw(st.booleans()):
+        d["parameters"] = [draw(_parameter_st())]
     return d
 
 
 @st.composite
 def _path_item_st(draw: st.DrawFn) -> dict:
-    method = draw(st.sampled_from(_HTTP_METHODS))
-    return {method: draw(_operation_st())}
+    method = draw(st.sampled_from(["get", "post", "put", "delete", "patch"]))
+    d: dict = {method: draw(_operation_st())}
+    if draw(st.booleans()):
+        d["summary"] = draw(_safe_text)
+    if draw(st.booleans()):
+        d["description"] = draw(_safe_text)
+    if draw(st.booleans()):
+        d["parameters"] = [draw(_parameter_st())]
+    return d
 
 
 @st.composite
@@ -249,14 +255,13 @@ def openapi_doc_st(draw: st.DrawFn) -> dict:
         },
     }
 
-    # Optional paths
+    # Optional paths (empty paths: {} is valid)
     if draw(st.booleans()):
-        n_paths = draw(st.integers(min_value=1, max_value=3))
         path_names = draw(
             st.lists(
                 st.builds(lambda s: f"/{s}", _identifier),
-                min_size=n_paths,
-                max_size=n_paths,
+                min_size=0,
+                max_size=3,
                 unique=True,
             )
         )
@@ -264,9 +269,7 @@ def openapi_doc_st(draw: st.DrawFn) -> dict:
 
     # Optional components/schemas
     if draw(st.booleans()):
-        schema_names = draw(
-            st.lists(_identifier, min_size=1, max_size=4, unique=True)
-        )
+        schema_names = draw(st.lists(_identifier, min_size=1, max_size=4, unique=True))
         d["components"] = {
             "schemas": {name: draw(json_schema_st()) for name in schema_names}
         }

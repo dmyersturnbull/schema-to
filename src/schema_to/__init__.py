@@ -49,14 +49,22 @@ from schema_to._result import Err, Ok, Result
 from schema_to.io._file import DirectoryDataSource, FileDataSink, FileDataSource
 from schema_to.io._memory import InMemoryDataSink, InMemoryDataSource
 from schema_to.io._sink import DataSink, OutputArtifact
-from schema_to.io._source import DataSource, MediaType, MediaTypeParam, MediaTypes, RawDocument
+from schema_to.io._source import (
+    DataSource,
+    JsonSchemaRawDocument,
+    MediaType,
+    MediaTypeParam,
+    MediaTypes,
+    OpenApiRawDocument,
+    RawDocument,
+)
 from schema_to.parse._json_schema import JsonSchemaParser
 from schema_to.parse._openapi import OpenApiParser
 from schema_to.serialize._json_schema import JsonSchemaSerializer
 from schema_to.serialize._openapi import OpenApiSerializer
+from schema_to.transpile._extract import OpenApiExtractTranspiler
 from schema_to.transpile._pass_thru import (
     JsonSchemaPassThruTranspiler,
-    OpenApiExtractTranspiler,
     OpenApiPassThruTranspiler,
 )
 
@@ -69,9 +77,11 @@ __all__ = [
     "FileDataSource",
     "InMemoryDataSink",
     "InMemoryDataSource",
+    "JsonSchemaRawDocument",
     "MediaType",
     "MediaTypeParam",
     "MediaTypes",
+    "OpenApiRawDocument",
     "OutputArtifact",
     "RawDocument",
     # Pipeline
