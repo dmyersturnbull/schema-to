@@ -43,10 +43,10 @@ class PythonReifier(Reifier[PythonModule]):
     """Serialise a ``PythonModule`` AST to a single ``.py`` ``OutputArtifact``.
 
     Attributes:
-        artifact_name: Base file name for the output artifact (default ``"models.py"``).
+        artifact_name: Base file name for the output artifact (e.g. ``"models.py"``).
     """
 
-    artifact_name: str = "models.py"
+    artifact_name: str
 
     def apply(self, input: PythonModule) -> Result[Sequence[OutputArtifact]]:
         try:

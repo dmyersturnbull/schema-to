@@ -56,7 +56,7 @@ def _parse_and_generate(data: object) -> str:
     gen = PydanticGenerator(resolver=resolver)
     ast_r = gen.apply(res_r.value)
     assert isinstance(ast_r, Ok), f"Generation failed: {[getattr(e, 'message', str(e)) for e in ast_r.errors]}"
-    reify_r = PythonReifier().apply(ast_r.value)
+    reify_r = PythonReifier(artifact_name="models.py").apply(ast_r.value)
     assert isinstance(reify_r, Ok)
     return reify_r.value[0].content.decode("utf-8")
 
@@ -436,17 +436,46 @@ def test_integration_full_pipeline() -> None:
             "tags": {"type": "array", "items": {"type": "string"}},
             "status": {"enum": ["active", "inactive"]},
         },
-        "required": ["name"],
+        "required": ["name", "status"],
     }
     src = _transpile(schema)
 
     # Must parse as valid Python.
     ast.parse(src)
 
-    # Key structural assertions.
+    # --- Boilerplate ---
     assert "from __future__ import annotations" in src
     assert "from pydantic import BaseModel" in src
-    assert "class Address(BaseModel):" in src
-    assert "class Person(BaseModel):" in src
-    assert "name: str" in src
-    assert "Literal" in src  # for status field
+    assert "from typing import" in src and "Literal" in src
+
+    # --- Class structure and ordering ---
+    address_pos = src.find("class Address(BaseModel):")
+    person_pos = src.find("class Person(BaseModel):")
+    assert address_pos != -1, "Address class not generated"
+    assert person_pos != -1, "Person class not generated"
+    assert address_pos < person_pos, "Address must be defined before Person"
+
+    # --- Address fields ---
+    # street and city are required → no None default
+    assert re.search(r"street:\s*str(?!\s*\|)", src), "street should be required str"
+    assert re.search(r"city:\s*str(?!\s*\|)", src), "city should be required str"
+    # zip_code is optional → str | None = None; also has pattern constraint → Field
+    assert "zip_code" in src
+    assert "pattern=" in src
+
+    # --- Person fields ---
+    # name is required str
+    assert re.search(r"name:\s*str(?!\s*\|)", src), "name should be required str"
+    # age is optional int with minimum=0 → int | None = Field(None, ge=0)
+    assert "age" in src
+    assert "ge=0" in src
+    # email is optional str
+    assert re.search(r"email:\s*str\s*\|\s*None", src), "email should be optional str"
+    # address is optional $ref to Address
+    assert re.search(r"address:\s*Address\s*\|\s*None", src), "address should be optional Address"
+    # tags is optional list[str]
+    assert re.search(r"tags:\s*list\[str\]\s*\|\s*None", src), "tags should be optional list[str]"
+    # status is a required Literal (enum)
+    assert re.search(r"status:\s*Literal\[", src), "status should be Literal"
+    assert "'active'" in src or '"active"' in src
+    assert "'inactive'" in src or '"inactive"' in src
