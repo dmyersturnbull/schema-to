@@ -24,6 +24,7 @@ schema-to = "schema_to.__main__:cli"
 dev = [
   "ruff>=0.15.12",
   "pytest>=9.0",
+  "hypothesis>=6.152.7",
 ]
 
 [tool.ruff]
