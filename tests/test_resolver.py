@@ -227,8 +227,10 @@ def test_missing_def_ref_fails() -> None:
     resolver = JsonSchemaRefResolver()
     result = resolver.apply(cst)
     assert isinstance(result, Err)
-    assert len(result.errors) >= 1
-    assert all(isinstance(e, ResolutionError) for e in result.errors)
+    assert len(result.errors) == 1
+    err = result.errors[0]
+    assert isinstance(err, ResolutionError)
+    assert "DoesNotExist" in err.message or "$ref" in err.message
 
 
 def test_missing_anchor_ref_fails() -> None:
@@ -238,6 +240,8 @@ def test_missing_anchor_ref_fails() -> None:
     resolver = JsonSchemaRefResolver()
     result = resolver.apply(cst)
     assert isinstance(result, Err)
+    assert all(isinstance(e, ResolutionError) for e in result.errors)
+    assert any("noSuchAnchor" in e.message or "$ref" in e.message for e in result.errors)
 
 
 def test_multiple_bad_refs_all_reported() -> None:
@@ -253,7 +257,11 @@ def test_multiple_bad_refs_all_reported() -> None:
     resolver = JsonSchemaRefResolver()
     result = resolver.apply(cst)
     assert isinstance(result, Err)
+    assert all(isinstance(e, ResolutionError) for e in result.errors)
     assert len(result.errors) >= 2
+    messages = " ".join(e.message for e in result.errors)
+    assert "Missing1" in messages or "$ref" in messages
+    assert "Missing2" in messages or "$ref" in messages
 
 
 # ---------------------------------------------------------------------------

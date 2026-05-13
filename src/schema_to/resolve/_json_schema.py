@@ -159,7 +159,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
 
         try:
             ref_resolver = self._registry.resolver(base_uri=input.source_id)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             return Err((ResolutionError(str(exc), location=_loc(input.source_id, "")),))
 
         errors: list[TranspilationError] = []

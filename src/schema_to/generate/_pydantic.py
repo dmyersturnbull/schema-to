@@ -15,12 +15,11 @@ Mapping rules
 
 from __future__ import annotations
 
-import keyword
-import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from schema_to._errors import GenerationError, TranspilationError, TranspilationWarning
+from schema_to._errors import GenerationError, SourceLocation, TranspilationError, TranspilationWarning
+from schema_to._names import safe_python_class_name, safe_python_field_name
 from schema_to._pipeline import Generator
 from schema_to._result import Err, Ok, Result
 from schema_to.ast._python import (
@@ -43,55 +42,6 @@ from schema_to.cst._json_schema import (
 from schema_to.resolve._json_schema import JsonSchemaRefResolver
 
 __all__ = ["PydanticGenerator"]
-
-# ---------------------------------------------------------------------------
-# Name utilities
-# ---------------------------------------------------------------------------
-
-_CAMEL_RE = re.compile(r"[-_\s]+(.?)")
-_SPLIT_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|[-_\s]+")
-
-
-def _to_pascal(name: str) -> str:
-    """Convert any string to PascalCase, discarding non-alphanumeric chars."""
-    # Replace anything that isn't a word char or separator with a space so
-    # it acts as a word boundary without contributing letters.
-    safe = re.sub(r"[^\w\s\-]", " ", name)
-    parts = _SPLIT_RE.split(safe)
-    return "".join(p.capitalize() for p in parts if re.search(r"\w", p))
-
-
-def _to_snake(name: str) -> str:
-    """Convert any string to snake_case, discarding non-alphanumeric chars."""
-    safe = re.sub(r"[^\w\s\-]", "_", name)
-    s = re.sub(r"[-\s]+", "_", safe)
-    s = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", s)
-    s = re.sub(r"_+", "_", s).strip("_")
-    return s.lower()
-
-
-def _safe_class_name(name: str) -> str:
-    pascal = _to_pascal(name) or "Model"
-    # Strip any remaining non-identifier characters (shouldn't happen after
-    # _to_pascal, but guard against edge cases like all-punctuation names).
-    pascal = re.sub(r"[^\w]", "", pascal) or "Model"
-    if pascal[0].isdigit():
-        pascal = "Model" + pascal
-    if keyword.iskeyword(pascal) or keyword.issoftkeyword(pascal):
-        pascal += "_"
-    return pascal
-
-
-def _safe_field_name(name: str) -> str:
-    snake = _to_snake(name) or "field_"
-    snake = re.sub(r"[^\w]", "_", snake)
-    snake = re.sub(r"_+", "_", snake).strip("_") or "field_"
-    if snake[0].isdigit():
-        snake = "field_" + snake
-    if keyword.iskeyword(snake) or keyword.issoftkeyword(snake):
-        snake += "_"
-    return snake
-
 
 # ---------------------------------------------------------------------------
 # Type annotation helpers
@@ -126,7 +76,7 @@ def _ref_to_class_name(ref: str) -> str:
     """Extract a class name from a ``$ref`` like ``"#/$defs/MyModel"``."""
     fragment = ref.split("#", 1)[-1] if "#" in ref else ref
     part = fragment.rstrip("/").rsplit("/", 1)[-1]
-    return _safe_class_name(part) if part else "Unknown"
+    return safe_python_class_name(part) if part else "Unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -187,10 +137,11 @@ class PydanticGenerator(Generator[JsonSchemaDocument, PythonModule]):
 
 
 def _root_class_name(doc: JsonSchemaDocument) -> str:
-    if isinstance(doc.root, ObjectSchema):
-        if doc.root.title:
-            return _safe_class_name(doc.root.title)
-    return _safe_class_name(doc.display_name or doc.source_id.rstrip("/").rsplit("/", 1)[-1])
+    if isinstance(doc.root, ObjectSchema) and doc.root.title:
+        return safe_python_class_name(doc.root.title)
+    return safe_python_class_name(
+        doc.display_name or doc.source_id.rstrip("/").rsplit("/", 1)[-1]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -200,6 +151,13 @@ def _root_class_name(doc: JsonSchemaDocument) -> str:
 
 @dataclass
 class _GenCtx:
+    """Per-document generation state threaded through the CST walk.
+
+    Holds the source document identifier, an optional ref resolver for
+    cross-document ``$ref`` lookup, and the mutable warnings list that is
+    shared with the owning ``PydanticGenerator``.
+    """
+
     source_id: str
     resolver: JsonSchemaRefResolver | None
     warnings: list[TranspilationWarning]
@@ -221,7 +179,7 @@ class _GenCtx:
                 summary=schema.title or schema.description or "",
                 description=schema.description if schema.title else None,
             )
-        return TypeAliasDef(name=_safe_class_name(name), annotation=ann, doc=doc)
+        return TypeAliasDef(name=safe_python_class_name(name), annotation=ann, doc=doc)
 
     def _is_object_schema(self, schema: ObjectSchema) -> bool:
         if schema.type == JsonSchemaType.OBJECT:
@@ -232,14 +190,14 @@ class _GenCtx:
         return schema.type is None and schema.properties is not None
 
     def _make_class(self, schema: ObjectSchema, name: str) -> ClassDef:
-        class_name = _safe_class_name(name)
+        class_name = safe_python_class_name(name)
         required_set = set(schema.required or frozenset())
         fields: list[FieldDef] = []
 
         for prop_name, prop_schema in (schema.properties or {}).items():
             is_required = prop_name in required_set
             ann = self.schema_to_annotation(prop_schema, required=is_required)
-            py_name = _safe_field_name(prop_name)
+            py_name = safe_python_field_name(prop_name)
 
             alias_kwargs = ""
             if py_name != prop_name:
@@ -271,7 +229,11 @@ class _GenCtx:
                     field_kw.append(f"pattern={prop_schema.pattern!r}")
 
             if field_kw:
-                default = f"Field({', '.join(field_kw)})" if default is None else f"Field({default}, {', '.join(field_kw)})"
+                default = (
+                    f"Field({', '.join(field_kw)})"
+                    if default is None
+                    else f"Field({default}, {', '.join(field_kw)})"
+                )
 
             fields.append(FieldDef(
                 name=py_name,
@@ -307,8 +269,7 @@ class _GenCtx:
 
         # $ref → forward reference class name
         if schema.ref:
-            name = _ref_to_class_name(schema.ref)
-            return PythonTypeAnnotation(name)
+            return PythonTypeAnnotation(_ref_to_class_name(schema.ref))
 
         # enum → Literal[...]
         if schema.enum is not None:
@@ -359,7 +320,6 @@ class _GenCtx:
             if schema.items is not None:
                 item_ann = self._annotation_inner(schema.items)
             elif schema.prefix_items:
-                # tuple-like; use Any for simplicity
                 item_ann = _ANY
             else:
                 item_ann = _ANY
@@ -406,14 +366,13 @@ class _GenCtx:
         return None
 
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:
-        from schema_to._errors import SourceLocation
-        loc = None
+        loc: SourceLocation | None = None
         if schema.source_ref:
             loc = SourceLocation(
                 source_id=schema.source_ref.source_id,
                 json_pointer=schema.source_ref.json_pointer,
             )
-        self.warnings.append(TranspilationWarning(msg, code=code, location=loc))  # type: ignore[attr-defined]
+        self.warnings.append(TranspilationWarning(msg, code=code, location=loc))
 
 
 # ---------------------------------------------------------------------------
