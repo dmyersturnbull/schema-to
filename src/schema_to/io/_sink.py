@@ -9,10 +9,13 @@ object store, etc.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from schema_to.io._source import MediaType
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from schema_to.io._source import MediaType
 
 __all__ = ["DataSink", "OutputArtifact"]
 

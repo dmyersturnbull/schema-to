@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+from schema_to import ParseError
+from schema_to._core import JsonValue
+from schema_to.io._core import YamlReader, JsonReader
 from schema_to.io._sink import DataSink, OutputArtifact
 from schema_to.io._source import DataSource, MediaType, RawDocument
 
-__all__ = ["DirectoryDataSource", "FileDataSink", "FileDataSource"]
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+__all__ = ["FileDataSink", "FileDataSource", "JsonLikeReader"]
 
 
+@dataclass(frozen=True, slots=True)
 class FileDataSource(DataSource):
     """A `DataSource` backed by a single file on the local filesystem.
 
@@ -22,73 +30,21 @@ class FileDataSource(DataSource):
         media_type: Content type override.  Inferred from suffix if `None`.
     """
 
-    def __init__(
-        self,
-        path: Path | str,
-        *,
-        media_type: MediaType | None = None,
-    ) -> None:
-        self._path = Path(path).resolve()
-        self._media_type = media_type
+    path: Path
+    media_type: MediaType
 
     @property
     def source_id(self) -> str:
-        return self._path.as_uri()
+        return self.path.as_uri()
 
-    def documents(self) -> Iterator[RawDocument]:
-        mt = self._media_type or MediaType.from_extension(self._path.suffix)
-        if mt is None:
-            return
-        yield RawDocument(
-            source_id=self._path.as_uri(),
-            content=self._path.read_bytes(),
-            media_type=mt,
-            display_name=self._path.stem,
-            base_uri=self._path.as_uri(),
-        )
-
-
-class DirectoryDataSource(DataSource):
-    """A `DataSource` that yields all files matching a glob pattern under a directory.
-
-    Files whose extension maps to no known media type are silently skipped, so
-    a directory can contain a mix of schema files and unrelated assets.
-
-    Attributes:
-        root: Path to the directory.
-        pattern: `pathlib`-style glob pattern relative to `root`.
-        media_type: Override media type applied to every matched file.
-            When `None`, the type is inferred per-file from the extension.
-    """
-
-    def __init__(
-        self,
-        root: Path | str,
-        pattern: str = "**/*",
-        *,
-        media_type: MediaType | None = None,
-    ) -> None:
-        self._root = Path(root).resolve()
-        self._pattern = pattern
-        self._media_type = media_type
-
-    @property
-    def source_id(self) -> str:
-        return self._root.as_uri()
-
-    def documents(self) -> Iterator[RawDocument]:
-        for path in sorted(self._root.glob(self._pattern)):
-            if not path.is_file():
-                continue
-            mt = self._media_type or MediaType.from_extension(path.suffix)
-            if mt is None:
-                continue
+    def read(self) -> Iterator[RawDocument]:
+        if self.media_type.is_source:
             yield RawDocument(
-                source_id=path.as_uri(),
-                content=path.read_bytes(),
-                media_type=mt,
-                display_name=path.stem,
-                base_uri=path.as_uri(),
+                source_id=self.path.as_uri(),
+                content=self.path.read_bytes(),
+                media_type=self.media_type,
+                display_name=self.path.stem,
+                base_uri=self.path.as_uri(),
             )
 
 
@@ -116,3 +72,16 @@ class FileDataSink(DataSink):
         if self._create_dirs:
             dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(artifact.content)
+
+
+@dataclass(frozen=True, slots=True)
+class JsonLikeReader:
+    def read(self, data: bytes | str, media_type: MediaType) -> JsonValue:
+        match media_type.essence:
+            case "application/yaml" | "text/yaml":
+                return YamlReader().read(data)
+            case "application/json":
+                return JsonReader().read(data)
+            case _:
+                msg = f"Cannot read from {media_type}"
+                raise ParseError(msg)

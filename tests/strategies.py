@@ -20,8 +20,7 @@ _SCHEMA_TYPES = ["string", "number", "integer", "boolean", "array", "object", "n
 
 _safe_text = st.text(
     alphabet=st.characters(
-        whitelist_categories=("Lu", "Ll", "Nd", "Zs"),
-        whitelist_characters="-_./:()",
+        whitelist_categories=("Lu", "Ll", "Nd", "Zs"), whitelist_characters="-_./:()"
     ),
     max_size=40,
 )
@@ -59,9 +58,13 @@ _media_type_str = st.builds(
 def _numeric_kw_st(draw: st.DrawFn, d: dict) -> None:
     for kw in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"):
         if draw(st.booleans()):
-            d[kw] = draw(st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False))
+            d[kw] = draw(
+                st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False)
+            )
     if draw(st.booleans()):
-        d["multipleOf"] = draw(st.floats(min_value=0.001, max_value=1000.0, allow_nan=False, allow_infinity=False))
+        d["multipleOf"] = draw(
+            st.floats(min_value=0.001, max_value=1000.0, allow_nan=False, allow_infinity=False)
+        )
 
 
 @st.composite
@@ -99,9 +102,7 @@ def _object_kw_st(draw: st.DrawFn, d: dict, depth: int) -> None:
                 draw(st.lists(st.sampled_from(prop_names), min_size=k, max_size=k, unique=True))
             )
     if depth < 2 and draw(st.booleans()):
-        d["additionalProperties"] = draw(
-            st.one_of(st.booleans(), json_schema_st(depth=depth + 1))
-        )
+        d["additionalProperties"] = draw(st.one_of(st.booleans(), json_schema_st(depth=depth + 1)))
 
 
 @st.composite
@@ -158,7 +159,11 @@ def json_schema_st(draw: st.DrawFn, depth: int = 0) -> object:
     # Validation — type
     if draw(st.booleans()):
         n_types = draw(st.integers(min_value=1, max_value=3))
-        types = draw(st.lists(st.sampled_from(_SCHEMA_TYPES), min_size=n_types, max_size=n_types, unique=True))
+        types = draw(
+            st.lists(
+                st.sampled_from(_SCHEMA_TYPES), min_size=n_types, max_size=n_types, unique=True
+            )
+        )
         d["type"] = types[0] if len(types) == 1 else types
 
     # Validation — enum / const (mutually exclusive)
@@ -198,7 +203,11 @@ def _response_st(draw: st.DrawFn) -> dict:
     if draw(st.booleans()):
         media_types = draw(st.lists(_media_type_str, min_size=1, max_size=2, unique=True))
         d["content"] = {
-            mt: ({"schema": draw(json_schema_st())} if draw(st.booleans()) and "/" in mt and mt.split("/")[0] in {"application", "text"} else {})
+            mt: (
+                {"schema": draw(json_schema_st())}
+                if draw(st.booleans()) and "/" in mt and mt.split("/")[0] in {"application", "text"}
+                else {}
+            )
             for mt in media_types
         }
     return d
@@ -206,10 +215,7 @@ def _response_st(draw: st.DrawFn) -> dict:
 
 @st.composite
 def _parameter_st(draw: st.DrawFn) -> dict:
-    return {
-        "name": draw(_identifier),
-        "in": draw(st.sampled_from(_PARAM_LOCATIONS)),
-    }
+    return {"name": draw(_identifier), "in": draw(st.sampled_from(_PARAM_LOCATIONS))}
 
 
 @st.composite
@@ -249,30 +255,20 @@ def openapi_doc_st(draw: st.DrawFn) -> dict:
     """Generate a minimal but valid OpenAPI 3.1 document dict."""
     d: dict = {
         "openapi": "3.1.0",
-        "info": {
-            "title": draw(_nonempty_text),
-            "version": draw(_nonempty_text),
-        },
+        "info": {"title": draw(_nonempty_text), "version": draw(_nonempty_text)},
     }
 
     # Optional paths (empty paths: {} is valid)
     if draw(st.booleans()):
         path_names = draw(
-            st.lists(
-                st.builds(lambda s: f"/{s}", _identifier),
-                min_size=0,
-                max_size=3,
-                unique=True,
-            )
+            st.lists(st.builds(lambda s: f"/{s}", _identifier), min_size=0, max_size=3, unique=True)
         )
         d["paths"] = {path: draw(_path_item_st()) for path in path_names}
 
     # Optional components/schemas
     if draw(st.booleans()):
         schema_names = draw(st.lists(_identifier, min_size=1, max_size=4, unique=True))
-        d["components"] = {
-            "schemas": {name: draw(json_schema_st()) for name in schema_names}
-        }
+        d["components"] = {"schemas": {name: draw(json_schema_st()) for name in schema_names}}
 
     # Optional servers
     if draw(st.booleans()):

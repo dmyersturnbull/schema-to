@@ -5,11 +5,7 @@
 ```python
 from schema_to import Pipeline, Ok, Err
 
-pipeline = Pipeline(
-    sources=[...],
-    transpilers=[...],
-    sink=...,
-)
+pipeline = Pipeline(sources=[...], transpilers=[...], sink=...)
 
 match pipeline.process():
     case Ok(summary):
@@ -46,7 +42,7 @@ from schema_to._errors import (
 )
 from schema_to._pipeline import Pipeline, ProcessSummary, Transpiler, TypedTranspiler
 from schema_to._result import Err, Ok, Result
-from schema_to.io._file import DirectoryDataSource, FileDataSink, FileDataSource
+from schema_to.io._file import FileDataSink, FileDataSource
 from schema_to.io._memory import InMemoryDataSink, InMemoryDataSource
 from schema_to.io._sink import DataSink, OutputArtifact
 from schema_to.io._source import (
@@ -63,53 +59,49 @@ from schema_to.parse._openapi import OpenApiParser
 from schema_to.serialize._json_schema import JsonSchemaSerializer
 from schema_to.serialize._openapi import OpenApiSerializer
 from schema_to.transpile._extract import OpenApiExtractTranspiler
-from schema_to.transpile._pass_thru import (
-    JsonSchemaPassThruTranspiler,
-    OpenApiPassThruTranspiler,
-)
+from schema_to.transpile._pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
 
 __all__ = [
     # I/O
     "DataSink",
     "DataSource",
-    "DirectoryDataSource",
+    # Result
+    "Err",
     "FileDataSink",
     "FileDataSource",
+    # Errors
+    "GenerationError",
     "InMemoryDataSink",
     "InMemoryDataSource",
+    # Parsers
+    "JsonSchemaParser",
+    # Transpilers
+    "JsonSchemaPassThruTranspiler",
     "JsonSchemaRawDocument",
+    # Serializers
+    "JsonSchemaSerializer",
     "MediaType",
     "MediaTypeParam",
     "MediaTypes",
+    "Ok",
+    "OpenApiExtractTranspiler",
+    "OpenApiParser",
+    "OpenApiPassThruTranspiler",
     "OpenApiRawDocument",
+    "OpenApiSerializer",
     "OutputArtifact",
-    "RawDocument",
+    "ParseError",
     # Pipeline
     "Pipeline",
     "ProcessSummary",
-    "Transpiler",
-    "TypedTranspiler",
-    # Result
-    "Err",
-    "Ok",
-    "Result",
-    # Errors
-    "GenerationError",
-    "ParseError",
+    "RawDocument",
     "ReificationError",
     "ResolutionError",
+    "Result",
     "SchemaValidationError",
     "SourceLocation",
     "TranspilationError",
     "TranspilationWarning",
-    # Parsers
-    "JsonSchemaParser",
-    "OpenApiParser",
-    # Serializers
-    "JsonSchemaSerializer",
-    "OpenApiSerializer",
-    # Transpilers
-    "JsonSchemaPassThruTranspiler",
-    "OpenApiExtractTranspiler",
-    "OpenApiPassThruTranspiler",
+    "Transpiler",
+    "TypedTranspiler",
 ]

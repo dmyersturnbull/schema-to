@@ -5,7 +5,8 @@ hierarchies.  `OpenApiDocument` embeds `JsonSchema` nodes directly for its
 `schema` fields, reflecting OpenAPI 3.1's full alignment with JSON Schema 2020-12.
 """
 
-from schema_to.cst._base import CstNode, JsonValue, SourceRef
+from schema_to._core import JsonValue
+from schema_to.cst._base import CstNode, SourceRef
 from schema_to.cst._json_schema import (
     BooleanSchema,
     ConstValue,
@@ -46,33 +47,28 @@ from schema_to.cst._openapi import (
 )
 
 __all__ = [
-    # Base
-    "CstNode",
-    "JsonValue",
-    "SourceRef",
-    # JSON Schema
-    "BooleanSchema",
-    "ConstValue",
-    "DefaultValue",
-    "JsonSchema",
-    "JsonSchemaDocument",
-    "JsonSchemaType",
-    "ObjectSchema",
-    "SchemaType",
-    # OpenAPI
     "ApiKeyLocation",
+    "BooleanSchema",
     "Components",
+    "ConstValue",
     "Contact",
+    "CstNode",
+    "DefaultValue",
     "Encoding",
     "ExternalDocumentation",
     "Header",
     "HttpMethod",
     "Info",
+    "JsonSchema",
+    "JsonSchemaDocument",
+    "JsonSchemaType",
+    "JsonValue",
     "License",
     "Link",
     "MediaTypeObject",
     "OAuthFlow",
     "OAuthFlows",
+    "ObjectSchema",
     "OpenApiDocument",
     "Operation",
     "Parameter",
@@ -80,10 +76,12 @@ __all__ = [
     "PathItem",
     "RequestBody",
     "Response",
+    "SchemaType",
     "SecurityRequirement",
     "SecurityScheme",
     "SecuritySchemeType",
     "Server",
     "ServerVariable",
+    "SourceRef",
     "Tag",
 ]

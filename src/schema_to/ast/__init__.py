@@ -8,6 +8,7 @@ Three independent sub-modules, one per supported output language:
 
 All AST nodes are immutable `@dataclass(frozen=True, slots=True)` subclasses of `AstNode`.
 """
+# ruff: noqa: RUF022
 
 from schema_to.ast._base import AstNode, DocString, Visibility
 from schema_to.ast._python import (

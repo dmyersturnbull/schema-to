@@ -14,11 +14,14 @@ Custom extension keywords supported by the generator:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum, auto
+from typing import TYPE_CHECKING
 
 from schema_to.ast._base import AstNode
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 __all__ = [
     "ColumnConstraint",
@@ -40,7 +43,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-class PgDataType(str, Enum):
+class PgDataType(StrEnum):
     """PostgreSQL built-in data types used by the code generator.
 
     This list covers the types reachable from JSON Schema primitives plus
@@ -49,39 +52,39 @@ class PgDataType(str, Enum):
     """
 
     # Numeric
-    SMALLINT = "smallint"
-    INTEGER = "integer"
-    BIGINT = "bigint"
-    NUMERIC = "numeric"
-    REAL = "real"
+    SMALLINT = auto()
+    INTEGER = auto()
+    BIGINT = auto()
+    NUMERIC = auto()
+    REAL = auto()
     DOUBLE_PRECISION = "double precision"
     # Character
-    TEXT = "text"
-    VARCHAR = "varchar"
-    CHAR = "char"
+    TEXT = auto()
+    VARCHAR = auto()
+    CHAR = auto()
     # Boolean
-    BOOLEAN = "boolean"
+    BOOLEAN = auto()
     # Date / time
-    DATE = "date"
-    TIME = "time"
-    TIMETZ = "timetz"
-    TIMESTAMP = "timestamp"
-    TIMESTAMPTZ = "timestamptz"
-    INTERVAL = "interval"
+    DATE = auto()
+    TIME = auto()
+    TIMETZ = auto()
+    TIMESTAMP = auto()
+    TIMESTAMPTZ = auto()
+    INTERVAL = auto()
     # Binary
-    BYTEA = "bytea"
+    BYTEA = auto()
     # UUID
-    UUID = "uuid"
+    UUID = auto()
     # JSON
-    JSON = "json"
-    JSONB = "jsonb"
+    JSON = auto()
+    JSONB = auto()
     # Arrays (use DataType.array_of)
-    ARRAY = "array"
+    ARRAY = auto()
     # Other
-    CUSTOM = "custom"
+    CUSTOM = auto()
 
 
-class ForeignKeyAction(str, Enum):
+class ForeignKeyAction(StrEnum):
     """Actions for `ON DELETE` and `ON UPDATE` foreign-key clauses."""
 
     NO_ACTION = "NO ACTION"
@@ -91,7 +94,7 @@ class ForeignKeyAction(str, Enum):
     SET_DEFAULT = "SET DEFAULT"
 
 
-class IndexMethod(str, Enum):
+class IndexMethod(StrEnum):
     """PostgreSQL index access methods."""
 
     BTREE = "btree"

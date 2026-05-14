@@ -12,10 +12,14 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum, auto
+from typing import TYPE_CHECKING
 
-from schema_to.cst._base import CstNode, JsonValue, SourceRef
-from schema_to.cst._json_schema import JsonSchema
+from schema_to.cst._base import CstNode, SourceRef
+
+if TYPE_CHECKING:
+    from schema_to._core import JsonValue
+    from schema_to.cst._json_schema import JsonSchema
 
 __all__ = [
     "ApiKeyLocation",
@@ -52,29 +56,29 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-class HttpMethod(str, Enum):
+class HttpMethod(StrEnum):
     """HTTP methods as used in OpenAPI path items."""
 
-    GET = "get"
-    PUT = "put"
-    POST = "post"
-    DELETE = "delete"
-    OPTIONS = "options"
-    HEAD = "head"
-    PATCH = "patch"
-    TRACE = "trace"
+    GET = auto()
+    PUT = auto()
+    POST = auto()
+    DELETE = auto()
+    OPTIONS = auto()
+    HEAD = auto()
+    PATCH = auto()
+    TRACE = auto()
 
 
-class ParameterLocation(str, Enum):
+class ParameterLocation(StrEnum):
     """The `in` field of an OpenAPI Parameter Object."""
 
-    QUERY = "query"
-    HEADER = "header"
-    PATH = "path"
-    COOKIE = "cookie"
+    QUERY = auto()
+    HEADER = auto()
+    PATH = auto()
+    COOKIE = auto()
 
 
-class SecuritySchemeType(str, Enum):
+class SecuritySchemeType(StrEnum):
     """The `type` field of a Security Scheme Object."""
 
     API_KEY = "apiKey"
@@ -84,12 +88,12 @@ class SecuritySchemeType(str, Enum):
     OPEN_ID_CONNECT = "openIdConnect"
 
 
-class ApiKeyLocation(str, Enum):
+class ApiKeyLocation(StrEnum):
     """The `in` field of an `apiKey` Security Scheme."""
 
-    QUERY = "query"
-    HEADER = "header"
-    COOKIE = "cookie"
+    QUERY = auto()
+    HEADER = auto()
+    COOKIE = auto()
 
 
 # ---------------------------------------------------------------------------

@@ -3,31 +3,34 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from schema_to._core import JsonObject, JsonValue
-from schema_to.cst._openapi import (
-    Components,
-    Contact,
-    ExternalDocumentation,
-    Header,
-    Info,
-    License,
-    Link,
-    MediaTypeObject,
-    OAuthFlow,
-    OAuthFlows,
-    OpenApiDocument,
-    Operation,
-    Parameter,
-    PathItem,
-    RequestBody,
-    Response,
-    SecurityScheme,
-    Server,
-    ServerVariable,
-    Tag,
-)
 from schema_to.serialize._json_schema import JsonSchemaSerializer
+
+if TYPE_CHECKING:
+    from schema_to._core import JsonObject
+    from schema_to.cst._openapi import (
+        Components,
+        Contact,
+        ExternalDocumentation,
+        Header,
+        Info,
+        License,
+        Link,
+        MediaTypeObject,
+        OAuthFlow,
+        OAuthFlows,
+        OpenApiDocument,
+        Operation,
+        Parameter,
+        PathItem,
+        RequestBody,
+        Response,
+        SecurityScheme,
+        Server,
+        ServerVariable,
+        Tag,
+    )
 
 __all__ = ["OpenApiSerializer"]
 
@@ -36,7 +39,7 @@ _HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "tr
 
 def _set(out: JsonObject, key: str, value: object) -> None:
     if value is not None:
-        out[key] = value  # type: ignore[assignment]
+        out[key] = value
 
 
 @dataclass(frozen=True)
@@ -50,10 +53,7 @@ class OpenApiSerializer:
     js: JsonSchemaSerializer = field(default_factory=JsonSchemaSerializer)
 
     def serialize(self, doc: OpenApiDocument) -> JsonObject:
-        out: JsonObject = {
-            "openapi": doc.openapi,
-            "info": self._info(doc.info),
-        }
+        out: JsonObject = {"openapi": doc.openapi, "info": self._info(doc.info)}
         if doc.paths:
             out["paths"] = {p: self._path_item(pi) for p, pi in doc.paths.items()}
         comp = self._components(doc.components)
@@ -145,9 +145,7 @@ class OpenApiSerializer:
         return out
 
     def _operation(self, op: Operation) -> JsonObject:
-        out: JsonObject = {
-            "responses": {k: self._response(v) for k, v in op.responses.items()},
-        }
+        out: JsonObject = {"responses": {k: self._response(v) for k, v in op.responses.items()}}
         if op.tags:
             out["tags"] = list(op.tags)
         _set(out, "summary", op.summary)
@@ -186,9 +184,7 @@ class OpenApiSerializer:
         return out
 
     def _request_body(self, rb: RequestBody) -> JsonObject:
-        out: JsonObject = {
-            "content": {k: self._media_type_obj(v) for k, v in rb.content.items()},
-        }
+        out: JsonObject = {"content": {k: self._media_type_obj(v) for k, v in rb.content.items()}}
         _set(out, "description", rb.description)
         if rb.required:
             out["required"] = True
@@ -252,11 +248,15 @@ class OpenApiSerializer:
         if comp.parameters:
             out["parameters"] = {k: self._parameter(v) for k, v in comp.parameters.items()}
         if comp.request_bodies:
-            out["requestBodies"] = {k: self._request_body(v) for k, v in comp.request_bodies.items()}
+            out["requestBodies"] = {
+                k: self._request_body(v) for k, v in comp.request_bodies.items()
+            }
         if comp.headers:
             out["headers"] = {k: self._header(v) for k, v in comp.headers.items()}
         if comp.security_schemes:
-            out["securitySchemes"] = {k: self._security_scheme(v) for k, v in comp.security_schemes.items()}
+            out["securitySchemes"] = {
+                k: self._security_scheme(v) for k, v in comp.security_schemes.items()
+            }
         if comp.links:
             out["links"] = {k: self._link(v) for k, v in comp.links.items()}
         out.update(comp.extensions)

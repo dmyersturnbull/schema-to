@@ -35,13 +35,12 @@ each source document to the correct `Transpiler` at runtime.
 3. Pass all `OutputArtifact`s to the shared `DataSink`.
 4. Return a `Result[ProcessSummary]` with counts and accumulated warnings.
 """
-# noqa: A002
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from schema_to._errors import TranspilationError, TranspilationWarning
 from schema_to._result import Err, Ok, Result
@@ -87,14 +86,11 @@ class Stage[A, B](ABC):
 
     def then[C](self, other: Stage[B, C]) -> Stage[A, C]:
         """Compose `self` with `other`, running `other` only if `self` succeeds."""
-        return _ComposedStage(self, other)  # type: ignore[return-value]
+        return _ComposedStage(self, other)
 
-    def map_error(
-        self,
-        f: Callable[[TranspilationError], TranspilationError],
-    ) -> Stage[A, B]:
+    def map_error(self, f: Callable[[TranspilationError], TranspilationError]) -> Stage[A, B]:
         """Transform every error produced by this stage without changing its type."""
-        return _MappedErrorStage(self, f)  # type: ignore[return-value]
+        return _MappedErrorStage(self, f)
 
 
 # `Stage.then` and `Stage.map_error` reference these helpers by name; the
@@ -102,31 +98,31 @@ class Stage[A, B](ABC):
 # safe to define the helpers here, after `Stage`.
 
 
-class _ComposedStage(Stage):  # type: ignore[type-arg]
+class _ComposedStage(Stage):
     """Internal: result of `Stage.then()`."""
 
     def __init__(self, first: object, second: object) -> None:
         self._first = first
         self._second = second
 
-    def apply(self, input: object) -> object:  # type: ignore[override]
-        r = self._first.apply(input)  # type: ignore[attr-defined]
+    def apply(self, input: object) -> object:
+        r = self._first.apply(input)
         if isinstance(r, Err):
             return r
-        return self._second.apply(r.value)  # type: ignore[attr-defined]
+        return self._second.apply(r.value)
 
 
-class _MappedErrorStage(Stage):  # type: ignore[type-arg]
+class _MappedErrorStage(Stage):
     """Internal: result of `Stage.map_error()`."""
 
     def __init__(self, inner: object, f: object) -> None:
         self._inner = inner
         self._f = f
 
-    def apply(self, input: object) -> object:  # type: ignore[override]
-        r = self._inner.apply(input)  # type: ignore[attr-defined]
+    def apply(self, input: object) -> object:
+        r = self._inner.apply(input)
         if isinstance(r, Err):
-            return Err(tuple(self._f(e) for e in r.errors))  # type: ignore[operator]
+            return Err(tuple(self._f(e) for e in r.errors))
         return r
 
 
@@ -249,9 +245,7 @@ class TypedTranspiler[CstT: CstNode, AstT: AstNode](Transpiler):
 
     Example:
         ```python
-        class JsonSchemaToSqlTranspiler(
-            TypedTranspiler[JsonSchemaDocument, SqlScript]
-        ):
+        class JsonSchemaToSqlTranspiler(TypedTranspiler[JsonSchemaDocument, SqlScript]):
             def accepts(self, doc):
                 return doc.media_type == MediaType.json()
 
@@ -313,12 +307,12 @@ class ProcessSummary:
     """Summary of a completed `Pipeline.process()` run.
 
     Attributes:
-        documents_read: Total number of `RawDocument`s consumed across all sources.
+        docs_read: Total number of `RawDocument`s consumed across all sources.
         artifacts_written: Total number of `OutputArtifact`s written to the sink.
         warnings: Non-fatal diagnostics accumulated during transpilation.
     """
 
-    documents_read: int
+    docs_read: int
     artifacts_written: int
     warnings: tuple[TranspilationWarning, ...] = ()
 
@@ -369,12 +363,9 @@ class Pipeline:
         warnings: list[TranspilationWarning] = []
 
         for source in self.sources:
-            for document in source.documents():
+            for document in source.read():
                 documents_read += 1
-                transpiler = next(
-                    (t for t in self.transpilers if t.accepts(document)),
-                    None,
-                )
+                transpiler = next((t for t in self.transpilers if t.accepts(document)), None)
                 if transpiler is None:
                     warnings.append(
                         TranspilationWarning(
@@ -396,7 +387,7 @@ class Pipeline:
             return Err(tuple(errors))
         return Ok(
             ProcessSummary(
-                documents_read=documents_read,
+                docs_read=documents_read,
                 artifacts_written=artifacts_written,
                 warnings=tuple(warnings),
             )

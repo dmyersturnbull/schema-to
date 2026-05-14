@@ -8,10 +8,15 @@ never assumes a filesystem is present.
 
 from __future__ import annotations
 
+from functools import cache
+from pathlib import Path
+
 from abc import ABC, abstractmethod
-from collections.abc import Iterator
-from dataclasses import dataclass
-from typing import NamedTuple
+from dataclasses import dataclass, KW_ONLY
+from typing import TYPE_CHECKING, NamedTuple, Self
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 __all__ = [
     "DataSource",
@@ -35,7 +40,15 @@ class MediaType:
 
     type: str
     subtype: str
+    _: KW_ONLY
     params: tuple[MediaTypeParam, ...] = ()
+    suffixes: tuple[str, ...] = ()
+    is_source: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.suffixes:
+            msg = "Must provide at least 1 suffix."
+            raise ValueError(msg)
 
     @property
     def essence(self) -> str:
@@ -46,31 +59,52 @@ class MediaType:
         return self.essence + "".join(f";{k}={v}" for k, v in self.params)
 
     @property
-    def is_discrete(self) -> bool:
-        return self.type not in {"message", "multipart"}
+    def preferred_suffix(self) -> str:
+        return self.suffixes[0]
 
     def __str__(self) -> str:
         return self.string
-
-    @classmethod
-    def from_extension(cls, suffix: str) -> MediaType | None:
-        """Infer a media type from a file extension such as `".json"` or `".yaml"`."""
-        return {
-            ".json": MediaTypes.json,
-            ".yaml": MediaTypes.yaml,
-            ".yml": MediaTypes.yaml,
-        }.get(suffix.lower())
 
 
 class MediaTypes:
     """Common media type constants."""
 
-    commonmark = MediaType("text", "markdown")
-    json = MediaType("application", "json")
-    python = MediaType("text", "x-python")
-    sql = MediaType("application", "sql")
-    typescript = MediaType("application", "typescript")
-    yaml = MediaType("application", "yaml")
+    commonmark = MediaType("text", "markdown", suffixes=(".md",))
+    json = MediaType("application", "json", suffixes=(".json",), is_source=True)
+    jsonc = MediaType("application", "jsonc", suffixes=(".jsonc",), is_source=True)
+    python = MediaType("text", "x-python", suffixes=(".py",))
+    sql = MediaType("application", "sql", suffixes=(".sql",))
+    typescript = MediaType("application", "typescript", suffixes=(".ts",))
+    yaml = MediaType("application", "yaml", suffixes=(".yaml", ".yaml"), is_source=True)
+
+    @classmethod
+    def sources(cls) -> tuple[MediaType, ...]:
+        return tuple(mt for mt in cls.all() if mt.is_source)
+
+    @classmethod
+    def all(cls) -> tuple[MediaType, ...]:
+        return tuple(value for value in vars(cls).values() if isinstance(value, MediaType))
+
+    @classmethod
+    def source_from_suffix(cls, suffix: str) -> MediaType:
+        return cls._suffix_map()[suffix]
+
+    @classmethod
+    def from_suffix(cls, suffix: str) -> MediaType | None:
+        return cls._suffix_map().get(suffix)
+
+    @classmethod
+    @cache
+    def _suffix_map(cls) -> dict[str, MediaType]:
+        by_suffix: dict[str, set[MediaType]] = {}
+        for mt in cls.all():
+            for suffix in mt.suffixes:
+                by_suffix[suffix].add(mt)
+        clashes = {s: mts for s, mts in by_suffix.items() if len(mts) > 1}
+        if clashes:
+            msg = f"Conflicts in filename suffix / media-type map: {clashes.items()}"
+            raise ValueError(msg)
+        return {s: next(iter(mts)) for s, mts in by_suffix.items()}
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,6 +159,6 @@ class DataSource(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def documents(self) -> Iterator[RawDocument]:
+    def read(self) -> Iterator[RawDocument]:
         """Yield each document provided by this source in an unspecified order."""
         raise NotImplementedError

@@ -6,10 +6,13 @@ directly into the next without touching the filesystem.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from typing import TYPE_CHECKING
 
 from schema_to.io._sink import DataSink, OutputArtifact
 from schema_to.io._source import DataSource, RawDocument
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator, Sequence
 
 __all__ = ["InMemoryDataSink", "InMemoryDataSource"]
 
@@ -21,12 +24,7 @@ class InMemoryDataSource(DataSource):
         source_id: Identifier for this source as a whole.
     """
 
-    def __init__(
-        self,
-        documents: Sequence[RawDocument],
-        *,
-        source_id: str = "<memory>",
-    ) -> None:
+    def __init__(self, documents: Sequence[RawDocument], *, source_id: str = "<memory>") -> None:
         self._documents = list(documents)
         self._source_id = source_id
 
@@ -34,7 +32,7 @@ class InMemoryDataSource(DataSource):
     def source_id(self) -> str:
         return self._source_id
 
-    def documents(self) -> Iterator[RawDocument]:
+    def read(self) -> Iterator[RawDocument]:
         return iter(self._documents)
 
 

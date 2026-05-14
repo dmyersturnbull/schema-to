@@ -9,11 +9,14 @@ The AST covers the subset of TypeScript needed to express schemas: `interface`,
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from schema_to.ast._base import AstNode, DocString
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 __all__ = [
     "EnumDecl",
@@ -23,9 +26,9 @@ __all__ = [
     "InterfaceDecl",
     "JSDocComment",
     "PropertySignature",
+    "TypeAliasDecl",
     "TypeScriptModule",
     "TypeScriptTypeAnnotation",
-    "TypeAliasDecl",
     "UtilityType",
 ]
 
@@ -35,7 +38,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-class UtilityType(str, Enum):
+class UtilityType(StrEnum):
     """TypeScript built-in utility types applied to a base type.
 
     Attributes:

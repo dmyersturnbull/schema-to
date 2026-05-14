@@ -5,8 +5,8 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from schema_to._core import JsonObject, JsonValue
 from schema_to.cst._json_schema import (
     BooleanSchema,
     ConstValue,
@@ -16,6 +16,9 @@ from schema_to.cst._json_schema import (
     JsonSchemaType,
     ObjectSchema,
 )
+
+if TYPE_CHECKING:
+    from schema_to._core import JsonObject, JsonValue
 
 __all__ = ["JsonSchemaSerializer"]
 
@@ -114,27 +117,27 @@ class JsonSchemaSerializer:
         out.update(s.extensions)
         return out
 
-    def _val(self, value: object) -> JsonValue:
-        if isinstance(value, (BooleanSchema, ObjectSchema)):
-            return self.serialize(value)
-        if isinstance(value, (DefaultValue, ConstValue)):
-            return value.value
-        if isinstance(value, JsonSchemaType):
-            return str(value)
-        if isinstance(value, frozenset):
-            return sorted(str(t) for t in value)
-        if isinstance(value, Sequence) and not isinstance(value, str):
-            items = list(value)
+    def _val(self, v0: object) -> JsonValue:
+        if isinstance(v0, (BooleanSchema, ObjectSchema)):
+            return self.serialize(v0)
+        if isinstance(v0, (DefaultValue, ConstValue)):
+            return v0.value
+        if isinstance(v0, JsonSchemaType):
+            return str(v0)
+        if isinstance(v0, frozenset):
+            return sorted(str(t) for t in v0)
+        if isinstance(v0, Sequence) and not isinstance(v0, str):
+            items = list(v0)
             if items and isinstance(items[0], (BooleanSchema, ObjectSchema)):
-                return [self.serialize(v) for v in items]  # type: ignore[arg-type]
-            return items  # type: ignore[return-value]
-        if isinstance(value, Mapping):
-            if not value:
+                return [self.serialize(v) for v in items]
+            return items
+        if isinstance(v0, Mapping):
+            if not v0:
                 return {}
-            first_v = next(iter(value.values()))
+            first_v = next(iter(v0.values()))
             if isinstance(first_v, (BooleanSchema, ObjectSchema)):
-                return {k: self.serialize(v) for k, v in value.items()}  # type: ignore[arg-type]
+                return {k: self.serialize(v) for k, v in v0.items()}
             if isinstance(first_v, frozenset):
-                return {k: sorted(v) for k, v in value.items()}  # type: ignore[return-value]
-            return dict(value)  # type: ignore[return-value]
-        return value  # type: ignore[return-value]
+                return {k: sorted(v) for k, v in v0.items()}
+            return dict(v0)
+        return v0

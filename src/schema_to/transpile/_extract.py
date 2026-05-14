@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import orjson
 
@@ -21,7 +21,10 @@ from schema_to.io._source import (
 )
 from schema_to.parse._openapi import OpenApiParser
 from schema_to.serialize._json_schema import JsonSchemaSerializer
-from schema_to.transpile._pass_thru import _JSON_YAML_ESSENCES, _peek_is_openapi
+from schema_to.transpile._pass_thru import _peek_is_openapi
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 __all__ = ["OpenApiExtractTranspiler"]
 
@@ -31,7 +34,9 @@ def _encode(data: object, *, use_yaml: bool) -> tuple[bytes, MediaType]:
         from yaml12 import format_yaml  # noqa: PLC0415
 
         return format_yaml(data).encode("utf-8"), MediaTypes.yaml
-    return orjson.dumps(data, option=orjson.OPT_INDENT_2 | orjson.OPT_APPEND_NEWLINE), MediaTypes.json
+    return orjson.dumps(
+        data, option=orjson.OPT_INDENT_2 | orjson.OPT_APPEND_NEWLINE
+    ), MediaTypes.json
 
 
 @dataclass(frozen=True)

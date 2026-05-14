@@ -8,8 +8,8 @@ Both accept a `use_yaml` flag (emit YAML instead of JSON, default `False`).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import orjson
 
@@ -28,10 +28,10 @@ from schema_to.parse._openapi import OpenApiParser
 from schema_to.serialize._json_schema import JsonSchemaSerializer
 from schema_to.serialize._openapi import OpenApiSerializer
 
-__all__ = [
-    "JsonSchemaPassThruTranspiler",
-    "OpenApiPassThruTranspiler",
-]
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+__all__ = ["JsonSchemaPassThruTranspiler", "OpenApiPassThruTranspiler"]
 
 _JSON_YAML_ESSENCES = frozenset({"application/json", "application/yaml", "text/yaml"})
 
@@ -42,7 +42,9 @@ def _encode(data: object, *, use_yaml: bool) -> tuple[bytes, MediaType]:
         from yaml12 import format_yaml  # noqa: PLC0415
 
         return format_yaml(data).encode("utf-8"), MediaTypes.yaml
-    return orjson.dumps(data, option=orjson.OPT_INDENT_2 | orjson.OPT_APPEND_NEWLINE), MediaTypes.json
+    return orjson.dumps(
+        data, option=orjson.OPT_INDENT_2 | orjson.OPT_APPEND_NEWLINE
+    ), MediaTypes.json
 
 
 def _peek_is_openapi(document: RawDocument) -> bool:
@@ -52,16 +54,16 @@ def _peek_is_openapi(document: RawDocument) -> bool:
     """
     if document.media_type.essence not in _JSON_YAML_ESSENCES:
         return False
-    try:
-        if document.media_type.essence == "application/json":
-            data = orjson.loads(document.content)
-        else:
-            from yaml12 import parse_yaml  # noqa: PLC0415
+    if document.media_type.essence == "application/json":
+        data = orjson.loads(document.content)
+    else:
+        from yaml12 import parse_yaml  # noqa: PLC0415
 
+        try:
             data = parse_yaml(document.content.decode("utf-8"))
-        return isinstance(data, dict) and isinstance(data.get("openapi"), str)
-    except Exception:  # noqa: BLE001
-        return False
+        except TypeError, ValueError:
+            return False
+    return isinstance(data, dict) and isinstance(data.get("openapi"), str)
 
 
 @dataclass(frozen=True)
@@ -83,10 +85,7 @@ class JsonSchemaPassThruTranspiler(Transpiler):
             return True
         if isinstance(document, OpenApiRawDocument):
             return False
-        return (
-            document.media_type.essence in _JSON_YAML_ESSENCES
-            and not _peek_is_openapi(document)
-        )
+        return document.media_type.essence in _JSON_YAML_ESSENCES and not _peek_is_openapi(document)
 
     def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
         result = self.parser.apply(document)

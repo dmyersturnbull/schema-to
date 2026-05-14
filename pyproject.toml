@@ -22,8 +22,10 @@ schema-to = "schema_to.__main__:cli"
 
 [dependency-groups]
 dev = [
-  "ruff>=0.15.12",
+  "hypothesis>=6.152",
   "pytest>=9.0",
+  "ruff>=0.15.13",
+  "ty>=0.0.35",
 ]
 
 [tool.ruff]
@@ -39,36 +41,36 @@ skip-magic-trailing-comma = true
 preview = true
 select = ["ALL"]
 ignore = [
-  "W191",     
-  "D206",     
-  "E114",     
-  "E117",     
-  "E501",     
-  "W505",     
-  "COM812",   
-  "COM819",   
+  "W191",
+  "D206",
+  "E114",
+  "E117",
+  "E501",
+  "W505",
+  "COM812",
+  "COM819",
   "CPY",
-  "D300",     
-  "ISC002",   
-  "D1",       
-  "D401",     
-  "D417",     
-  "DOC201",   
-  "DOC402",   
-  "DOC501",   
-  "DOC502",   
-  "E722",     
-  "FIX002",   
-  "PLR2004",  
-  "PLR6301",  
-  "RUF001",   
-  "RUF002",   
-  "RUF003",   
-  "RUF021",   
-  "S403",     
-  "S404",     
-  "TD",       
-  "Q",        
+  "D300",
+  "ISC002",
+  "D10",
+  "D203",
+  "D401",
+  "D417",
+  "DOC201",
+  "DOC402",
+  "DOC501",
+  "DOC502",
+  "FIX002",
+  "PLR2004",
+  "PLR6301",
+  "RUF001",
+  "RUF002",
+  "RUF003",
+  "RUF021",
+  "S403",
+  "S404",
+  "TD",
+  "Q",
 ]
 unfixable = [
   "TC007",
@@ -83,17 +85,20 @@ extend-unsafe-fixes = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*" = [
-  "D10",     
-  "S101",    
-  "S105",    
-  "S106",    
-  "S107",    
-  "S108",    
-  "TID252",  
+  "D10",
+  "S101",
+  "S105",
+  "S106",
+  "S107",
+  "S108",
+  "TID252",
 ]
 
 [tool.ruff.lint.flake8-bandit]
 check-typed-exception = true
+
+[tool.ruff.lint.flake8-builtins]
+ignorelist = ["input"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
@@ -128,7 +133,7 @@ markers = [
 ]
 addopts = [
   "--import-mode=importlib",
-  "--strict",               
-  "--tb=short",             
-  "--quiet",                
+  "--strict",
+  "--tb=short",
+  "--quiet",
 ]

@@ -45,22 +45,13 @@ class TranspilationError(Exception):
     to determine where a failure occurred without inspecting the stack trace.
     """
 
-    def __init__(
-        self,
-        message: str,
-        *,
-        location: SourceLocation | None = None,
-        cause: BaseException | None = None,
-    ) -> None:
+    def __init__(self, message: str = "", *, location: SourceLocation | None = None) -> None:
         super().__init__(message)
-        self._message = message
         self._location = location
-        if cause is not None:
-            self.__cause__ = cause
 
     @property
     def message(self) -> str:
-        return self._message
+        return self.args[0]
 
     @property
     def location(self) -> SourceLocation | None:

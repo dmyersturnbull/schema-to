@@ -8,12 +8,16 @@ vocabulary sub-objects so that serializers and parsers can iterate
 
 from __future__ import annotations
 
-import enum
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from enum import StrEnum
+from enum import StrEnum, auto
+from typing import TYPE_CHECKING
 
-from schema_to.cst._base import CstNode, JsonValue, SourceRef
+from schema_to.cst._base import CstNode, SourceRef
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+
+    from schema_to._core import JsonValue
 
 __all__ = [
     "BooleanSchema",
@@ -38,13 +42,13 @@ class JsonSchemaType(StrEnum):
     Corresponds to the allowed string values of the `type` keyword.
     """
 
-    STRING = enum.auto()
-    NUMBER = enum.auto()
-    INTEGER = enum.auto()
-    BOOLEAN = enum.auto()
-    ARRAY = enum.auto()
-    OBJECT = enum.auto()
-    NULL = enum.auto()
+    STRING = auto()
+    NUMBER = auto()
+    INTEGER = auto()
+    BOOLEAN = auto()
+    ARRAY = auto()
+    OBJECT = auto()
+    NULL = auto()
 
 
 # A schema's `type` keyword is either a single type or a non-empty set of types.
@@ -96,80 +100,80 @@ class ObjectSchema(CstNode):
     """
 
     # -- Core vocabulary --------------------------------------------------
-    id: str | None = None                              # $id
-    schema: str | None = None                          # $schema
-    anchor: str | None = None                          # $anchor
-    dynamic_anchor: str | None = None                  # $dynamicAnchor
-    ref: str | None = None                             # $ref
-    dynamic_ref: str | None = None                     # $dynamicRef
-    defs: Mapping[str, JsonSchema] | None = None       # $defs
-    comment: str | None = None                         # $comment
-    vocabulary: Mapping[str, bool] | None = None       # $vocabulary
+    id: str | None = None  # $id
+    schema: str | None = None  # $schema
+    anchor: str | None = None  # $anchor
+    dynamic_anchor: str | None = None  # $dynamicAnchor
+    ref: str | None = None  # $ref
+    dynamic_ref: str | None = None  # $dynamicRef
+    defs: Mapping[str, JsonSchema] | None = None  # $defs
+    comment: str | None = None  # $comment
+    vocabulary: Mapping[str, bool] | None = None  # $vocabulary
 
     # -- Metadata vocabulary ----------------------------------------------
     title: str | None = None
     description: str | None = None
-    default: DefaultValue | None = None                # null-safe wrapper
+    default: DefaultValue | None = None  # null-safe wrapper
     deprecated: bool = False
-    read_only: bool = False                            # readOnly
-    write_only: bool = False                           # writeOnly
+    read_only: bool = False  # readOnly
+    write_only: bool = False  # writeOnly
     examples: Sequence[JsonValue] | None = None
 
     # -- Validation vocabulary --------------------------------------------
     type: SchemaType | None = None
     enum: Sequence[JsonValue] | None = None
-    const: ConstValue | None = None                    # null-safe wrapper
+    const: ConstValue | None = None  # null-safe wrapper
 
     # -- Numeric validation -----------------------------------------------
-    multiple_of: float | None = None                   # multipleOf
+    multiple_of: float | None = None  # multipleOf
     maximum: float | None = None
-    exclusive_maximum: float | None = None             # exclusiveMaximum
+    exclusive_maximum: float | None = None  # exclusiveMaximum
     minimum: float | None = None
-    exclusive_minimum: float | None = None             # exclusiveMinimum
+    exclusive_minimum: float | None = None  # exclusiveMinimum
 
     # -- String validation ------------------------------------------------
-    max_length: int | None = None                      # maxLength
-    min_length: int | None = None                      # minLength
+    max_length: int | None = None  # maxLength
+    min_length: int | None = None  # minLength
     pattern: str | None = None
 
     # -- Array keywords ---------------------------------------------------
-    prefix_items: Sequence[JsonSchema] | None = None   # prefixItems
+    prefix_items: Sequence[JsonSchema] | None = None  # prefixItems
     items: JsonSchema | None = None
     contains: JsonSchema | None = None
-    min_contains: int | None = None                    # minContains
-    max_contains: int | None = None                    # maxContains
-    min_items: int | None = None                       # minItems
-    max_items: int | None = None                       # maxItems
-    unique_items: bool = False                         # uniqueItems
+    min_contains: int | None = None  # minContains
+    max_contains: int | None = None  # maxContains
+    min_items: int | None = None  # minItems
+    max_items: int | None = None  # maxItems
+    unique_items: bool = False  # uniqueItems
 
     # -- Object keywords --------------------------------------------------
     properties: Mapping[str, JsonSchema] | None = None
-    pattern_properties: Mapping[str, JsonSchema] | None = None    # patternProperties
-    additional_properties: JsonSchema | None = None               # additionalProperties
-    property_names: JsonSchema | None = None                      # propertyNames
+    pattern_properties: Mapping[str, JsonSchema] | None = None  # patternProperties
+    additional_properties: JsonSchema | None = None  # additionalProperties
+    property_names: JsonSchema | None = None  # propertyNames
     required: frozenset[str] | None = None
     dependent_required: Mapping[str, frozenset[str]] | None = None  # dependentRequired
-    dependent_schemas: Mapping[str, JsonSchema] | None = None     # dependentSchemas
-    min_properties: int | None = None                             # minProperties
-    max_properties: int | None = None                             # maxProperties
+    dependent_schemas: Mapping[str, JsonSchema] | None = None  # dependentSchemas
+    min_properties: int | None = None  # minProperties
+    max_properties: int | None = None  # maxProperties
 
     # -- Applicator vocabulary --------------------------------------------
-    all_of: Sequence[JsonSchema] | None = None         # allOf
-    any_of: Sequence[JsonSchema] | None = None         # anyOf
-    one_of: Sequence[JsonSchema] | None = None         # oneOf
-    not_: JsonSchema | None = None                     # not
-    if_: JsonSchema | None = None                      # if
+    all_of: Sequence[JsonSchema] | None = None  # allOf
+    any_of: Sequence[JsonSchema] | None = None  # anyOf
+    one_of: Sequence[JsonSchema] | None = None  # oneOf
+    not_: JsonSchema | None = None  # not
+    if_: JsonSchema | None = None  # if
     then: JsonSchema | None = None
-    else_: JsonSchema | None = None                    # else
+    else_: JsonSchema | None = None  # else
 
     # -- Unevaluated vocabulary -------------------------------------------
-    unevaluated_items: JsonSchema | None = None        # unevaluatedItems
-    unevaluated_properties: JsonSchema | None = None   # unevaluatedProperties
+    unevaluated_items: JsonSchema | None = None  # unevaluatedItems
+    unevaluated_properties: JsonSchema | None = None  # unevaluatedProperties
 
     # -- Content vocabulary -----------------------------------------------
-    content_encoding: str | None = None                # contentEncoding
-    content_media_type: str | None = None              # contentMediaType
-    content_schema: JsonSchema | None = None           # contentSchema
+    content_encoding: str | None = None  # contentEncoding
+    content_media_type: str | None = None  # contentMediaType
+    content_schema: JsonSchema | None = None  # contentSchema
 
     # -- Format vocabulary ------------------------------------------------
     format: str | None = None
