@@ -15,6 +15,7 @@ import re
 import orjson
 import pytest
 from hypothesis import HealthCheck, given, settings
+from tests.strategies import json_schema_with_defs_st, object_schema_st
 
 from schema_to._result import Err, Ok
 from schema_to.generate._pydantic import PydanticGenerator
@@ -23,8 +24,6 @@ from schema_to.parse._json_schema import JsonSchemaParser
 from schema_to.reify._python import PythonReifier
 from schema_to.resolve._json_schema import JsonSchemaRefResolver
 from schema_to.transpile._pydantic import JsonSchemaToPydanticTranspiler
-
-from tests.strategies import json_schema_with_defs_st, object_schema_st
 
 _PARSER = JsonSchemaParser()
 
@@ -42,7 +41,9 @@ def _transpile(data: object, source_id: str = "test://schema") -> str:
     """Run the full pipeline and return the emitted Python source."""
     transpiler = JsonSchemaToPydanticTranspiler()
     result = transpiler.transpile(_doc(data, source_id))
-    assert isinstance(result, Ok), f"Transpile failed: {[getattr(e, 'message', str(e)) for e in result.errors]}"
+    assert isinstance(result, Ok), (
+        f"Transpile failed: {[getattr(e, 'message', str(e)) for e in result.errors]}"
+    )
     return result.value[0].content.decode("utf-8")
 
 
@@ -55,7 +56,9 @@ def _parse_and_generate(data: object) -> str:
     assert isinstance(res_r, Ok)
     gen = PydanticGenerator(resolver=resolver)
     ast_r = gen.apply(res_r.value)
-    assert isinstance(ast_r, Ok), f"Generation failed: {[getattr(e, 'message', str(e)) for e in ast_r.errors]}"
+    assert isinstance(ast_r, Ok), (
+        f"Generation failed: {[getattr(e, 'message', str(e)) for e in ast_r.errors]}"
+    )
     reify_r = PythonReifier(artifact_name="models.py").apply(ast_r.value)
     assert isinstance(reify_r, Ok)
     return reify_r.value[0].content.decode("utf-8")
@@ -198,12 +201,7 @@ def test_ref_to_defs_generates_class_name() -> None:
     schema = {
         "type": "object",
         "title": "Order",
-        "$defs": {
-            "Address": {
-                "type": "object",
-                "properties": {"street": {"type": "string"}},
-            }
-        },
+        "$defs": {"Address": {"type": "object", "properties": {"street": {"type": "string"}}}},
         "properties": {"shipping": {"$ref": "#/$defs/Address"}},
         "required": ["shipping"],
     }
@@ -216,11 +214,7 @@ def test_ref_to_defs_generates_class_name() -> None:
 
 def test_defs_classes_generated_before_root() -> None:
     """$defs declarations appear before the root class in the output."""
-    schema = {
-        "type": "object",
-        "title": "Root",
-        "$defs": {"Leaf": {"type": "object"}},
-    }
+    schema = {"type": "object", "title": "Root", "$defs": {"Leaf": {"type": "object"}}}
     src = _transpile(schema)
     leaf_pos = src.find("class Leaf(BaseModel):")
     root_pos = src.find("class Root(BaseModel):")
@@ -237,9 +231,7 @@ def test_anyof_nullable_produces_union_none() -> None:
     schema = {
         "type": "object",
         "title": "Nullable",
-        "properties": {
-            "val": {"anyOf": [{"type": "string"}, {"type": "null"}]}
-        },
+        "properties": {"val": {"anyOf": [{"type": "string"}, {"type": "null"}]}},
         "required": ["val"],
     }
     src = _transpile(schema)
@@ -250,9 +242,7 @@ def test_oneof_nullable_produces_union_none() -> None:
     schema = {
         "type": "object",
         "title": "OneOfNull",
-        "properties": {
-            "val": {"oneOf": [{"type": "integer"}, {"type": "null"}]}
-        },
+        "properties": {"val": {"oneOf": [{"type": "integer"}, {"type": "null"}]}},
         "required": ["val"],
     }
     src = _transpile(schema)

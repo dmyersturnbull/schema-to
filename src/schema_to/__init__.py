@@ -5,11 +5,7 @@
 ```python
 from schema_to import Pipeline, Ok, Err
 
-pipeline = Pipeline(
-    sources=[...],
-    transpilers=[...],
-    sink=...,
-)
+pipeline = Pipeline(sources=[...], transpilers=[...], sink=...)
 
 match pipeline.process():
     case Ok(summary):
@@ -63,10 +59,7 @@ from schema_to.parse._openapi import OpenApiParser
 from schema_to.serialize._json_schema import JsonSchemaSerializer
 from schema_to.serialize._openapi import OpenApiSerializer
 from schema_to.transpile._extract import OpenApiExtractTranspiler
-from schema_to.transpile._pass_thru import (
-    JsonSchemaPassThruTranspiler,
-    OpenApiPassThruTranspiler,
-)
+from schema_to.transpile._pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
 
 __all__ = [
     # I/O

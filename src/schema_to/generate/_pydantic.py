@@ -18,7 +18,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from schema_to._errors import GenerationError, SourceLocation, TranspilationError, TranspilationWarning
+from schema_to._errors import (
+    GenerationError,
+    SourceLocation,
+    TranspilationError,
+    TranspilationWarning,
+)
 from schema_to._names import safe_python_class_name, safe_python_field_name
 from schema_to._pipeline import Generator
 from schema_to._result import Err, Ok, Result
@@ -120,28 +125,26 @@ class PydanticGenerator(Generator[JsonSchemaDocument, PythonModule]):
         if root_decl is not None:
             declarations.append(root_decl)
         elif not declarations:
-            errors.append(GenerationError(
-                "Root schema is a boolean schema; cannot generate a Pydantic model.",
-                location=None,
-            ))
+            errors.append(
+                GenerationError(
+                    "Root schema is a boolean schema; cannot generate a Pydantic model.",
+                    location=None,
+                )
+            )
 
         if errors:
             return Err(tuple(errors))
 
         imports = _build_imports(declarations, ctx)
-        return Ok(PythonModule(
-            imports=imports,
-            declarations=declarations,
-            source_ids=(input.source_id,),
-        ))
+        return Ok(
+            PythonModule(imports=imports, declarations=declarations, source_ids=(input.source_id,))
+        )
 
 
 def _root_class_name(doc: JsonSchemaDocument) -> str:
     if isinstance(doc.root, ObjectSchema) and doc.root.title:
         return safe_python_class_name(doc.root.title)
-    return safe_python_class_name(
-        doc.display_name or doc.source_id.rstrip("/").rsplit("/", 1)[-1]
-    )
+    return safe_python_class_name(doc.display_name or doc.source_id.rstrip("/").rsplit("/", 1)[-1])
 
 
 # ---------------------------------------------------------------------------
@@ -163,9 +166,7 @@ class _GenCtx:
     warnings: list[TranspilationWarning]
 
     def schema_to_declaration(
-        self,
-        schema: JsonSchema,
-        name: str,
+        self, schema: JsonSchema, name: str
     ) -> TypeAliasDef | ClassDef | None:
         """Convert a top-level schema to a declaration node, or None for booleans."""
         if isinstance(schema, BooleanSchema):
@@ -235,12 +236,7 @@ class _GenCtx:
                     else f"Field({default}, {', '.join(field_kw)})"
                 )
 
-            fields.append(FieldDef(
-                name=py_name,
-                annotation=ann,
-                default=default,
-                doc=doc,
-            ))
+            fields.append(FieldDef(name=py_name, annotation=ann, default=default, doc=doc))
 
         doc_node: PythonDocString | None = None
         if schema.title or schema.description:
@@ -249,12 +245,7 @@ class _GenCtx:
                 description=schema.description if schema.title else None,
             )
 
-        return ClassDef(
-            name=class_name,
-            style=ClassStyle.PYDANTIC,
-            fields=fields,
-            doc=doc_node,
-        )
+        return ClassDef(name=class_name, style=ClassStyle.PYDANTIC, fields=fields, doc=doc_node)
 
     def schema_to_annotation(self, schema: JsonSchema, *, required: bool) -> PythonTypeAnnotation:
         """Return the Python type annotation for a field's schema."""
@@ -297,7 +288,9 @@ class _GenCtx:
         if schema.all_of is not None:
             if len(schema.all_of) == 1:
                 return self._annotation_inner(schema.all_of[0])
-            self._warn("allOf with multiple branches uses Any.", code="allof-fallback", schema=schema)
+            self._warn(
+                "allOf with multiple branches uses Any.", code="allof-fallback", schema=schema
+            )
             return _ANY
 
         # Union type array, e.g. type: [string, null]
@@ -312,9 +305,7 @@ class _GenCtx:
         return _ANY
 
     def _single_type_annotation(
-        self,
-        t: JsonSchemaType,
-        schema: ObjectSchema,
+        self, t: JsonSchemaType, schema: ObjectSchema
     ) -> PythonTypeAnnotation:
         if t == JsonSchemaType.ARRAY:
             if schema.items is not None:
@@ -329,9 +320,7 @@ class _GenCtx:
         return _PRIMITIVE_MAP.get(t, _ANY)
 
     def _type_set_annotation(
-        self,
-        types: frozenset[JsonSchemaType],
-        schema: ObjectSchema,
+        self, types: frozenset[JsonSchemaType], schema: ObjectSchema
     ) -> PythonTypeAnnotation:
         non_null = types - {JsonSchemaType.NULL}
         has_null = JsonSchemaType.NULL in types
@@ -350,9 +339,7 @@ class _GenCtx:
     def _nullable_union(self, schemas: list[JsonSchema]) -> PythonTypeAnnotation | None:
         """If exactly one branch is ``null`` and one is non-null, return ``T | None``."""
         null_count = sum(
-            1
-            for s in schemas
-            if isinstance(s, ObjectSchema) and s.type == JsonSchemaType.NULL
+            1 for s in schemas if isinstance(s, ObjectSchema) and s.type == JsonSchemaType.NULL
         )
         non_null = [
             s
@@ -369,8 +356,7 @@ class _GenCtx:
         loc: SourceLocation | None = None
         if schema.source_ref:
             loc = SourceLocation(
-                source_id=schema.source_ref.source_id,
-                json_pointer=schema.source_ref.json_pointer,
+                source_id=schema.source_ref.source_id, json_pointer=schema.source_ref.json_pointer
             )
         self.warnings.append(TranspilationWarning(msg, code=code, location=loc))
 
@@ -380,10 +366,7 @@ class _GenCtx:
 # ---------------------------------------------------------------------------
 
 
-def _build_imports(
-    declarations: list[TypeAliasDef | ClassDef],
-    ctx: _GenCtx,
-) -> list[FromImport]:
+def _build_imports(declarations: list[TypeAliasDef | ClassDef], ctx: _GenCtx) -> list[FromImport]:
     """Collect all needed imports from the declaration tree."""
     needed: dict[str, set[str]] = {}  # module -> names
 

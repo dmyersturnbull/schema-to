@@ -23,9 +23,9 @@ __all__ = [
     "InterfaceDecl",
     "JSDocComment",
     "PropertySignature",
+    "TypeAliasDecl",
     "TypeScriptModule",
     "TypeScriptTypeAnnotation",
-    "TypeAliasDecl",
     "UtilityType",
 ]
 

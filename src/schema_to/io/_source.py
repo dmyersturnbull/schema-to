@@ -55,11 +55,9 @@ class MediaType:
     @classmethod
     def from_extension(cls, suffix: str) -> MediaType | None:
         """Infer a media type from a file extension such as `".json"` or `".yaml"`."""
-        return {
-            ".json": MediaTypes.json,
-            ".yaml": MediaTypes.yaml,
-            ".yml": MediaTypes.yaml,
-        }.get(suffix.lower())
+        return {".json": MediaTypes.json, ".yaml": MediaTypes.yaml, ".yml": MediaTypes.yaml}.get(
+            suffix.lower()
+        )
 
 
 class MediaTypes:

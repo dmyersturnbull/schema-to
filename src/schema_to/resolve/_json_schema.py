@@ -29,12 +29,7 @@ from referencing.jsonschema import DRAFT202012
 from schema_to._errors import ResolutionError, SourceLocation, TranspilationError
 from schema_to._pipeline import RefResolver
 from schema_to._result import Err, Ok, Result
-from schema_to.cst._json_schema import (
-    BooleanSchema,
-    JsonSchema,
-    JsonSchemaDocument,
-    ObjectSchema,
-)
+from schema_to.cst._json_schema import BooleanSchema, JsonSchema, JsonSchemaDocument, ObjectSchema
 from schema_to.serialize._json_schema import JsonSchemaSerializer
 
 __all__ = ["JsonSchemaRefResolver"]
@@ -163,7 +158,9 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
             return Err((ResolutionError(str(exc), location=_loc(input.source_id, "")),))
 
         errors: list[TranspilationError] = []
-        self._check_refs(input.root, ref_resolver=ref_resolver, source_id=input.source_id, errors=errors)
+        self._check_refs(
+            input.root, ref_resolver=ref_resolver, source_id=input.source_id, errors=errors
+        )
 
         if errors:
             return Err(tuple(errors))
@@ -196,13 +193,13 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
     # ------------------------------------------------------------------
 
     def _index_cst(self, schema: JsonSchema, source_id: str, pointer: str) -> None:
-        self._cst_by_pointer[(source_id, pointer)] = schema
+        self._cst_by_pointer[source_id, pointer] = schema
         if isinstance(schema, BooleanSchema):
             return
         if schema.anchor:
-            self._cst_by_anchor[(source_id, schema.anchor)] = schema
+            self._cst_by_anchor[source_id, schema.anchor] = schema
         if schema.dynamic_anchor:
-            self._cst_by_anchor[(source_id, schema.dynamic_anchor)] = schema
+            self._cst_by_anchor[source_id, schema.dynamic_anchor] = schema
         if schema.id:
             abs_id = urllib.parse.urljoin(source_id, schema.id)
             if abs_id != source_id:
@@ -228,19 +225,19 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
             try:
                 ref_resolver.lookup(schema.ref)
             except referencing.exceptions.Unresolvable as exc:
-                errors.append(ResolutionError(
-                    f"Cannot resolve $ref {schema.ref!r}: {exc}",
-                    location=loc,
-                ))
+                errors.append(
+                    ResolutionError(f"Cannot resolve $ref {schema.ref!r}: {exc}", location=loc)
+                )
 
         if schema.dynamic_ref:
             try:
                 ref_resolver.lookup(schema.dynamic_ref)
             except referencing.exceptions.Unresolvable as exc:
-                errors.append(ResolutionError(
-                    f"Cannot resolve $dynamicRef {schema.dynamic_ref!r}: {exc}",
-                    location=loc,
-                ))
+                errors.append(
+                    ResolutionError(
+                        f"Cannot resolve $dynamicRef {schema.dynamic_ref!r}: {exc}", location=loc
+                    )
+                )
 
         # $id changes the base URI for nested schemas.
         current_resolver = ref_resolver
@@ -253,10 +250,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
 
         for _, sub_schema in _iter_sub_schemas(schema, pointer):
             self._check_refs(
-                sub_schema,
-                ref_resolver=current_resolver,
-                source_id=source_id,
-                errors=errors,
+                sub_schema, ref_resolver=current_resolver, source_id=source_id, errors=errors
             )
 
     def _split_ref(self, ref: str, base_uri: str) -> tuple[str, str]:

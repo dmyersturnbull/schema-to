@@ -11,8 +11,8 @@ Covers:
 from __future__ import annotations
 
 import orjson
-import pytest
 from hypothesis import HealthCheck, given, settings
+from tests.strategies import json_schema_st, json_schema_with_defs_st
 
 from schema_to._errors import ResolutionError
 from schema_to._result import Err, Ok
@@ -20,17 +20,11 @@ from schema_to.io._source import MediaTypes, RawDocument
 from schema_to.parse._json_schema import JsonSchemaParser
 from schema_to.resolve._json_schema import JsonSchemaRefResolver
 
-from tests.strategies import json_schema_st, json_schema_with_defs_st
-
 _PARSER = JsonSchemaParser()
 
 
 def _doc(data: object, source_id: str = "test://doc") -> RawDocument:
-    return RawDocument(
-        source_id=source_id,
-        content=orjson.dumps(data),
-        media_type=MediaTypes.json,
-    )
+    return RawDocument(source_id=source_id, content=orjson.dumps(data), media_type=MediaTypes.json)
 
 
 def _parse(data: object, source_id: str = "test://doc"):
@@ -48,6 +42,7 @@ def _parse(data: object, source_id: str = "test://doc"):
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_no_refs_always_resolve(schema: object) -> None:
     """Any schema that contains no $ref / $dynamicRef passes the resolver."""
+
     # Strip $ref / $dynamicRef from the generated schema so we guarantee none.
     def _strip_refs(obj: object) -> object:
         if isinstance(obj, dict):
@@ -60,7 +55,9 @@ def test_no_refs_always_resolve(schema: object) -> None:
     cst = _parse(stripped)
     resolver = JsonSchemaRefResolver()
     result = resolver.apply(cst)
-    assert isinstance(result, Ok), f"Resolver failed on ref-free schema: {[e.message for e in result.errors]}"
+    assert isinstance(result, Ok), (
+        f"Resolver failed on ref-free schema: {[e.message for e in result.errors]}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -118,8 +115,10 @@ def test_lookup_pointer_to_def() -> None:
     node = resolver.lookup("#/$defs/Email", base_uri="test://doc")
     assert node is not None
     from schema_to.cst._json_schema import ObjectSchema
+
     assert isinstance(node, ObjectSchema)
     from schema_to.cst._json_schema import JsonSchemaType
+
     assert node.type == JsonSchemaType.STRING
     assert node.format == "email"
 
@@ -187,10 +186,7 @@ def test_cross_document_ref_success() -> None:
     address_schema = {"type": "object", "properties": {"street": {"type": "string"}}}
     address_cst = _parse(address_schema, source_id="test://address")
 
-    root_schema = {
-        "type": "object",
-        "properties": {"home": {"$ref": "test://address"}},
-    }
+    root_schema = {"type": "object", "properties": {"home": {"$ref": "test://address"}}}
     root_cst = _parse(root_schema, source_id="test://root")
 
     resolver = JsonSchemaRefResolver()
@@ -201,10 +197,7 @@ def test_cross_document_ref_success() -> None:
 
 def test_cross_document_ref_missing() -> None:
     """A $ref to an unregistered document produces a ResolutionError."""
-    schema = {
-        "type": "object",
-        "properties": {"x": {"$ref": "test://nonexistent"}},
-    }
+    schema = {"type": "object", "properties": {"x": {"$ref": "test://nonexistent"}}}
     cst = _parse(schema)
     resolver = JsonSchemaRefResolver()
     result = resolver.apply(cst)
@@ -219,10 +212,7 @@ def test_cross_document_ref_missing() -> None:
 
 def test_missing_def_ref_fails() -> None:
     """$ref pointing to an absent $defs entry produces ResolutionError."""
-    schema = {
-        "type": "object",
-        "properties": {"x": {"$ref": "#/$defs/DoesNotExist"}},
-    }
+    schema = {"type": "object", "properties": {"x": {"$ref": "#/$defs/DoesNotExist"}}}
     cst = _parse(schema)
     resolver = JsonSchemaRefResolver()
     result = resolver.apply(cst)
@@ -248,10 +238,7 @@ def test_multiple_bad_refs_all_reported() -> None:
     """All unresolvable $ref values are reported, not just the first."""
     schema = {
         "type": "object",
-        "properties": {
-            "a": {"$ref": "#/$defs/Missing1"},
-            "b": {"$ref": "#/$defs/Missing2"},
-        },
+        "properties": {"a": {"$ref": "#/$defs/Missing1"}, "b": {"$ref": "#/$defs/Missing2"}},
     }
     cst = _parse(schema)
     resolver = JsonSchemaRefResolver()
@@ -278,10 +265,7 @@ def test_self_recursive_schema_validates() -> None:
                 "type": "object",
                 "properties": {
                     "value": {"type": "integer"},
-                    "children": {
-                        "type": "array",
-                        "items": {"$ref": "#/$defs/Node"},
-                    },
+                    "children": {"type": "array", "items": {"$ref": "#/$defs/Node"}},
                 },
             }
         },
@@ -290,7 +274,9 @@ def test_self_recursive_schema_validates() -> None:
     cst = _parse(schema)
     resolver = JsonSchemaRefResolver()
     result = resolver.apply(cst)
-    assert isinstance(result, Ok), f"Self-recursive schema failed: {[e.message for e in result.errors]}"
+    assert isinstance(result, Ok), (
+        f"Self-recursive schema failed: {[e.message for e in result.errors]}"
+    )
 
 
 def test_mutual_recursion_validates() -> None:
@@ -329,10 +315,7 @@ def test_register_idempotent() -> None:
 
 def test_schema_with_id_registers_alias() -> None:
     """A schema with a root $id is also reachable by that URI."""
-    schema = {
-        "$id": "https://example.com/thing.json",
-        "type": "object",
-    }
+    schema = {"$id": "https://example.com/thing.json", "type": "object"}
     cst = _parse(schema, source_id="test://thing")
     resolver = JsonSchemaRefResolver()
     result = resolver.apply(cst)

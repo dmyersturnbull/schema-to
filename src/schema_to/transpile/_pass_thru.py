@@ -28,10 +28,7 @@ from schema_to.parse._openapi import OpenApiParser
 from schema_to.serialize._json_schema import JsonSchemaSerializer
 from schema_to.serialize._openapi import OpenApiSerializer
 
-__all__ = [
-    "JsonSchemaPassThruTranspiler",
-    "OpenApiPassThruTranspiler",
-]
+__all__ = ["JsonSchemaPassThruTranspiler", "OpenApiPassThruTranspiler"]
 
 _JSON_YAML_ESSENCES = frozenset({"application/json", "application/yaml", "text/yaml"})
 
@@ -42,7 +39,9 @@ def _encode(data: object, *, use_yaml: bool) -> tuple[bytes, MediaType]:
         from yaml12 import format_yaml  # noqa: PLC0415
 
         return format_yaml(data).encode("utf-8"), MediaTypes.yaml
-    return orjson.dumps(data, option=orjson.OPT_INDENT_2 | orjson.OPT_APPEND_NEWLINE), MediaTypes.json
+    return orjson.dumps(
+        data, option=orjson.OPT_INDENT_2 | orjson.OPT_APPEND_NEWLINE
+    ), MediaTypes.json
 
 
 def _peek_is_openapi(document: RawDocument) -> bool:
@@ -83,10 +82,7 @@ class JsonSchemaPassThruTranspiler(Transpiler):
             return True
         if isinstance(document, OpenApiRawDocument):
             return False
-        return (
-            document.media_type.essence in _JSON_YAML_ESSENCES
-            and not _peek_is_openapi(document)
-        )
+        return document.media_type.essence in _JSON_YAML_ESSENCES and not _peek_is_openapi(document)
 
     def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
         result = self.parser.apply(document)

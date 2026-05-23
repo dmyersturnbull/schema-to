@@ -7,17 +7,12 @@ from dataclasses import dataclass, field
 
 from schema_to._errors import TranspilationWarning
 from schema_to._pipeline import Transpiler
-from schema_to._result import Err, Ok, Result
+from schema_to._result import Err, Result
 from schema_to.ast._python import PythonModule
 from schema_to.cst._json_schema import JsonSchemaDocument
 from schema_to.generate._pydantic import PydanticGenerator
 from schema_to.io._sink import OutputArtifact
-from schema_to.io._source import (
-    JsonSchemaRawDocument,
-    MediaTypes,
-    OpenApiRawDocument,
-    RawDocument,
-)
+from schema_to.io._source import JsonSchemaRawDocument, OpenApiRawDocument, RawDocument
 from schema_to.parse._json_schema import JsonSchemaParser
 from schema_to.reify._python import PythonReifier
 from schema_to.resolve._json_schema import JsonSchemaRefResolver
@@ -66,10 +61,12 @@ class JsonSchemaToPydanticTranspiler(Transpiler):
         # Peek to ensure it's not OpenAPI.
         try:
             import orjson  # noqa: PLC0415
+
             if document.media_type.essence == "application/json":
                 data = orjson.loads(document.content)
             else:
                 from yaml12 import parse_yaml  # noqa: PLC0415
+
                 data = parse_yaml(document.content.decode("utf-8"))
             return not (isinstance(data, dict) and isinstance(data.get("openapi"), str))
         except Exception:  # noqa: BLE001

@@ -22,12 +22,7 @@ class FileDataSource(DataSource):
         media_type: Content type override.  Inferred from suffix if `None`.
     """
 
-    def __init__(
-        self,
-        path: Path | str,
-        *,
-        media_type: MediaType | None = None,
-    ) -> None:
+    def __init__(self, path: Path | str, *, media_type: MediaType | None = None) -> None:
         self._path = Path(path).resolve()
         self._media_type = media_type
 
@@ -62,11 +57,7 @@ class DirectoryDataSource(DataSource):
     """
 
     def __init__(
-        self,
-        root: Path | str,
-        pattern: str = "**/*",
-        *,
-        media_type: MediaType | None = None,
+        self, root: Path | str, pattern: str = "**/*", *, media_type: MediaType | None = None
     ) -> None:
         self._root = Path(root).resolve()
         self._pattern = pattern

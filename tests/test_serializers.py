@@ -8,9 +8,8 @@ serializers directly without going through a `Transpiler`.
 from __future__ import annotations
 
 import orjson
-import pytest
 from hypothesis import HealthCheck, given, settings
-from hypothesis import strategies as st
+from tests.strategies import json_schema_st, openapi_doc_st
 
 from schema_to._result import Ok
 from schema_to.io._source import MediaTypes, RawDocument
@@ -18,8 +17,6 @@ from schema_to.parse._json_schema import JsonSchemaParser
 from schema_to.parse._openapi import OpenApiParser
 from schema_to.serialize._json_schema import JsonSchemaSerializer
 from schema_to.serialize._openapi import OpenApiSerializer
-
-from tests.strategies import json_schema_st, openapi_doc_st
 
 _JS_PARSER = JsonSchemaParser()
 _JS_SERIALIZER = JsonSchemaSerializer()
@@ -48,7 +45,7 @@ def _stable_json(obj: object) -> bytes:
 @given(schema=json_schema_st())
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_json_schema_round_trip(schema: object) -> None:
-    """parse → serialize → re-parse → re-serialize must be idempotent."""
+    """Parse → serialize → re-parse → re-serialize must be idempotent."""
     doc = _make_json_doc(schema)
 
     r1 = _JS_PARSER.apply(doc)
@@ -74,7 +71,7 @@ def test_json_schema_round_trip(schema: object) -> None:
 @given(openapi=openapi_doc_st())
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_openapi_round_trip(openapi: dict) -> None:
-    """parse → serialize → re-parse → re-serialize must be idempotent."""
+    """Parse → serialize → re-parse → re-serialize must be idempotent."""
     doc = _make_json_doc(openapi)
 
     r1 = _OA_PARSER.apply(doc)

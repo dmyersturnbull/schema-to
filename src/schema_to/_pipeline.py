@@ -35,13 +35,12 @@ each source document to the correct `Transpiler` at runtime.
 3. Pass all `OutputArtifact`s to the shared `DataSink`.
 4. Return a `Result[ProcessSummary]` with counts and accumulated warnings.
 """
-# noqa: A002
 
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from schema_to._errors import TranspilationError, TranspilationWarning
 from schema_to._result import Err, Ok, Result
@@ -89,10 +88,7 @@ class Stage[A, B](ABC):
         """Compose `self` with `other`, running `other` only if `self` succeeds."""
         return _ComposedStage(self, other)  # type: ignore[return-value]
 
-    def map_error(
-        self,
-        f: Callable[[TranspilationError], TranspilationError],
-    ) -> Stage[A, B]:
+    def map_error(self, f: Callable[[TranspilationError], TranspilationError]) -> Stage[A, B]:
         """Transform every error produced by this stage without changing its type."""
         return _MappedErrorStage(self, f)  # type: ignore[return-value]
 
@@ -249,9 +245,7 @@ class TypedTranspiler[CstT: CstNode, AstT: AstNode](Transpiler):
 
     Example:
         ```python
-        class JsonSchemaToSqlTranspiler(
-            TypedTranspiler[JsonSchemaDocument, SqlScript]
-        ):
+        class JsonSchemaToSqlTranspiler(TypedTranspiler[JsonSchemaDocument, SqlScript]):
             def accepts(self, doc):
                 return doc.media_type == MediaType.json()
 
@@ -371,10 +365,7 @@ class Pipeline:
         for source in self.sources:
             for document in source.documents():
                 documents_read += 1
-                transpiler = next(
-                    (t for t in self.transpilers if t.accepts(document)),
-                    None,
-                )
+                transpiler = next((t for t in self.transpilers if t.accepts(document)), None)
                 if transpiler is None:
                     warnings.append(
                         TranspilationWarning(

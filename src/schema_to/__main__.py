@@ -6,7 +6,6 @@ Invoked as `schema-to <command> [options]` or `python -m schema_to`.
 from __future__ import annotations
 
 import enum
-import sys
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Final, Literal, override
@@ -17,11 +16,7 @@ from schema_to._pipeline import Pipeline
 from schema_to._result import Err, Ok
 from schema_to.io._file import DirectoryDataSource, FileDataSink, FileDataSource
 from schema_to.io._source import MediaTypes
-from schema_to.transpile._pass_thru import (
-    JsonSchemaPassThruTranspiler,
-    OpenApiExtractTranspiler,
-    OpenApiPassThruTranspiler,
-)
+from schema_to.transpile._pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
 
 
 class CliEnum(StrEnum):
@@ -55,20 +50,15 @@ app = typer.Typer(
 @app.command()
 def transpile(
     source: Annotated[
-        list[str],
-        typer.Argument(help="Input sources: file paths, directory paths, or URLs."),
+        list[str], typer.Argument(help="Input sources: file paths, directory paths, or URLs.")
     ],
-    output: Annotated[
-        Path,
-        typer.Option("-o", "--output", help="Output directory."),
-    ] = CWD,
+    output: Annotated[Path, typer.Option("-o", "--output", help="Output directory.")] = CWD,
     to: Annotated[
         JsonschemaTarget | OpenapiTarget | Literal["pass-thru"],
         typer.Option("-t", "--to", help="Target format."),
     ] = "pass-thru",
     yaml: Annotated[
-        bool,
-        typer.Option("--yaml/--json", help="Emit YAML instead of pretty JSON."),
+        bool, typer.Option("--yaml/--json", help="Emit YAML instead of pretty JSON.")
     ] = False,
 ) -> None:
     """Transpile one or more schema sources into the requested target formats."""
@@ -80,7 +70,9 @@ def transpile(
     for s in source:
         p = Path(s)
         if p.is_dir():
-            sources.append(DirectoryDataSource(p, media_type=MediaTypes.json if not yaml else MediaTypes.yaml))
+            sources.append(
+                DirectoryDataSource(p, media_type=MediaTypes.json if not yaml else MediaTypes.yaml)
+            )
         else:
             sources.append(FileDataSource(p))
 

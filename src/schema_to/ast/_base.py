@@ -46,4 +46,3 @@ class DocString(AstNode, ABC):
     @property
     def text(self) -> str:
         """The raw documentation text, which may contain Markdown."""
-        ...

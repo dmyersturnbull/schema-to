@@ -16,7 +16,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from schema_to._errors import ReificationError, TranspilationError
+from schema_to._errors import ReificationError
 from schema_to._pipeline import Reifier
 from schema_to._result import Err, Ok, Result
 from schema_to.ast._python import (
@@ -53,12 +53,16 @@ class PythonReifier(Reifier[PythonModule]):
             source = self._emit_module(input)
         except Exception as exc:  # noqa: BLE001
             return Err((ReificationError(str(exc)),))
-        return Ok([OutputArtifact(
-            artifact_id=self.artifact_name,
-            content=source.encode("utf-8"),
-            media_type=MediaTypes.python,
-            source_ids=input.source_ids,
-        )])
+        return Ok(
+            [
+                OutputArtifact(
+                    artifact_id=self.artifact_name,
+                    content=source.encode("utf-8"),
+                    media_type=MediaTypes.python,
+                    source_ids=input.source_ids,
+                )
+            ]
+        )
 
     # ------------------------------------------------------------------
     # Module
@@ -92,10 +96,7 @@ class PythonReifier(Reifier[PythonModule]):
     def _emit_import(self, imp: SimpleImport | FromImport) -> str:
         if isinstance(imp, SimpleImport):
             return f"import {imp.module}" + (f" as {imp.alias}" if imp.alias else "")
-        names = ", ".join(
-            name + (f" as {alias}" if alias else "")
-            for name, alias in imp.names
-        )
+        names = ", ".join(name + (f" as {alias}" if alias else "") for name, alias in imp.names)
         return f"from {imp.module} import {names}"
 
     # ------------------------------------------------------------------

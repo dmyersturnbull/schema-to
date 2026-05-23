@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import orjson
 from hypothesis import HealthCheck, given, settings
+from tests.strategies import openapi_doc_st
 
 from schema_to._result import Ok
 from schema_to.io._source import MediaTypes, RawDocument
 from schema_to.parse._json_schema import JsonSchemaParser
 from schema_to.transpile._extract import OpenApiExtractTranspiler
-
-from tests.strategies import openapi_doc_st
 
 _JS_PARSER = JsonSchemaParser()
 
@@ -28,7 +27,8 @@ def _make_json_doc(data: object, source_id: str = "test://doc") -> RawDocument:
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_openapi_extract_schemas(openapi: dict) -> None:
     """Extracted artifact count matches component schema count, IDs match names, and
-    each extracted schema re-parses successfully."""
+    each extracted schema re-parses successfully.
+    """
     doc = _make_json_doc(openapi)
     transpiler = OpenApiExtractTranspiler()
 

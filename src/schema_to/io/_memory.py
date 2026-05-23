@@ -21,12 +21,7 @@ class InMemoryDataSource(DataSource):
         source_id: Identifier for this source as a whole.
     """
 
-    def __init__(
-        self,
-        documents: Sequence[RawDocument],
-        *,
-        source_id: str = "<memory>",
-    ) -> None:
+    def __init__(self, documents: Sequence[RawDocument], *, source_id: str = "<memory>") -> None:
         self._documents = list(documents)
         self._source_id = source_id
 
