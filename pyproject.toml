@@ -9,12 +9,13 @@ requires-python = "~=3.14.0"
 readme = { file = "README.md", content-type = "text/markdown" }
 license = { text = "MIT" }
 dependencies = [
+  "caseutil>=0.7.2",
   "niquests>=3.18",
   "orjson>=3.11",
-  "py-yaml12>=0.1",          # YAML 1.2 library
+  "py-yaml12>=0.1", # YAML 1.2 library
   "pydantic>=2.13",
-  "referencing>=0.37",       # JSON Schema $ref / $dynamicRef resolution
-  "typer>=0.25",             # CLI framework
+  "referencing>=0.37", # JSON Schema $ref / $dynamicRef resolution
+  "typer>=0.25", # CLI framework
 ]
 
 [project.scripts]

@@ -30,6 +30,15 @@ wheels = [
 ]
 
 [[package]]
+name = "caseutil"
+version = "0.7.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/5d/de/8cdaf896811af1f1d64833e511baa9dec13b4ca24cf4c34f1b45daeee82a/caseutil-0.7.2.tar.gz", hash = "sha256:36e5283590e67e33749d6c1ddb913dcfabb870749215776f7b411f9eb8e361e6", size = 122493, upload-time = "2025-02-13T18:28:26.887Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1c/a8/20761d6a13a6a6f290c5ed53d8b633e20167477dff0851844ce00553cfda/caseutil-0.7.2-py2.py3-none-any.whl", hash = "sha256:11c06c3379e381d0c3633e910be5463e28fa983c42cd086382da5f73ea587a91", size = 8941, upload-time = "2025-02-13T18:28:24.228Z" },
+]
+
+[[package]]
 name = "charset-normalizer"
 version = "3.4.7"
 source = { registry = "https://pypi.org/simple" }
@@ -473,6 +482,7 @@ name = "schema-to"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [
+    { name = "caseutil" },
     { name = "niquests" },
     { name = "orjson" },
     { name = "py-yaml12" },
@@ -490,6 +500,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "caseutil", specifier = ">=0.7.2" },
     { name = "niquests", specifier = ">=3.18" },
     { name = "orjson", specifier = ">=3.11" },
     { name = "py-yaml12", specifier = ">=0.1" },

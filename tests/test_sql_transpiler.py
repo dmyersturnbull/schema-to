@@ -3,14 +3,18 @@
 Covers:
 * Property: generated SQL always contains a CREATE TABLE statement.
 * Property: generation is stable (idempotent across two calls).
-* Smoke tests: type mappings, constraints, $defs, comments.
-* Integration: full parse → resolve → generate → reify pipeline.
-* Failure: boolean and non-object root schemas cannot be transpiled.
+* Property: $defs object entries produce extra tables.
+* Targeted: type mappings with exact output comparisons.
+* Targeted: CHECK constraint generation and edge cases.
+* Targeted: nullable / required semantics.
+* Targeted: $defs → separate tables.
+* Targeted: COMMENT ON emission.
+* Targeted: transpiler accepts/rejects document types.
+* Failure: boolean and non-object root schemas.
+* Integration: full schema exercising all supported features.
 """
 
 from __future__ import annotations
-
-import re
 
 import orjson
 from hypothesis import HealthCheck, given, settings
@@ -18,17 +22,15 @@ from tests.strategies import object_schema_st, sql_object_schema_st
 
 from schema_to._result import Err, Ok
 from schema_to.generate._sql import PostgresGenerator
-from schema_to.io._source import MediaTypes, RawDocument
+from schema_to.io._source import JsonSchemaRawDocument, MediaTypes, OpenApiRawDocument, RawDocument
 from schema_to.parse._json_schema import JsonSchemaParser
-from schema_to.reify._sql import SqlReifier
-from schema_to.resolve._json_schema import JsonSchemaRefResolver
 from schema_to.transpile._sql import JsonSchemaToPostgresTranspiler
 
 _PARSER = JsonSchemaParser()
 
 
-def _doc(data: object, source_id: str = "test://schema") -> RawDocument:
-    return RawDocument(
+def _doc(data: object, source_id: str = "test://schema") -> JsonSchemaRawDocument:
+    return JsonSchemaRawDocument(
         source_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,
@@ -46,25 +48,8 @@ def _transpile(data: object, source_id: str = "test://schema") -> str:
     return result.value[0].content.decode("utf-8")
 
 
-def _generate(data: object) -> str:
-    """Parse → resolve → generate → reify and return SQL source."""
-    cst_r = _PARSER.apply(_doc(data))
-    assert isinstance(cst_r, Ok)
-    resolver = JsonSchemaRefResolver()
-    res_r = resolver.apply(cst_r.value)
-    assert isinstance(res_r, Ok)
-    gen = PostgresGenerator()
-    ast_r = gen.apply(res_r.value)
-    assert isinstance(ast_r, Ok), (
-        f"Generation failed: {[getattr(e, 'message', str(e)) for e in ast_r.errors]}"
-    )
-    reify_r = SqlReifier(artifact_name="schema.sql").apply(ast_r.value)
-    assert isinstance(reify_r, Ok)
-    return reify_r.value[0].content.decode("utf-8")
-
-
 # ---------------------------------------------------------------------------
-# Property: generated SQL always has CREATE TABLE
+# Properties
 # ---------------------------------------------------------------------------
 
 
@@ -72,35 +57,15 @@ def _generate(data: object) -> str:
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_object_schema_generates_create_table(schema: dict) -> None:
     """Any object-typed schema must produce output containing CREATE TABLE."""
-    src = _generate(schema)
-    assert "CREATE TABLE" in src
-
-
-@given(schema=sql_object_schema_st())
-@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
-def test_sql_schema_generates_create_table(schema: dict) -> None:
-    """Object schemas with object $defs must produce one CREATE TABLE per table."""
     src = _transpile(schema)
     assert "CREATE TABLE" in src
-
-
-# ---------------------------------------------------------------------------
-# Property: generation is stable
-# ---------------------------------------------------------------------------
 
 
 @given(schema=object_schema_st())
 @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
 def test_generation_is_stable(schema: dict) -> None:
     """Generating from the same schema twice yields identical SQL."""
-    src1 = _generate(schema)
-    src2 = _generate(schema)
-    assert src1 == src2, "SQL generation is not stable across two calls"
-
-
-# ---------------------------------------------------------------------------
-# Property: $defs with object entries produce extra tables
-# ---------------------------------------------------------------------------
+    assert _transpile(schema) == _transpile(schema)
 
 
 @given(schema=sql_object_schema_st())
@@ -110,451 +75,335 @@ def test_object_defs_produce_multiple_tables(schema: dict) -> None:
     defs = schema.get("$defs", {})
     object_defs = [k for k, v in defs.items() if isinstance(v, dict) and v.get("type") == "object"]
     src = _transpile(schema)
-    count = src.count("CREATE TABLE")
-    # At least 1 table for root + 1 per object def.
-    assert count >= 1 + len(object_defs)
+    assert src.count("CREATE TABLE") >= 1 + len(object_defs)
 
 
 # ---------------------------------------------------------------------------
-# Smoke: simple object → CREATE TABLE
+# Type mappings — exact output
 # ---------------------------------------------------------------------------
 
 
-def test_simple_object_produces_create_table() -> None:
-    schema = {"type": "object", "title": "Users"}
-    src = _transpile(schema)
-    assert "CREATE TABLE IF NOT EXISTS users (" in src
-    assert src.strip().endswith(";")
+def test_required_string() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"x": {"type": "string"}}, "required": ["x"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    x text NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_optional_string() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"x": {"type": "string"}}}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    x text\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_integer_column() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"n": {"type": "integer"}}, "required": ["n"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    n integer NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_number_column() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"v": {"type": "number"}}, "required": ["v"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    v double precision NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_boolean_column() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"b": {"type": "boolean"}}, "required": ["b"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    b boolean NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_varchar() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"s": {"type": "string", "maxLength": 10}}, "required": ["s"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    s varchar(10) NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_timestamptz() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"ts": {"type": "string", "format": "date-time"}}, "required": ["ts"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    ts timestamptz NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_date() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"d": {"type": "string", "format": "date"}}, "required": ["d"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    d date NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_time() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"t": {"type": "string", "format": "time"}}, "required": ["t"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    t time NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_uuid() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"id": {"type": "string", "format": "uuid"}}, "required": ["id"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    id uuid NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_bytea() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"data": {"type": "string", "format": "byte"}}, "required": ["data"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    data bytea NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_array_of_strings() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"tags": {"type": "array", "items": {"type": "string"}}}, "required": ["tags"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    tags text[] NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_array_no_items_is_jsonb() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"data": {"type": "array"}}, "required": ["data"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    data jsonb NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_nested_object_is_jsonb() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"meta": {"type": "object"}}, "required": ["meta"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    meta jsonb NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_x_pg_type_override() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"loc": {"type": "string", "x-pg-type": "geometry(Point,4326)"}}, "required": ["loc"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    loc geometry(Point,4326) NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+# ---------------------------------------------------------------------------
+# Nullable / required semantics
+# ---------------------------------------------------------------------------
+
+
+def test_anyof_nullable() -> None:
+    schema = {
+        "type": "object",
+        "title": "T",
+        "properties": {"v": {"anyOf": [{"type": "string"}, {"type": "null"}]}},
+        "required": ["v"],
+    }
+    # required but anyOf [T, null] → nullable, effective type TEXT
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    v text\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+# ---------------------------------------------------------------------------
+# CHECK constraints — exact output
+# ---------------------------------------------------------------------------
+
+
+def test_check_minimum() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"n": {"type": "integer", "minimum": 0}}, "required": ["n"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    n integer NOT NULL CHECK ((n >= 0))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_maximum() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"n": {"type": "integer", "maximum": 100}}, "required": ["n"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    n integer NOT NULL CHECK ((n <= 100))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_exclusive_minimum() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"x": {"type": "number", "exclusiveMinimum": 0}}, "required": ["x"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    x double precision NOT NULL CHECK ((x > 0))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_exclusive_maximum() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"x": {"type": "number", "exclusiveMaximum": 1}}, "required": ["x"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    x double precision NOT NULL CHECK ((x < 1))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_combined_min_max() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"n": {"type": "integer", "minimum": 0, "maximum": 150}}, "required": ["n"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    n integer NOT NULL CHECK ((n >= 0) AND (n <= 150))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_minimum_float() -> None:
+    """Non-integer minimum must preserve the decimal point."""
+    schema = {"type": "object", "title": "T", "properties": {"n": {"type": "number", "minimum": 0.5}}, "required": ["n"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    n double precision NOT NULL CHECK ((n >= 0.5))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_min_length() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"s": {"type": "string", "minLength": 3}}, "required": ["s"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    s text NOT NULL CHECK ((char_length(s) >= 3))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_varchar_no_max_length_check() -> None:
+    """VARCHAR already enforces maxLength; no redundant char_length CHECK is emitted."""
+    schema = {"type": "object", "title": "T", "properties": {"s": {"type": "string", "minLength": 3, "maxLength": 20}}, "required": ["s"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    s varchar(20) NOT NULL CHECK ((char_length(s) >= 3))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_pattern() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"s": {"type": "string", "pattern": "^[A-Z]+$"}}, "required": ["s"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    s text NOT NULL CHECK ((s ~ '^[A-Z]+$'))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_pattern_single_quote_escaped() -> None:
+    """Single quotes inside a pattern must be doubled for SQL safety."""
+    schema = {"type": "object", "title": "T", "properties": {"s": {"type": "string", "pattern": "it's"}}, "required": ["s"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    s text NOT NULL CHECK ((s ~ 'it''s'))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_enum() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"s": {"type": "string", "enum": ["a", "b"]}}, "required": ["s"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    s text NOT NULL CHECK ((s IN ('a', 'b')))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_enum_with_null_filters_null() -> None:
+    """Null entries in enum are excluded from the IN list."""
+    schema = {"type": "object", "title": "T", "properties": {"s": {"type": "string", "enum": [None, "active"]}}, "required": ["s"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    s text NOT NULL CHECK ((s IN ('active')))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_enum_all_null_no_check() -> None:
+    """An enum containing only null produces no IN constraint."""
+    schema = {"type": "object", "title": "T", "properties": {"s": {"type": "string", "enum": [None]}}, "required": ["s"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    s text NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_enum_empty_no_check() -> None:
+    """An empty enum array produces no IN constraint."""
+    schema = {"type": "object", "title": "T", "properties": {"s": {"type": "string", "enum": []}}, "required": ["s"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    s text NOT NULL\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_const_string() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"v": {"type": "string", "const": "fixed"}}, "required": ["v"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    v text NOT NULL CHECK ((v = 'fixed'))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_const_empty_string() -> None:
+    """const: '' must emit an equality check against the empty string literal."""
+    schema = {"type": "object", "title": "T", "properties": {"v": {"type": "string", "const": ""}}, "required": ["v"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    v text NOT NULL CHECK ((v = ''))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_check_const_integer() -> None:
+    schema = {"type": "object", "title": "T", "properties": {"v": {"type": "integer", "const": 42}}, "required": ["v"]}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    v integer NOT NULL CHECK ((v = 42))\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+# ---------------------------------------------------------------------------
+# Table structure and naming
+# ---------------------------------------------------------------------------
+
+
+def test_empty_object() -> None:
+    """Schema with title but no properties produces a skeleton table with comment."""
+    schema = {"type": "object", "title": "T"}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    -- (no columns)\n);\n\nCOMMENT ON TABLE t IS 'T';\n"
+
+
+def test_no_title_no_comment() -> None:
+    """Schema with no title and no description produces no COMMENT ON."""
+    schema = {"type": "object"}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS test (\n    -- (no columns)\n);\n"
 
 
 def test_table_name_from_title() -> None:
     schema = {"type": "object", "title": "UserProfile"}
-    src = _transpile(schema)
-    assert "user_profile" in src
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS user_profile (\n    -- (no columns)\n);\n\nCOMMENT ON TABLE user_profile IS 'UserProfile';\n"
 
 
-def test_display_name_fallback() -> None:
+def test_table_name_from_display_name() -> None:
     """When there is no title, display_name is used as the table name."""
-    doc = RawDocument(
+    doc = JsonSchemaRawDocument(
         source_id="test://schema",
         content=orjson.dumps({"type": "object"}),
         media_type=MediaTypes.json,
         display_name="order_items",
     )
-    transpiler = JsonSchemaToPostgresTranspiler()
-    result = transpiler.transpile(doc)
+    result = JsonSchemaToPostgresTranspiler().transpile(doc)
     assert isinstance(result, Ok)
-    src = result.value[0].content.decode("utf-8")
-    assert "order_items" in src
+    assert result.value[0].content.decode("utf-8") == "CREATE TABLE IF NOT EXISTS order_items (\n    -- (no columns)\n);\n"
+
+
+def test_defs_object_gets_own_table() -> None:
+    schema = {
+        "type": "object",
+        "title": "T",
+        "$defs": {"A": {"type": "object"}},
+        "properties": {"a": {"$ref": "#/$defs/A"}},
+        "required": ["a"],
+    }
+    assert _transpile(schema) == (
+        "CREATE TABLE IF NOT EXISTS a (\n    -- (no columns)\n);\n"
+        "\n"
+        "CREATE TABLE IF NOT EXISTS t (\n    a jsonb NOT NULL\n);\n"
+        "\n"
+        "COMMENT ON TABLE t IS 'T';\n"
+    )
+
+
+def test_defs_table_precedes_root() -> None:
+    """$defs tables are emitted before the root table."""
+    schema = {"type": "object", "title": "Root", "$defs": {"Leaf": {"type": "object"}}}
+    src = _transpile(schema)
+    assert src.index("leaf") < src.index("root")
 
 
 # ---------------------------------------------------------------------------
-# Smoke: type mappings
+# COMMENT ON emission
 # ---------------------------------------------------------------------------
 
 
-def test_string_field_is_text() -> None:
+def test_table_description_comment() -> None:
+    schema = {"type": "object", "title": "T", "description": "A table"}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS t (\n    -- (no columns)\n);\n\nCOMMENT ON TABLE t IS 'A table';\n"
+
+
+def test_table_title_fallback_comment() -> None:
+    """When only title (no description) is set, title is used for the COMMENT."""
+    schema = {"type": "object", "title": "Foo"}
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS foo (\n    -- (no columns)\n);\n\nCOMMENT ON TABLE foo IS 'Foo';\n"
+
+
+def test_column_description_comment() -> None:
     schema = {
         "type": "object",
-        "title": "Item",
-        "properties": {"name": {"type": "string"}},
-        "required": ["name"],
+        "title": "T",
+        "properties": {"x": {"type": "string", "description": "The x value"}},
     }
-    src = _transpile(schema)
-    assert "name text NOT NULL" in src
+    assert _transpile(schema) == (
+        "CREATE TABLE IF NOT EXISTS t (\n    x text\n);\n"
+        "\n"
+        "COMMENT ON TABLE t IS 'T';\n"
+        "\n"
+        "COMMENT ON COLUMN t.x IS 'The x value';\n"
+    )
 
 
-def test_integer_field_is_integer() -> None:
+def test_column_title_fallback_comment() -> None:
     schema = {
         "type": "object",
-        "title": "Item",
-        "properties": {"count": {"type": "integer"}},
-        "required": ["count"],
-    }
-    src = _transpile(schema)
-    assert "count integer NOT NULL" in src
-
-
-def test_number_field_is_double_precision() -> None:
-    schema = {
-        "type": "object",
-        "title": "Item",
-        "properties": {"price": {"type": "number"}},
-        "required": ["price"],
-    }
-    src = _transpile(schema)
-    assert "price double precision NOT NULL" in src
-
-
-def test_boolean_field_is_boolean() -> None:
-    schema = {
-        "type": "object",
-        "title": "Flag",
-        "properties": {"active": {"type": "boolean"}},
-        "required": ["active"],
-    }
-    src = _transpile(schema)
-    assert "active boolean NOT NULL" in src
-
-
-def test_string_with_maxlength_is_varchar() -> None:
-    schema = {
-        "type": "object",
-        "title": "Item",
-        "properties": {"code": {"type": "string", "maxLength": 10}},
-        "required": ["code"],
-    }
-    src = _transpile(schema)
-    assert "varchar(10)" in src
-    assert "code varchar(10) NOT NULL" in src
-
-
-def test_string_format_datetime_is_timestamptz() -> None:
-    schema = {
-        "type": "object",
-        "title": "Event",
-        "properties": {"created_at": {"type": "string", "format": "date-time"}},
-        "required": ["created_at"],
-    }
-    src = _transpile(schema)
-    assert "created_at timestamptz NOT NULL" in src
-
-
-def test_string_format_date_is_date() -> None:
-    schema = {
-        "type": "object",
-        "title": "Event",
-        "properties": {"birthday": {"type": "string", "format": "date"}},
-        "required": ["birthday"],
-    }
-    src = _transpile(schema)
-    assert "birthday date NOT NULL" in src
-
-
-def test_string_format_time_is_time() -> None:
-    schema = {
-        "type": "object",
-        "title": "Event",
-        "properties": {"start_time": {"type": "string", "format": "time"}},
-        "required": ["start_time"],
-    }
-    src = _transpile(schema)
-    assert "start_time time NOT NULL" in src
-
-
-def test_string_format_uuid_is_uuid() -> None:
-    schema = {
-        "type": "object",
-        "title": "Entity",
-        "properties": {"id": {"type": "string", "format": "uuid"}},
-        "required": ["id"],
-    }
-    src = _transpile(schema)
-    assert "id uuid NOT NULL" in src
-
-
-def test_array_of_string_is_text_array() -> None:
-    schema = {
-        "type": "object",
-        "title": "Tag",
-        "properties": {"labels": {"type": "array", "items": {"type": "string"}}},
-        "required": ["labels"],
-    }
-    src = _transpile(schema)
-    assert "text[]" in src
-
-
-def test_array_no_items_is_jsonb() -> None:
-    schema = {
-        "type": "object",
-        "title": "Bag",
-        "properties": {"data": {"type": "array"}},
-        "required": ["data"],
-    }
-    src = _transpile(schema)
-    assert "jsonb" in src
-
-
-def test_x_pg_type_override() -> None:
-    schema = {
-        "type": "object",
-        "title": "Geo",
-        "properties": {"location": {"type": "string", "x-pg-type": "geometry(Point, 4326)"}},
-        "required": ["location"],
-    }
-    src = _transpile(schema)
-    assert "geometry(Point, 4326)" in src
-
-
-# ---------------------------------------------------------------------------
-# Smoke: required vs optional columns
-# ---------------------------------------------------------------------------
-
-
-def test_required_field_has_not_null() -> None:
-    schema = {
-        "type": "object",
-        "title": "Item",
-        "properties": {"name": {"type": "string"}},
-        "required": ["name"],
-    }
-    src = _transpile(schema)
-    assert "NOT NULL" in src
-
-
-def test_optional_field_has_no_not_null() -> None:
-    schema = {
-        "type": "object",
-        "title": "Item",
-        "properties": {"nickname": {"type": "string"}},
-    }
-    src = _transpile(schema)
-    assert "NOT NULL" not in src
-
-
-def test_anyof_nullable_column_has_no_not_null() -> None:
-    schema = {
-        "type": "object",
-        "title": "Maybe",
-        "properties": {"val": {"anyOf": [{"type": "string"}, {"type": "null"}]}},
-        "required": ["val"],
-    }
-    src = _transpile(schema)
-    # Required but anyOf [string, null] → nullable
-    assert "NOT NULL" not in src
-    assert "val text" in src
-
-
-# ---------------------------------------------------------------------------
-# Smoke: CHECK constraints
-# ---------------------------------------------------------------------------
-
-
-def test_minimum_produces_check() -> None:
-    schema = {
-        "type": "object",
-        "title": "BoundedInt",
-        "properties": {"age": {"type": "integer", "minimum": 0}},
-        "required": ["age"],
-    }
-    src = _transpile(schema)
-    assert "CHECK" in src
-    assert "age >= 0" in src
-
-
-def test_maximum_produces_check() -> None:
-    schema = {
-        "type": "object",
-        "title": "BoundedInt",
-        "properties": {"pct": {"type": "number", "maximum": 100}},
-        "required": ["pct"],
-    }
-    src = _transpile(schema)
-    assert "pct <= 100" in src
-
-
-def test_exclusive_minimum_produces_check() -> None:
-    schema = {
-        "type": "object",
-        "title": "Positive",
-        "properties": {"x": {"type": "number", "exclusiveMinimum": 0}},
-        "required": ["x"],
-    }
-    src = _transpile(schema)
-    assert "x > 0" in src
-
-
-def test_min_and_max_combined_in_single_check() -> None:
-    schema = {
-        "type": "object",
-        "title": "BoundedInt",
-        "properties": {"age": {"type": "integer", "minimum": 0, "maximum": 150}},
-        "required": ["age"],
-    }
-    src = _transpile(schema)
-    assert "age >= 0" in src
-    assert "age <= 150" in src
-    assert "AND" in src
-
-
-def test_pattern_produces_check() -> None:
-    schema = {
-        "type": "object",
-        "title": "Code",
-        "properties": {"code": {"type": "string", "pattern": "^[A-Z]+$"}},
-        "required": ["code"],
-    }
-    src = _transpile(schema)
-    assert "CHECK" in src
-    assert "code ~ '^[A-Z]+$'" in src
-
-
-def test_min_length_produces_check() -> None:
-    schema = {
-        "type": "object",
-        "title": "Item",
-        "properties": {"slug": {"type": "string", "minLength": 3}},
-        "required": ["slug"],
-    }
-    src = _transpile(schema)
-    assert "char_length(slug) >= 3" in src
-
-
-def test_varchar_maxlength_no_extra_check() -> None:
-    """String maxLength becomes VARCHAR(n); no redundant length CHECK is emitted."""
-    schema = {
-        "type": "object",
-        "title": "Item",
-        "properties": {"name": {"type": "string", "maxLength": 50}},
-        "required": ["name"],
-    }
-    src = _transpile(schema)
-    assert "varchar(50)" in src
-    # Should NOT have a char_length check for maxLength since VARCHAR enforces it.
-    assert "char_length(name) <= 50" not in src
-
-
-def test_enum_produces_in_check() -> None:
-    schema = {
-        "type": "object",
-        "title": "Status",
-        "properties": {"state": {"type": "string", "enum": ["active", "inactive", "pending"]}},
-        "required": ["state"],
-    }
-    src = _transpile(schema)
-    assert "CHECK" in src
-    assert "state IN" in src
-    assert "'active'" in src
-    assert "'inactive'" in src
-    assert "'pending'" in src
-
-
-def test_const_produces_equality_check() -> None:
-    schema = {
-        "type": "object",
-        "title": "Fixed",
-        "properties": {"version": {"type": "integer", "const": 1}},
-        "required": ["version"],
-    }
-    src = _transpile(schema)
-    assert "version = 1" in src
-
-
-# ---------------------------------------------------------------------------
-# Smoke: $defs → separate tables
-# ---------------------------------------------------------------------------
-
-
-def test_defs_object_produces_separate_table() -> None:
-    schema = {
-        "type": "object",
-        "title": "Order",
-        "$defs": {
-            "Address": {
-                "type": "object",
-                "properties": {"street": {"type": "string"}},
-            }
-        },
-        "properties": {"shipping": {"$ref": "#/$defs/Address"}},
-    }
-    src = _transpile(schema)
-    assert "CREATE TABLE IF NOT EXISTS address" in src
-    assert "CREATE TABLE IF NOT EXISTS order" in src
-
-
-def test_defs_tables_generated_before_root() -> None:
-    """$defs tables must appear before the root table in the output."""
-    schema = {
-        "type": "object",
-        "title": "Root",
-        "$defs": {"Leaf": {"type": "object"}},
-    }
-    src = _transpile(schema)
-    leaf_pos = src.find("leaf")
-    root_pos = src.find("root")
-    assert leaf_pos != -1 and root_pos != -1
-    assert leaf_pos < root_pos, "Leaf table should be defined before Root"
-
-
-def test_ref_column_is_jsonb() -> None:
-    """$ref to a $defs object produces a JSONB column."""
-    schema = {
-        "type": "object",
-        "title": "Order",
-        "$defs": {"Address": {"type": "object"}},
-        "properties": {"shipping": {"$ref": "#/$defs/Address"}},
-        "required": ["shipping"],
-    }
-    src = _transpile(schema)
-    assert re.search(r"shipping\s+jsonb\s+NOT NULL", src)
-
-
-# ---------------------------------------------------------------------------
-# Smoke: COMMENT ON
-# ---------------------------------------------------------------------------
-
-
-def test_table_description_produces_comment() -> None:
-    schema = {"type": "object", "title": "Users", "description": "User accounts"}
-    src = _transpile(schema)
-    assert "COMMENT ON TABLE users IS 'User accounts';" in src
-
-
-def test_table_title_only_produces_comment() -> None:
-    """When only title (no description) is present, emit COMMENT using title."""
-    schema = {"type": "object", "title": "Products"}
-    src = _transpile(schema)
-    assert "COMMENT ON TABLE products IS 'Products';" in src
-
-
-def test_no_doc_produces_no_comment() -> None:
-    schema = {"type": "object"}
-    src = _transpile(schema)
-    assert "COMMENT ON" not in src
-
-
-def test_column_description_produces_comment() -> None:
-    schema = {
-        "type": "object",
-        "title": "Items",
-        "properties": {"name": {"type": "string", "description": "The item name"}},
-    }
-    src = _transpile(schema)
-    assert "COMMENT ON COLUMN items.name IS 'The item name';" in src
-
-
-def test_column_title_only_produces_comment() -> None:
-    schema = {
-        "type": "object",
-        "title": "Items",
+        "title": "T",
         "properties": {"sku": {"type": "string", "title": "SKU code"}},
     }
-    src = _transpile(schema)
-    assert "COMMENT ON COLUMN items.sku IS 'SKU code';" in src
+    assert _transpile(schema) == (
+        "CREATE TABLE IF NOT EXISTS t (\n    sku text\n);\n"
+        "\n"
+        "COMMENT ON TABLE t IS 'T';\n"
+        "\n"
+        "COMMENT ON COLUMN t.sku IS 'SKU code';\n"
+    )
 
 
 # ---------------------------------------------------------------------------
-# Smoke: empty object produces valid skeleton
+# Transpiler accepts / rejects
 # ---------------------------------------------------------------------------
 
 
-def test_empty_object_produces_valid_skeleton() -> None:
-    schema = {"type": "object", "title": "Empty"}
-    src = _transpile(schema)
-    assert "CREATE TABLE IF NOT EXISTS empty (" in src
-    assert ");" in src
+def test_accepts_json_schema_document() -> None:
+    assert JsonSchemaToPostgresTranspiler().accepts(_doc({}))
+
+
+def test_rejects_openapi_document() -> None:
+    doc = OpenApiRawDocument(source_id="test://s", content=b"{}", media_type=MediaTypes.json)
+    assert not JsonSchemaToPostgresTranspiler().accepts(doc)
+
+
+def test_rejects_raw_document() -> None:
+    doc = RawDocument(source_id="test://s", content=b"{}", media_type=MediaTypes.json)
+    assert not JsonSchemaToPostgresTranspiler().accepts(doc)
 
 
 # ---------------------------------------------------------------------------
-# Failure: boolean root schema
+# Failure: non-transpilable schemas
 # ---------------------------------------------------------------------------
 
 
 def test_boolean_true_root_fails() -> None:
     cst_r = _PARSER.apply(_doc(True))
     assert isinstance(cst_r, Ok)
-    gen = PostgresGenerator()
-    result = gen.apply(cst_r.value)
+    result = PostgresGenerator().apply(cst_r.value)
     assert isinstance(result, Err)
     assert any("boolean" in e.message.lower() for e in result.errors)
 
@@ -562,21 +411,13 @@ def test_boolean_true_root_fails() -> None:
 def test_boolean_false_root_fails() -> None:
     cst_r = _PARSER.apply(_doc(False))
     assert isinstance(cst_r, Ok)
-    gen = PostgresGenerator()
-    result = gen.apply(cst_r.value)
-    assert isinstance(result, Err)
-
-
-# ---------------------------------------------------------------------------
-# Failure: non-object root schema
-# ---------------------------------------------------------------------------
+    assert isinstance(PostgresGenerator().apply(cst_r.value), Err)
 
 
 def test_string_root_fails() -> None:
     cst_r = _PARSER.apply(_doc({"type": "string"}))
     assert isinstance(cst_r, Ok)
-    gen = PostgresGenerator()
-    result = gen.apply(cst_r.value)
+    result = PostgresGenerator().apply(cst_r.value)
     assert isinstance(result, Err)
     assert any("object" in e.message.lower() for e in result.errors)
 
@@ -584,25 +425,11 @@ def test_string_root_fails() -> None:
 def test_integer_root_fails() -> None:
     cst_r = _PARSER.apply(_doc({"type": "integer"}))
     assert isinstance(cst_r, Ok)
-    gen = PostgresGenerator()
-    result = gen.apply(cst_r.value)
-    assert isinstance(result, Err)
+    assert isinstance(PostgresGenerator().apply(cst_r.value), Err)
 
 
 # ---------------------------------------------------------------------------
-# Failure: transpiler rejects OpenAPI documents
-# ---------------------------------------------------------------------------
-
-
-def test_transpiler_rejects_openapi() -> None:
-    openapi = {"openapi": "3.1.0", "info": {"title": "T", "version": "1"}}
-    transpiler = JsonSchemaToPostgresTranspiler()
-    doc = _doc(openapi)
-    assert not transpiler.accepts(doc)
-
-
-# ---------------------------------------------------------------------------
-# Integration: full pipeline with a realistic schema
+# Integration: full schema exercising all supported features
 # ---------------------------------------------------------------------------
 
 
@@ -613,11 +440,7 @@ def test_integration_full_pipeline() -> None:
                 "type": "object",
                 "description": "Postal address",
                 "properties": {
-                    "street": {
-                        "type": "string",
-                        "maxLength": 100,
-                        "description": "Street line",
-                    },
+                    "street": {"type": "string", "maxLength": 100, "description": "Street line"},
                     "city": {"type": "string"},
                     "zip": {"type": "string", "pattern": r"^\d{5}$"},
                 },
@@ -637,45 +460,26 @@ def test_integration_full_pipeline() -> None:
         },
         "required": ["id", "name", "status"],
     }
-    src = _transpile(schema)
-
-    # --- Ordering: address table before person table ---
-    addr_pos = src.find("CREATE TABLE IF NOT EXISTS address")
-    person_pos = src.find("CREATE TABLE IF NOT EXISTS person")
-    assert addr_pos != -1, "Address table not generated"
-    assert person_pos != -1, "Person table not generated"
-    assert addr_pos < person_pos, "Address must be defined before Person"
-
-    # --- Address table columns ---
-    # street is required + maxLength=100 → VARCHAR(100) NOT NULL
-    assert re.search(r"street\s+varchar\(100\)\s+NOT NULL", src), "street should be varchar(100) NOT NULL"
-    # city is required → TEXT NOT NULL
-    assert re.search(r"city\s+text\s+NOT NULL", src), "city should be text NOT NULL"
-    # zip is optional → no NOT NULL; has pattern → CHECK
-    assert "zip" in src
-    assert re.search(r"zip ~ '.*\\d{5}.*'", src) or "zip ~" in src, "zip should have pattern check"
-
-    # --- Person table columns ---
-    # id is required integer with minimum=1
-    assert re.search(r"id\s+integer\s+NOT NULL", src), "id should be integer NOT NULL"
-    assert "id >= 1" in src, "id should have CHECK id >= 1"
-    # name is required varchar(255)
-    assert re.search(r"name\s+varchar\(255\)\s+NOT NULL", src), "name should be varchar(255) NOT NULL"
-    # age is optional integer with range
-    assert "age" in src
-    assert "age >= 0" in src
-    assert "age <= 150" in src
-    # created_at is optional timestamptz
-    assert re.search(r"created_at\s+timestamptz", src), "created_at should be timestamptz"
-    # address is optional $ref → JSONB
-    assert re.search(r"address\s+jsonb", src), "address should be jsonb"
-    # status is required with enum
-    assert re.search(r"status\s+text\s+NOT NULL", src), "status should be text NOT NULL"
-    assert "status IN" in src
-    assert "'active'" in src
-    assert "'inactive'" in src
-
-    # --- COMMENT ON ---
-    assert "COMMENT ON TABLE address IS 'Postal address';" in src
-    assert "COMMENT ON TABLE person IS 'Person record';" in src
-    assert "COMMENT ON COLUMN address.street IS 'Street line';" in src
+    expected = (
+        "CREATE TABLE IF NOT EXISTS address (\n"
+        "    street varchar(100) NOT NULL,\n"
+        "    city text NOT NULL,\n"
+        "    zip text CHECK ((zip ~ '^\\d{5}$'))\n"
+        ");\n"
+        "\n"
+        "COMMENT ON TABLE address IS 'Postal address';\n"
+        "\n"
+        "COMMENT ON COLUMN address.street IS 'Street line';\n"
+        "\n"
+        "CREATE TABLE IF NOT EXISTS person (\n"
+        "    id integer NOT NULL CHECK ((id >= 1)),\n"
+        "    name varchar(255) NOT NULL,\n"
+        "    age integer CHECK ((age >= 0) AND (age <= 150)),\n"
+        "    created_at timestamptz,\n"
+        "    address jsonb,\n"
+        "    status text NOT NULL CHECK ((status IN ('active', 'inactive')))\n"
+        ");\n"
+        "\n"
+        "COMMENT ON TABLE person IS 'Person record';\n"
+    )
+    assert _transpile(schema) == expected

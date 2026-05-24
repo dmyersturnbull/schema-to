@@ -15,9 +15,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from schema_to._errors import ReificationError
 from schema_to._pipeline import Reifier
-from schema_to._result import Err, Ok, Result
+from schema_to._result import Ok, Result
 from schema_to.ast._sql import (
     ColumnConstraint,
     CommentOnStmt,
@@ -48,10 +47,7 @@ class SqlReifier(Reifier[SqlScript]):
     artifact_name: str
 
     def apply(self, input: SqlScript) -> Result[Sequence[OutputArtifact]]:
-        try:
-            source = self._emit_script(input)
-        except Exception as exc:  # noqa: BLE001
-            return Err((ReificationError(str(exc)),))
+        source = self._emit_script(input)
         return Ok(
             [
                 OutputArtifact(
@@ -75,17 +71,7 @@ class SqlReifier(Reifier[SqlScript]):
 
         for stmt in script.statements:
             if isinstance(stmt, CreateTableStmt):
-                blocks.append(self._emit_create_table(stmt))
-                if stmt.doc:
-                    blocks.append(
-                        f"COMMENT ON TABLE {stmt.table_name} IS {_sql_str(stmt.doc)};"
-                    )
-                for col in stmt.columns:
-                    if col.doc:
-                        blocks.append(
-                            f"COMMENT ON COLUMN {stmt.table_name}.{col.name}"
-                            f" IS {_sql_str(col.doc)};"
-                        )
+                blocks.extend(self._emit_table_block(stmt))
             elif isinstance(stmt, CreateIndexStmt):
                 blocks.append(self._emit_create_index(stmt))
             elif isinstance(stmt, CommentOnStmt):
@@ -99,6 +85,17 @@ class SqlReifier(Reifier[SqlScript]):
     # ------------------------------------------------------------------
     # Statements
     # ------------------------------------------------------------------
+
+    def _emit_table_block(self, stmt: CreateTableStmt) -> list[str]:
+        parts: list[str] = [self._emit_create_table(stmt)]
+        if stmt.doc:
+            parts.append(f"COMMENT ON TABLE {stmt.table_name} IS {_sql_str(stmt.doc)};")
+        parts.extend(
+            f"COMMENT ON COLUMN {stmt.table_name}.{col.name} IS {_sql_str(col.doc)};"
+            for col in stmt.columns
+            if col.doc
+        )
+        return parts
 
     def _emit_create_table(self, stmt: CreateTableStmt) -> str:
         exists_clause = "IF NOT EXISTS " if stmt.if_not_exists else ""
