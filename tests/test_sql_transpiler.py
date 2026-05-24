@@ -285,7 +285,8 @@ def test_empty_object() -> None:
 def test_no_title_no_comment() -> None:
     """Schema with no title and no description produces no COMMENT ON."""
     schema = {"type": "object"}
-    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS test (\n    -- (no columns)\n);\n"
+    # source_id "test://schema" → safe_sql_identifier → "test_schema"
+    assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS test_schema (\n    -- (no columns)\n);\n"
 
 
 def test_table_name_from_title() -> None:
@@ -293,17 +294,17 @@ def test_table_name_from_title() -> None:
     assert _transpile(schema) == "CREATE TABLE IF NOT EXISTS user_profile (\n    -- (no columns)\n);\n\nCOMMENT ON TABLE user_profile IS 'UserProfile';\n"
 
 
-def test_table_name_from_display_name() -> None:
-    """When there is no title, display_name is used as the table name."""
+def test_table_name_from_source_id() -> None:
+    """When there is no title, source_id determines the table name."""
     doc = JsonSchemaRawDocument(
-        source_id="test://schema",
+        source_id="https://example.com/product.json",
         content=orjson.dumps({"type": "object"}),
         media_type=MediaTypes.json,
-        display_name="order_items",
     )
     result = JsonSchemaToPostgresTranspiler().transpile(doc)
     assert isinstance(result, Ok)
-    assert result.value[0].content.decode("utf-8") == "CREATE TABLE IF NOT EXISTS order_items (\n    -- (no columns)\n);\n"
+    src = result.value[0].content.decode("utf-8")
+    assert "CREATE TABLE IF NOT EXISTS https_example_com_product_json" in src
 
 
 def test_defs_object_gets_own_table() -> None:

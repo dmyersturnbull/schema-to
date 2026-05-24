@@ -70,13 +70,6 @@ _SIMPLE_TYPE_MAP: dict[JsonSchemaType, DataType] = {
 # ---------------------------------------------------------------------------
 
 
-def _ref_to_table_name(ref: str) -> str:
-    """Extract a table name from a `$ref` like `"#/$defs/MyModel"`."""
-    fragment = ref.split("#", 1)[-1] if "#" in ref else ref
-    part = fragment.rstrip("/").rsplit("/", 1)[-1]
-    return safe_sql_identifier(part) if part else "unknown"
-
-
 def _sql_literal(v: JsonValue) -> str:
     """Format a JSON value as a SQL literal for use in CHECK expressions.
 
@@ -97,17 +90,14 @@ def _sql_literal(v: JsonValue) -> str:
 
 
 def _num_literal(v: float) -> str:
-    """Format a numeric value, dropping the decimal point when it is an integer."""
-    return str(int(v)) if v == int(v) else str(v)
+    """Format a numeric value, dropping the `.0` suffix for whole numbers."""
+    return str(v).removesuffix(".0")
 
 
 def _is_object_schema(schema: ObjectSchema) -> bool:
     """Return `True` if the schema should map to a `CREATE TABLE` statement."""
-    if schema.type == JsonSchemaType.OBJECT:
-        return True
-    if isinstance(schema.type, frozenset) and JsonSchemaType.OBJECT in schema.type:
-        return True
-    return schema.type is None and schema.properties is not None
+    types = schema.get_types()
+    return JsonSchemaType.OBJECT in types or (not types and schema.properties is not None)
 
 
 def _unwrap_nullable(schema: ObjectSchema) -> tuple[bool, JsonSchema]:
@@ -123,11 +113,12 @@ def _unwrap_nullable(schema: ObjectSchema) -> tuple[bool, JsonSchema]:
             non_null = [
                 s
                 for s in applicator
-                if not (isinstance(s, ObjectSchema) and s.type == JsonSchemaType.NULL)
+                if not (isinstance(s, ObjectSchema) and s.get_types() == {JsonSchemaType.NULL})
             ]
             if len(applicator) > len(non_null) and len(non_null) == 1:
                 return True, non_null[0]
-    if isinstance(schema.type, frozenset) and JsonSchemaType.NULL in schema.type:
+    non_null_from_type = schema.get_types() - {JsonSchemaType.NULL}
+    if JsonSchemaType.NULL in schema.get_types() and non_null_from_type:
         return True, schema
     return False, schema
 
@@ -141,20 +132,21 @@ def _join_checks(exprs: list[str]) -> str | None:
 
 def _string_type(schema: ObjectSchema) -> DataType:
     """Map a `type: string` schema (with format / maxLength) to a `DataType`."""
-    fmt = schema.format or ""
-    if fmt in {"date-time", "datetime"}:
-        return DataType(base=PgDataType.TIMESTAMPTZ)
-    if fmt == "date":
-        return DataType(base=PgDataType.DATE)
-    if fmt == "time":
-        return DataType(base=PgDataType.TIME)
-    if fmt == "uuid":
-        return DataType.uuid()
-    if fmt == "byte":
-        return DataType(base=PgDataType.BYTEA)
-    if schema.max_length is not None:
-        return DataType(base=PgDataType.VARCHAR, precision=schema.max_length)
-    return DataType.text()
+    match schema.format:
+        case "date-time":
+            return DataType(base=PgDataType.TIMESTAMPTZ)
+        case "date":
+            return DataType(base=PgDataType.DATE)
+        case "time":
+            return DataType(base=PgDataType.TIME)
+        case "uuid":
+            return DataType.uuid()
+        case "byte":
+            return DataType(base=PgDataType.BYTEA)
+        case _:
+            if schema.max_length is not None:
+                return DataType(base=PgDataType.VARCHAR, precision=schema.max_length)
+            return DataType.text()
 
 
 # ---------------------------------------------------------------------------
@@ -199,37 +191,23 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
                 "cannot generate a CREATE TABLE statement."
             )
 
-        statements: list[CreateTableStmt] = []
-
-        # $defs: each object-typed entry becomes its own table.
-        if root.defs:
-            for def_name, def_schema in root.defs.items():
-                if isinstance(def_schema, ObjectSchema) and _is_object_schema(def_schema):
-                    table_name = safe_sql_identifier(def_schema.title or def_name)
-                    statements.append(
-                        self._schema_to_table(def_schema, table_name, input.source_id)
-                    )
-
-        # Root schema → its own table.
-        root_table = self._root_table_name(input)
-        statements.append(self._schema_to_table(root, root_table, input.source_id))
-
-        return SqlScript(statements=tuple(statements), source_ids=(input.source_id,))
+        sid = input.source_id
+        def_stmts = [
+            self._schema_to_table(def_schema, safe_sql_identifier(def_schema.title or def_name), sid)
+            for def_name, def_schema in (root.defs or {}).items()
+            if isinstance(def_schema, ObjectSchema) and _is_object_schema(def_schema)
+        ]
+        root_stmt = self._schema_to_table(root, safe_sql_identifier(root.title or sid), sid)
+        return SqlScript(statements=(*def_stmts, root_stmt), source_ids=(sid,))
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _root_table_name(self, doc: JsonSchemaDocument) -> str:
-        if isinstance(doc.root, ObjectSchema) and doc.root.title:
-            return safe_sql_identifier(doc.root.title)
-        name = doc.display_name or doc.source_id.rstrip("/").rsplit("/", 1)[-1]
-        return safe_sql_identifier(name)
-
     def _schema_to_table(
         self, schema: ObjectSchema, table_name: str, source_id: str
     ) -> CreateTableStmt:
-        required_set = set(schema.required or frozenset())
+        required_set = schema.get_required()
         columns = [
             self._prop_to_column(prop_name, prop_schema, required=prop_name in required_set)
             for prop_name, prop_schema in (schema.properties or {}).items()
@@ -262,10 +240,10 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
         nullable = not required or extra_nullable
 
         data_type = self._schema_to_data_type(eff_schema, col_name)
-        check_exprs = (
+        check = (
             self._check_exprs(eff_schema, col_name, data_type)
             if isinstance(eff_schema, ObjectSchema)
-            else []
+            else ColumnConstraint()
         )
 
         doc = schema.description or schema.title
@@ -274,7 +252,7 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
             data_type=data_type,
             constraint=ColumnConstraint(
                 not_null=not nullable,
-                check_expr=_join_checks(check_exprs),
+                check_expr=check.check_expr,
             ),
             doc=doc,
         )
@@ -298,7 +276,7 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
                 non_null = [
                     s
                     for s in applicator
-                    if not (isinstance(s, ObjectSchema) and s.type == JsonSchemaType.NULL)
+                    if not (isinstance(s, ObjectSchema) and s.get_types() == {JsonSchemaType.NULL})
                 ]
                 if len(non_null) == 1:
                     return self._schema_to_data_type(non_null[0], col_name)
@@ -309,21 +287,17 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
                 )
                 return DataType.jsonb()
 
-        # Type array [T, null] → T.
-        if isinstance(schema.type, frozenset):
-            non_null = schema.type - {JsonSchemaType.NULL}
-            if len(non_null) == 1:
-                return self._type_to_data_type(next(iter(non_null)), schema, col_name)
+        # Type-based dispatch using get_types().
+        types = schema.get_types()
+        non_null_types = types - {JsonSchemaType.NULL}
+        if len(non_null_types) == 1:
+            return self._type_to_data_type(next(iter(non_null_types)), schema, col_name)
+        if non_null_types:
             self._warn(
-                f"Union type {sorted(str(t) for t in schema.type)}; using JSONB for {col_name!r}.",
+                f"Union type {sorted(str(t) for t in types)}; using JSONB for {col_name!r}.",
                 code="multi-type-fallback",
                 schema=schema,
             )
-            return DataType.jsonb()
-
-        if schema.type is not None:
-            return self._type_to_data_type(schema.type, schema, col_name)
-
         return DataType.jsonb()
 
     def _type_to_data_type(
@@ -356,7 +330,7 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
 
     def _check_exprs(
         self, schema: ObjectSchema, col_name: str, data_type: DataType
-    ) -> list[str]:
+    ) -> ColumnConstraint:
         exprs: list[str] = []
 
         # Numeric range constraints.
@@ -392,7 +366,7 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
         if schema.const is not None:
             exprs.append(f"{col_name} = {_sql_literal(schema.const.value)}")
 
-        return exprs
+        return ColumnConstraint(check_expr=_join_checks(exprs))
 
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:
         loc: SourceLocation | None = None
