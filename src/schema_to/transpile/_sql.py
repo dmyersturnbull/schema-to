@@ -12,14 +12,12 @@ from schema_to.ast._sql import SqlScript
 from schema_to.cst._json_schema import JsonSchemaDocument
 from schema_to.generate._sql import PostgresGenerator
 from schema_to.io._sink import OutputArtifact
-from schema_to.io._source import JsonSchemaRawDocument, OpenApiRawDocument, RawDocument
+from schema_to.io._source import JsonSchemaRawDocument, RawDocument
 from schema_to.parse._json_schema import JsonSchemaParser
 from schema_to.reify._sql import SqlReifier
 from schema_to.resolve._json_schema import JsonSchemaRefResolver
 
 __all__ = ["JsonSchemaToPostgresTranspiler"]
-
-_JSON_YAML_ESSENCES = frozenset({"application/json", "application/yaml", "text/yaml"})
 
 
 @dataclass(frozen=True)
@@ -50,24 +48,7 @@ class JsonSchemaToPostgresTranspiler(Transpiler):
         return list(self.generator.warnings)
 
     def accepts(self, document: RawDocument) -> bool:
-        if isinstance(document, JsonSchemaRawDocument):
-            return True
-        if isinstance(document, OpenApiRawDocument):
-            return False
-        if document.media_type.essence not in _JSON_YAML_ESSENCES:
-            return False
-        try:
-            import orjson  # noqa: PLC0415
-
-            if document.media_type.essence == "application/json":
-                data = orjson.loads(document.content)
-            else:
-                from yaml12 import parse_yaml  # noqa: PLC0415
-
-                data = parse_yaml(document.content.decode("utf-8"))
-            return not (isinstance(data, dict) and isinstance(data.get("openapi"), str))
-        except Exception:  # noqa: BLE001
-            return False
+        return isinstance(document, JsonSchemaRawDocument)
 
     def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
         # Stage 1: parse
