@@ -13,6 +13,7 @@ __all__ = [
     "WORD_SPLIT_RE",
     "safe_python_class_name",
     "safe_python_field_name",
+    "safe_sql_identifier",
     "to_pascal",
     "to_snake",
 ]
@@ -66,6 +67,22 @@ def safe_python_class_name(name: str) -> str:
     if keyword.iskeyword(pascal) or keyword.issoftkeyword(pascal):
         pascal += "_"
     return pascal
+
+
+def safe_sql_identifier(name: str) -> str:
+    """Return a valid lowercase PostgreSQL identifier derived from *name*.
+
+    Applies snake_case conversion, strips non-identifier characters, prepends
+    ``"col_"`` if the result starts with a digit, and falls back to ``"col_"``
+    for empty input.  Does not quote reserved words — callers may wrap the
+    result in double quotes if needed.
+    """
+    snake = to_snake(name) or "col_"
+    snake = _NON_WORD.sub("_", snake)
+    snake = re.sub(r"_+", "_", snake).strip("_") or "col_"
+    if snake[0].isdigit():
+        snake = "col_" + snake
+    return snake.lower()
 
 
 def safe_python_field_name(name: str) -> str:

@@ -375,3 +375,50 @@ def object_schema_st(draw: st.DrawFn) -> dict:
             )
 
     return d
+
+
+# ---------------------------------------------------------------------------
+# SQL object schema strategy (for PostgreSQL generator tests)
+# ---------------------------------------------------------------------------
+
+
+@st.composite
+def sql_object_schema_st(draw: st.DrawFn) -> dict:
+    """Generate a JSON Schema 2020-12 object dict suitable for SQL generation tests.
+
+    The root is always ``type: object``.  ``$defs`` entries (if present) are also
+    ``type: object`` schemas so they each become a separate ``CREATE TABLE``.
+    Properties use only leaf primitive types so column type assertions are
+    straightforward.
+    """
+    def_names = draw(st.lists(_identifier, min_size=0, max_size=3, unique=True))
+
+    defs: dict[str, object] = {}
+    for name in def_names:
+        prop_names = draw(st.lists(_identifier, min_size=0, max_size=4, unique=True))
+        def_schema: dict[str, object] = {"type": "object"}
+        if prop_names:
+            def_schema["properties"] = {
+                p: {"type": draw(st.sampled_from(_LEAF_TYPES))} for p in prop_names
+            }
+        defs[name] = def_schema
+
+    d: dict[str, object] = {"type": "object"}
+    if defs:
+        d["$defs"] = defs
+
+    if draw(st.booleans()):
+        d["title"] = draw(_nonempty_text)
+    if draw(st.booleans()):
+        d["description"] = draw(_safe_text)
+
+    prop_names = draw(st.lists(_identifier, min_size=0, max_size=6, unique=True))
+    if prop_names:
+        d["properties"] = {name: draw(_leaf_schema_st()) for name in prop_names}
+        if draw(st.booleans()) and prop_names:
+            k = draw(st.integers(min_value=1, max_value=len(prop_names)))
+            d["required"] = sorted(
+                draw(st.lists(st.sampled_from(prop_names), min_size=k, max_size=k, unique=True))
+            )
+
+    return d

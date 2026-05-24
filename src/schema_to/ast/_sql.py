@@ -128,28 +128,36 @@ class DataType(AstNode):
     element_type: DataType | None = None
 
     @classmethod
-    def text(cls) -> DataType: ...
+    def text(cls) -> DataType:
+        return cls(base=PgDataType.TEXT)
 
     @classmethod
-    def integer(cls) -> DataType: ...
+    def integer(cls) -> DataType:
+        return cls(base=PgDataType.INTEGER)
 
     @classmethod
-    def bigint(cls) -> DataType: ...
+    def bigint(cls) -> DataType:
+        return cls(base=PgDataType.BIGINT)
 
     @classmethod
-    def boolean(cls) -> DataType: ...
+    def boolean(cls) -> DataType:
+        return cls(base=PgDataType.BOOLEAN)
 
     @classmethod
-    def jsonb(cls) -> DataType: ...
+    def jsonb(cls) -> DataType:
+        return cls(base=PgDataType.JSONB)
 
     @classmethod
-    def uuid(cls) -> DataType: ...
+    def uuid(cls) -> DataType:
+        return cls(base=PgDataType.UUID)
 
     @classmethod
-    def timestamptz(cls) -> DataType: ...
+    def timestamptz(cls) -> DataType:
+        return cls(base=PgDataType.TIMESTAMPTZ)
 
     @classmethod
-    def array_of(cls, element: DataType) -> DataType: ...
+    def array_of(cls, element: DataType) -> DataType:
+        return cls(base=PgDataType.ARRAY, is_array=True, element_type=element)
 
 
 # ---------------------------------------------------------------------------
