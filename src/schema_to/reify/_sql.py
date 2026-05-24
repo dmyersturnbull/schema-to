@@ -12,7 +12,7 @@ Output style:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
 from schema_to._pipeline import Reifier
@@ -47,55 +47,48 @@ class SqlReifier(Reifier[SqlScript]):
     artifact_name: str
 
     def apply(self, input: SqlScript) -> Result[Sequence[OutputArtifact]]:
-        source = self._emit_script(input)
-        return Ok(
-            [
-                OutputArtifact(
-                    artifact_id=self.artifact_name,
-                    content=source.encode("utf-8"),
-                    media_type=MediaTypes.sql,
-                    source_ids=input.source_ids,
-                )
-            ]
+        return Ok([self._apply(input)])
+
+    def _apply(self, input: SqlScript) -> OutputArtifact:
+        sql = "\n\n".join(self._emit_script(input)) + "\n"
+        return OutputArtifact(
+            artifact_id=self.artifact_name,
+            content=sql.encode("utf-8"),
+            media_type=MediaTypes.sql,
+            source_ids=input.source_ids,
         )
 
     # ------------------------------------------------------------------
     # Script
     # ------------------------------------------------------------------
 
-    def _emit_script(self, script: SqlScript) -> str:
-        blocks: list[str] = []
-
+    def _emit_script(self, script: SqlScript) -> Iterator[str]:
         if script.preamble:
-            blocks.append(script.preamble)
-
+            yield script.preamble
         for stmt in script.statements:
             if isinstance(stmt, CreateTableStmt):
-                blocks.extend(self._emit_table_block(stmt))
+                yield from self._emit_table_block(stmt)
             elif isinstance(stmt, CreateIndexStmt):
-                blocks.append(self._emit_create_index(stmt))
+                yield self._emit_create_index(stmt)
             elif isinstance(stmt, CommentOnStmt):
-                blocks.append(
+                yield (
                     f"COMMENT ON {stmt.object_type} {stmt.object_name}"
                     f" IS {_sql_str(stmt.comment)};"
                 )
-
-        return "\n\n".join(blocks) + "\n"
 
     # ------------------------------------------------------------------
     # Statements
     # ------------------------------------------------------------------
 
-    def _emit_table_block(self, stmt: CreateTableStmt) -> list[str]:
-        parts: list[str] = [self._emit_create_table(stmt)]
+    def _emit_table_block(self, stmt: CreateTableStmt) -> Iterator[str]:
+        yield self._emit_create_table(stmt)
         if stmt.doc:
-            parts.append(f"COMMENT ON TABLE {stmt.table_name} IS {_sql_str(stmt.doc)};")
-        parts.extend(
+            yield f"COMMENT ON TABLE {stmt.table_name} IS {_sql_str(stmt.doc)};"
+        yield from (
             f"COMMENT ON COLUMN {stmt.table_name}.{col.name} IS {_sql_str(col.doc)};"
             for col in stmt.columns
             if col.doc
         )
-        return parts
 
     def _emit_create_table(self, stmt: CreateTableStmt) -> str:
         exists_clause = "IF NOT EXISTS " if stmt.if_not_exists else ""

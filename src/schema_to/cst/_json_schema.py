@@ -178,6 +178,18 @@ class ObjectSchema(CstNode):
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
     source_ref: SourceRef | None = None
 
+    def get_types(self) -> frozenset[JsonSchemaType]:
+        """Return the schema's types as a frozenset, or empty frozenset if unset."""
+        if self.type is None:
+            return frozenset()
+        if isinstance(self.type, frozenset):
+            return self.type
+        return frozenset({self.type})
+
+    def get_required(self) -> frozenset[str]:
+        """Return required property names, or empty frozenset if unset."""
+        return self.required or frozenset()
+
 
 # A schema is either a boolean shorthand or a full keyword object.
 type JsonSchema = BooleanSchema | ObjectSchema
