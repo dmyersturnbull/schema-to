@@ -52,6 +52,7 @@ def transpile(
     source: Annotated[
         list[str], typer.Argument(help="Input sources: file paths, directory paths, or URLs.")
     ],
+    *,
     output: Annotated[Path, typer.Option("-o", "--output", help="Output directory.")] = CWD,
     to: Annotated[
         JsonschemaTarget | OpenapiTarget | Literal["pass-thru"],

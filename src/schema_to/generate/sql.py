@@ -46,7 +46,7 @@ from schema_to.cst.json_schema import (
     ObjectSchema,
 )
 from schema_to.errors import GenerationError, SourceLocation, TranspilationWarning
-from schema_to.names import safe_sql_identifier
+from schema_to.generate._names import safe_sql_identifier
 from schema_to.pipeline import Generator
 from schema_to.result import Err, Ok, Result
 

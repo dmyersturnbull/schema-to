@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from enum import StrEnum
+from enum import StrEnum, auto
 from typing import TYPE_CHECKING
 
 from schema_to.cst.base import CstNode, JsonValue, SourceRef
@@ -58,23 +58,23 @@ __all__ = [
 class HttpMethod(StrEnum):
     """HTTP methods as used in OpenAPI path items."""
 
-    GET = "get"
-    PUT = "put"
-    POST = "post"
-    DELETE = "delete"
-    OPTIONS = "options"
-    HEAD = "head"
-    PATCH = "patch"
-    TRACE = "trace"
+    GET = auto()
+    PUT = auto()
+    POST = auto()
+    DELETE = auto()
+    OPTIONS = auto()
+    HEAD = auto()
+    PATCH = auto()
+    TRACE = auto()
 
 
 class ParameterLocation(StrEnum):
     """The `in` field of an OpenAPI Parameter Object."""
 
-    QUERY = "query"
-    HEADER = "header"
-    PATH = "path"
-    COOKIE = "cookie"
+    QUERY = auto()
+    HEADER = auto()
+    PATH = auto()
+    COOKIE = auto()
 
 
 class SecuritySchemeType(StrEnum):
@@ -90,9 +90,9 @@ class SecuritySchemeType(StrEnum):
 class ApiKeyLocation(StrEnum):
     """The `in` field of an `apiKey` Security Scheme."""
 
-    QUERY = "query"
-    HEADER = "header"
-    COOKIE = "cookie"
+    QUERY = auto()
+    HEADER = auto()
+    COOKIE = auto()
 
 
 # ---------------------------------------------------------------------------

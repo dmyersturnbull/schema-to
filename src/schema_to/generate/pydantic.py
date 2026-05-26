@@ -41,7 +41,7 @@ from schema_to.errors import (
     TranspilationError,
     TranspilationWarning,
 )
-from schema_to.names import safe_python_class_name, safe_python_field_name
+from schema_to.generate._names import safe_python_class_name, safe_python_field_name
 from schema_to.pipeline import Generator
 from schema_to.result import Err, Ok, Result
 

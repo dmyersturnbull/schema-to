@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ClassDef",
+    "ClassStyle",
     "Decorator",
     "FieldDef",
     "FromImport",

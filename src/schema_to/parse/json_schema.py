@@ -13,8 +13,6 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
-from schema_to.parse.utils import loc, ptr
-
 from schema_to.cst.base import SourceRef
 from schema_to.cst.json_schema import (
     BooleanSchema,
@@ -27,6 +25,7 @@ from schema_to.cst.json_schema import (
     SchemaType,
 )
 from schema_to.errors import ParseError, SchemaValidationError, SourceLocation, TranspilationError
+from schema_to.parse._utils import loc, ptr
 from schema_to.pipeline import DocumentParser
 from schema_to.result import Err, Ok, Result
 
