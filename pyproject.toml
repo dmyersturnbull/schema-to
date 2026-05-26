@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [project.scripts]
-schema-to = "schema_to.__main__:cli"
+schema-to = "schema_to._main__:cli"
 
 [dependency-groups]
 dev = [

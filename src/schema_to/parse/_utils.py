@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from schema_to._errors import SourceLocation, TranspilationError
-from schema_to._result import Err, Result
+from schema_to.errors import SourceLocation, TranspilationError
+from schema_to.result import Err, Result
 
 __all__ = ["extract", "loc", "ptr"]
 

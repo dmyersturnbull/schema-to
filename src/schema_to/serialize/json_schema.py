@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from schema_to.cst._json_schema import (
+from schema_to.cst.json_schema import (
     BooleanSchema,
     ConstValue,
     DefaultValue,
@@ -18,7 +18,7 @@ from schema_to.cst._json_schema import (
 )
 
 if TYPE_CHECKING:
-    from schema_to._core import JsonObject, JsonValue
+    from schema_to.core import JsonObject, JsonValue
 
 __all__ = ["JsonSchemaSerializer"]
 
@@ -100,7 +100,7 @@ class JsonSchemaSerializer:
     def serialize(self, schema: JsonSchema) -> JsonValue:
         if isinstance(schema, BooleanSchema):
             return schema.value
-        return self._obj(schema)
+        return self.obj(schema)
 
     def _obj(self, s: ObjectSchema) -> JsonObject:
         out: JsonObject = {}
@@ -113,7 +113,7 @@ class JsonSchemaSerializer:
                 if value:
                     out[json_key] = True
             elif value is not None:
-                out[json_key] = self._val(value)
+                out[json_key] = self.val(value)
         out.update(s.extensions)
         return out
 

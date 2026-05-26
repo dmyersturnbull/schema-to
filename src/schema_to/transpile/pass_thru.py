@@ -11,19 +11,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to._pipeline import Transpiler
-from schema_to._result import Err, Ok, Result
-from schema_to.io._sink import OutputArtifact
-from schema_to.io._source import (
-    JsonSchemaRawDocument,
-    OpenApiRawDocument,
-    RawDocument,
-)
-from schema_to.parse._json_schema import JsonSchemaParser
-from schema_to.parse._openapi import OpenApiParser
-from schema_to.serialize._json_schema import JsonSchemaSerializer
-from schema_to.serialize._openapi import OpenApiSerializer
-from schema_to.transpile._utils import JSON_YAML_ESSENCES, encode, peek_is_openapi
+from schema_to.transpile.utils import JSON_YAML_ESSENCES, encode, peek_is_openapi
+
+from schema_to.io.sink import OutputArtifact
+from schema_to.io.source import JsonSchemaRawDocument, OpenApiRawDocument, RawDocument
+from schema_to.parse.json_schema import JsonSchemaParser
+from schema_to.parse.openapi import OpenApiParser
+from schema_to.pipeline import Transpiler
+from schema_to.result import Err, Ok, Result
+from schema_to.serialize.json_schema import JsonSchemaSerializer
+from schema_to.serialize.openapi import OpenApiSerializer
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

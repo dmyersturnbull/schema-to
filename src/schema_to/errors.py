@@ -52,19 +52,19 @@ class TranspilationError(Exception):
         location: SourceLocation | None = None,
         cause: BaseException | None = None,
     ) -> None:
-        super().__init__(message)
-        self._message = message
-        self._location = location
+        super()._init__(message)
+        self.message = message
+        self.location = location
         if cause is not None:
-            self.__cause__ = cause
+            self._cause__ = cause
 
     @property
     def message(self) -> str:
-        return self._message
+        return self.message
 
     @property
     def location(self) -> SourceLocation | None:
-        return self._location
+        return self.location
 
 
 class ParseError(TranspilationError):

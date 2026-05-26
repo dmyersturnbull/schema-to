@@ -11,10 +11,10 @@ and [Pydantic v2](https://docs.pydantic.dev/latest/) `BaseModel` subclasses.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum, StrEnum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from schema_to.ast._base import AstNode, DocString
+from schema_to.ast.base import AstNode, DocString
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

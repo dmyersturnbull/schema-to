@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, final
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from schema_to._errors import TranspilationError
+    from schema_to.errors import TranspilationError
 
 __all__ = ["Err", "Ok", "Result"]
 

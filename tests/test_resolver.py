@@ -14,7 +14,15 @@ import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import json_schema_st, json_schema_with_defs_st
 
-from schema_to import Err, JsonSchemaParser, JsonSchemaRefResolver, MediaTypes, Ok, ResolutionError, RawDocument
+from schema_to import (
+    Err,
+    JsonSchemaParser,
+    JsonSchemaRefResolver,
+    MediaTypes,
+    Ok,
+    RawDocument,
+    ResolutionError,
+)
 
 _PARSER = JsonSchemaParser()
 
@@ -110,10 +118,10 @@ def test_lookup_pointer_to_def() -> None:
 
     node = resolver.lookup("#/$defs/Email", base_uri="test://doc")
     assert node is not None
-    from schema_to.cst._json_schema import ObjectSchema
+    from schema_to.cst.json_schema import ObjectSchema
 
     assert isinstance(node, ObjectSchema)
-    from schema_to.cst._json_schema import JsonSchemaType
+    from schema_to.cst.json_schema import JsonSchemaType
 
     assert node.type == JsonSchemaType.STRING
     assert node.format == "email"

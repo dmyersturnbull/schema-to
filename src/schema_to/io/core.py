@@ -5,7 +5,7 @@ import orjson
 from yaml12 import format_yaml, parse_yaml
 
 if TYPE_CHECKING:
-    from schema_to._core import JsonValue
+    from schema_to.core import JsonValue
 
 
 @dataclass(frozen=True, slots=True)

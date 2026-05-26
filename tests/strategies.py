@@ -9,9 +9,9 @@ empty strings in required-string fields) that would trigger parser errors.
 
 Additional strategies
 ---------------------
-* ``json_schema_with_defs_st`` — schemas that include ``$defs`` and internal
-  ``$ref`` pointers, exercising the resolver.
-* ``object_schema_st`` — schemas typed ``object`` with named properties,
+* `json_schema_with_defs_st` — schemas that include `$defs` and internal
+  `$ref` pointers, exercising the resolver.
+* `object_schema_st` — schemas typed `object` with named properties,
   exercising the Pydantic generator.
 """
 
@@ -294,11 +294,11 @@ _PRIMITIVE_TYPES = ["string", "integer", "number", "boolean"]
 
 @st.composite
 def json_schema_with_defs_st(draw: st.DrawFn) -> dict:
-    """Generate a JSON Schema 2020-12 object dict that includes ``$defs`` and
-    internal ``$ref`` pointers, so every ``$ref`` is guaranteed resolvable.
+    """Generate a JSON Schema 2020-12 object dict that includes `$defs` and internal `$ref` pointers.
 
-    The generated schema always has ``type: object`` at the root and at least
-    one ``$defs`` entry.  Some properties may use ``$ref`` to those defs.
+    Guarantees that every `$ref` is resolvable.
+    The generated schema always has `type: object` at the root and at least one `$defs` entry.
+    Some properties may use `$ref` to those defs.
     """
     def_names = draw(st.lists(_identifier, min_size=1, max_size=4, unique=True))
 
@@ -352,11 +352,11 @@ def _leaf_schema_st(draw: st.DrawFn) -> dict:
 
 @st.composite
 def object_schema_st(draw: st.DrawFn) -> dict:
-    """Generate an ``object``-typed JSON Schema suitable for Pydantic generation.
+    """Generate an `object`-typed JSON Schema suitable for Pydantic generation.
 
     Properties use only leaf primitive types (no recursive nesting), making the
     generated classes simple and the test assertions tractable.  The schema
-    always has ``type: object`` so the generator always produces a ``ClassDef``.
+    always has `type: object` so the generator always produces a `ClassDef`.
     """
     d: dict[str, object] = {"type": "object"}
 
@@ -386,8 +386,8 @@ def object_schema_st(draw: st.DrawFn) -> dict:
 def sql_object_schema_st(draw: st.DrawFn) -> dict:
     """Generate a JSON Schema 2020-12 object dict suitable for SQL generation tests.
 
-    The root is always ``type: object``.  ``$defs`` entries (if present) are also
-    ``type: object`` schemas so they each become a separate ``CREATE TABLE``.
+    The root is always `type: object`.  `$defs` entries (if present) are also
+    `type: object` schemas so they each become a separate `CREATE TABLE`.
     Properties use only leaf primitive types so column type assertions are
     straightforward.
     """

@@ -8,7 +8,7 @@ cross-cutting enumerations used by more than one target.
 from __future__ import annotations
 
 from abc import ABC
-from enum import Enum, StrEnum
+from enum import StrEnum
 
 __all__ = ["AstNode", "DocString", "Visibility"]
 

@@ -15,10 +15,10 @@ Custom extension keywords supported by the generator:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum, StrEnum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from schema_to.ast._base import AstNode
+from schema_to.ast.base import AstNode
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

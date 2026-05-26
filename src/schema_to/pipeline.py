@@ -42,12 +42,12 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from schema_to._errors import TranspilationError, TranspilationWarning
-from schema_to._result import Err, Ok, Result
-from schema_to.ast._base import AstNode
-from schema_to.cst._base import CstNode
-from schema_to.io._sink import DataSink, OutputArtifact
-from schema_to.io._source import DataSource, RawDocument
+from schema_to.ast.base import AstNode
+from schema_to.cst.base import CstNode
+from schema_to.errors import TranspilationError, TranspilationWarning
+from schema_to.io.sink import DataSink, OutputArtifact
+from schema_to.io.source import DataSource, RawDocument
+from schema_to.result import Err, Ok, Result
 
 __all__ = [
     "DocumentParser",
@@ -102,27 +102,27 @@ class _ComposedStage(Stage):  # type: ignore[type-arg]
     """Internal: result of `Stage.then()`."""
 
     def __init__(self, first: object, second: object) -> None:
-        self._first = first
-        self._second = second
+        self.first = first
+        self.second = second
 
     def apply(self, input: object) -> object:  # type: ignore[override]
-        r = self._first.apply(input)  # type: ignore[attr-defined]
+        r = self.first.apply(input)  # type: ignore[attr-defined]
         if isinstance(r, Err):
             return r
-        return self._second.apply(r.value)  # type: ignore[attr-defined]
+        return self.second.apply(r.value)  # type: ignore[attr-defined]
 
 
 class _MappedErrorStage(Stage):  # type: ignore[type-arg]
     """Internal: result of `Stage.map_error()`."""
 
     def __init__(self, inner: object, f: object) -> None:
-        self._inner = inner
-        self._f = f
+        self.inner = inner
+        self.f = f
 
     def apply(self, input: object) -> object:  # type: ignore[override]
-        r = self._inner.apply(input)  # type: ignore[attr-defined]
+        r = self.inner.apply(input)  # type: ignore[attr-defined]
         if isinstance(r, Err):
-            return Err(tuple(self._f(e) for e in r.errors))  # type: ignore[operator]
+            return Err(tuple(self.f(e) for e in r.errors))  # type: ignore[operator]
         return r
 
 

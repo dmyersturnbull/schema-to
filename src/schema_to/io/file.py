@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from schema_to.io._sink import DataSink, OutputArtifact
-from schema_to.io._source import DataSource, MediaType, RawDocument
+from schema_to.io.sink import DataSink, OutputArtifact
+from schema_to.io.source import DataSource, MediaType, RawDocument
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -26,23 +26,23 @@ class FileDataSource(DataSource):
     """
 
     def __init__(self, path: Path | str, *, media_type: MediaType | None = None) -> None:
-        self._path = Path(path).resolve()
-        self._media_type = media_type
+        self.path = Path(path).resolve()
+        self.media_type = media_type
 
     @property
     def source_id(self) -> str:
-        return self._path.as_uri()
+        return self.path.as_uri()
 
     def documents(self) -> Iterator[RawDocument]:
-        mt = self._media_type or MediaType.from_extension(self._path.suffix)
+        mt = self.media_type or MediaType.from_extension(self.path.suffix)
         if mt is None:
             return
         yield RawDocument(
-            source_id=self._path.as_uri(),
-            content=self._path.read_bytes(),
+            source_id=self.path.as_uri(),
+            content=self.path.read_bytes(),
             media_type=mt,
-            display_name=self._path.stem,
-            base_uri=self._path.as_uri(),
+            display_name=self.path.stem,
+            base_uri=self.path.as_uri(),
         )
 
 
@@ -62,19 +62,19 @@ class DirectoryDataSource(DataSource):
     def __init__(
         self, root: Path | str, pattern: str = "**/*", *, media_type: MediaType | None = None
     ) -> None:
-        self._root = Path(root).resolve()
-        self._pattern = pattern
-        self._media_type = media_type
+        self.root = Path(root).resolve()
+        self.pattern = pattern
+        self.media_type = media_type
 
     @property
     def source_id(self) -> str:
-        return self._root.as_uri()
+        return self.root.as_uri()
 
     def documents(self) -> Iterator[RawDocument]:
-        for path in sorted(self._root.glob(self._pattern)):
+        for path in sorted(self.root.glob(self.pattern)):
             if not path.is_file():
                 continue
-            mt = self._media_type or MediaType.from_extension(path.suffix)
+            mt = self.media_type or MediaType.from_extension(path.suffix)
             if mt is None:
                 continue
             yield RawDocument(
@@ -98,15 +98,15 @@ class FileDataSink(DataSink):
     """
 
     def __init__(self, root: Path | str, *, create_dirs: bool = True) -> None:
-        self._root = Path(root).resolve()
-        self._create_dirs = create_dirs
+        self.root = Path(root).resolve()
+        self.create_dirs = create_dirs
 
     @property
     def sink_id(self) -> str:
-        return self._root.as_uri()
+        return self.root.as_uri()
 
     def write(self, artifact: OutputArtifact) -> None:
-        dest = self._root / artifact.artifact_id
-        if self._create_dirs:
+        dest = self.root / artifact.artifact_id
+        if self.create_dirs:
             dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(artifact.content)

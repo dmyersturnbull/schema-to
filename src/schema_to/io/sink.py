@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from schema_to.io._source import MediaType
+    from schema_to.io.source import MediaType
 
 __all__ = ["DataSink", "OutputArtifact"]
 

@@ -6,12 +6,14 @@ from typing import TYPE_CHECKING
 
 import orjson
 
-from schema_to.io._source import MediaType, MediaTypes
+from schema_to.io.source import MediaType, MediaTypes
 
 if TYPE_CHECKING:
-    from schema_to.io._source import RawDocument
+    from schema_to.io.source import RawDocument
 
-JSON_YAML_ESSENCES: frozenset[str] = frozenset({"application/json", "application/yaml", "text/yaml"})
+JSON_YAML_ESSENCES: frozenset[str] = frozenset(
+    {"application/json", "application/yaml", "text/yaml"}
+)
 
 
 def encode(data: object, *, use_yaml: bool) -> tuple[bytes, MediaType]:
@@ -19,7 +21,9 @@ def encode(data: object, *, use_yaml: bool) -> tuple[bytes, MediaType]:
         from yaml12 import format_yaml  # noqa: PLC0415
 
         return format_yaml(data).encode("utf-8"), MediaTypes.yaml
-    return orjson.dumps(data, option=orjson.OPT_INDENT_2 | orjson.OPT_APPEND_NEWLINE), MediaTypes.json
+    return orjson.dumps(
+        data, option=orjson.OPT_INDENT_2 | orjson.OPT_APPEND_NEWLINE
+    ), MediaTypes.json
 
 
 def peek_is_openapi(document: RawDocument) -> bool:

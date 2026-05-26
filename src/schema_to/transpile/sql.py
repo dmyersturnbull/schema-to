@@ -5,21 +5,21 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to._pipeline import Transpiler
-from schema_to._result import Err, Result
-from schema_to.generate._sql import PostgresGenerator
-from schema_to.io._source import JsonSchemaRawDocument, RawDocument
-from schema_to.parse._json_schema import JsonSchemaParser
-from schema_to.reify._sql import SqlReifier
-from schema_to.resolve._json_schema import JsonSchemaRefResolver
+from schema_to.generate.sql import PostgresGenerator
+from schema_to.io.source import JsonSchemaRawDocument, RawDocument
+from schema_to.parse.json_schema import JsonSchemaParser
+from schema_to.pipeline import Transpiler
+from schema_to.reify.sql import SqlReifier
+from schema_to.resolve.json_schema import JsonSchemaRefResolver
+from schema_to.result import Err, Result
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from schema_to._errors import TranspilationWarning
-    from schema_to.ast._sql import SqlScript
-    from schema_to.cst._json_schema import JsonSchemaDocument
-    from schema_to.io._sink import OutputArtifact
+    from schema_to.ast.sql import SqlScript
+    from schema_to.cst.json_schema import JsonSchemaDocument
+    from schema_to.errors import TranspilationWarning
+    from schema_to.io.sink import OutputArtifact
 
 __all__ = ["JsonSchemaToPostgresTranspiler"]
 
@@ -30,16 +30,16 @@ class JsonSchemaToPostgresTranspiler(Transpiler):
 
     The four pipeline stages are:
 
-    1. **parse** — ``JsonSchemaParser`` decodes JSON/YAML to a ``JsonSchemaDocument`` CST.
-    2. **resolve** — ``JsonSchemaRefResolver`` validates all ``$ref`` / ``$dynamicRef`` links.
-    3. **generate** — ``PostgresGenerator`` maps the CST to a ``SqlScript`` AST.
-    4. **reify** — ``SqlReifier`` serialises the AST to ``.sql`` bytes.
+    1. **parse** — `JsonSchemaParser` decodes JSON/YAML to a `JsonSchemaDocument` CST.
+    2. **resolve** — `JsonSchemaRefResolver` validates all `$ref` / `$dynamicRef` links.
+    3. **generate** — `PostgresGenerator` maps the CST to a `SqlScript` AST.
+    4. **reify** — `SqlReifier` serialises the AST to `.sql` bytes.
 
     Attributes:
         parser: JSON Schema parser (injected for testability).
         resolver: Ref resolver shared across documents (injected for testability).
         generator: PostgreSQL DDL generator (injected for testability).
-        output_name: Base name for the emitted ``.sql`` artifact.
+        output_name: Base name for the emitted `.sql` artifact.
     """
 
     parser: JsonSchemaParser = field(default_factory=JsonSchemaParser)

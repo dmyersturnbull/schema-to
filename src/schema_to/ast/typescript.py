@@ -10,10 +10,10 @@ The AST covers the subset of TypeScript needed to express schemas: `interface`,
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum, StrEnum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from schema_to.ast._base import AstNode, DocString
+from schema_to.ast.base import AstNode, DocString
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

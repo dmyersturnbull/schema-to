@@ -19,30 +19,30 @@ match pipeline.process():
 
 | Module | Purpose |
 |--------|---------|
-| `schema_to.io._source` | `DataSource`, `DataSink`, `RawDocument`, `OutputArtifact` |
-| `schema_to.cst._json_schema` | JSON Schema CST node types |
-| `schema_to.cst._openapi` | OpenAPI CST node types |
-| `schema_to.ast._python` | Python AST node types |
-| `schema_to.ast._sql` | SQL AST node types |
-| `schema_to.parse._json_schema` | `JsonSchemaParser` |
-| `schema_to.parse._openapi` | `OpenApiParser` |
-| `schema_to.serialize._json_schema` | `JsonSchemaSerializer` |
-| `schema_to.serialize._openapi` | `OpenApiSerializer` |
-| `schema_to.resolve._json_schema` | `JsonSchemaRefResolver` |
-| `schema_to.generate._pydantic` | `PydanticGenerator` |
-| `schema_to.generate._sql` | `PostgresGenerator` |
-| `schema_to.reify._python` | `PythonReifier` |
-| `schema_to.reify._sql` | `SqlReifier` |
-| `schema_to.transpile._pass_thru` | Pass-through `Transpiler` implementations |
-| `schema_to.transpile._extract` | `OpenApiExtractTranspiler` |
-| `schema_to.transpile._pydantic` | `JsonSchemaToPydanticTranspiler` |
-| `schema_to.transpile._sql` | `JsonSchemaToPostgresTranspiler` |
-| `schema_to._pipeline` | `Stage`, `Transpiler`, `Pipeline` |
-| `schema_to._result` | `Ok`, `Err`, `Result` |
-| `schema_to._errors` | `TranspilationError` subclasses |
+| `schema_to.io.source` | `DataSource`, `DataSink`, `RawDocument`, `OutputArtifact` |
+| `schema_to.cst.json_schema` | JSON Schema CST node types |
+| `schema_to.cst.openapi` | OpenAPI CST node types |
+| `schema_to.ast.python` | Python AST node types |
+| `schema_to.ast.sql` | SQL AST node types |
+| `schema_to.parse.json_schema` | `JsonSchemaParser` |
+| `schema_to.parse.openapi` | `OpenApiParser` |
+| `schema_to.serialize.json_schema` | `JsonSchemaSerializer` |
+| `schema_to.serialize.openapi` | `OpenApiSerializer` |
+| `schema_to.resolve.json_schema` | `JsonSchemaRefResolver` |
+| `schema_to.generate.pydantic` | `PydanticGenerator` |
+| `schema_to.generate.sql` | `PostgresGenerator` |
+| `schema_to.reify.python` | `PythonReifier` |
+| `schema_to.reify.sql` | `SqlReifier` |
+| `schema_to.transpile.pass_thru` | Pass-through `Transpiler` implementations |
+| `schema_to.transpile.extract` | `OpenApiExtractTranspiler` |
+| `schema_to.transpile.pydantic` | `JsonSchemaToPydanticTranspiler` |
+| `schema_to.transpile.sql` | `JsonSchemaToPostgresTranspiler` |
+| `schema_to.pipeline` | `Stage`, `Transpiler`, `Pipeline` |
+| `schema_to.result` | `Ok`, `Err`, `Result` |
+| `schema_to.errors` | `TranspilationError` subclasses |
 """
 
-from schema_to._errors import (
+from schema_to.errors import (
     GenerationError,
     ParseError,
     ReificationError,
@@ -52,14 +52,12 @@ from schema_to._errors import (
     TranspilationError,
     TranspilationWarning,
 )
-from schema_to._pipeline import Pipeline, ProcessSummary, Transpiler, TypedTranspiler
-from schema_to._result import Err, Ok, Result
-from schema_to.generate._pydantic import PydanticGenerator
-from schema_to.generate._sql import PostgresGenerator
-from schema_to.io._file import DirectoryDataSource, FileDataSink, FileDataSource
-from schema_to.io._memory import InMemoryDataSink, InMemoryDataSource
-from schema_to.io._sink import DataSink, OutputArtifact
-from schema_to.io._source import (
+from schema_to.generate.pydantic import PydanticGenerator
+from schema_to.generate.sql import PostgresGenerator
+from schema_to.io.file import DirectoryDataSource, FileDataSink, FileDataSource
+from schema_to.io.memory import InMemoryDataSink, InMemoryDataSource
+from schema_to.io.sink import DataSink, OutputArtifact
+from schema_to.io.source import (
     DataSource,
     JsonSchemaRawDocument,
     MediaType,
@@ -68,17 +66,19 @@ from schema_to.io._source import (
     OpenApiRawDocument,
     RawDocument,
 )
-from schema_to.parse._json_schema import JsonSchemaParser
-from schema_to.parse._openapi import OpenApiParser
-from schema_to.reify._python import PythonReifier
-from schema_to.reify._sql import SqlReifier
-from schema_to.resolve._json_schema import JsonSchemaRefResolver
-from schema_to.serialize._json_schema import JsonSchemaSerializer
-from schema_to.serialize._openapi import OpenApiSerializer
-from schema_to.transpile._extract import OpenApiExtractTranspiler
-from schema_to.transpile._pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
-from schema_to.transpile._pydantic import JsonSchemaToPydanticTranspiler
-from schema_to.transpile._sql import JsonSchemaToPostgresTranspiler
+from schema_to.parse.json_schema import JsonSchemaParser
+from schema_to.parse.openapi import OpenApiParser
+from schema_to.pipeline import Pipeline, ProcessSummary, Transpiler, TypedTranspiler
+from schema_to.reify.python import PythonReifier
+from schema_to.reify.sql import SqlReifier
+from schema_to.resolve.json_schema import JsonSchemaRefResolver
+from schema_to.result import Err, Ok, Result
+from schema_to.serialize.json_schema import JsonSchemaSerializer
+from schema_to.serialize.openapi import OpenApiSerializer
+from schema_to.transpile.extract import OpenApiExtractTranspiler
+from schema_to.transpile.pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
+from schema_to.transpile.pydantic import JsonSchemaToPydanticTranspiler
+from schema_to.transpile.sql import JsonSchemaToPostgresTranspiler
 
 __all__ = [
     # I/O
@@ -98,6 +98,8 @@ __all__ = [
     # Transpilers
     "JsonSchemaPassThruTranspiler",
     "JsonSchemaRawDocument",
+    # Resolver
+    "JsonSchemaRefResolver",
     # Serializers
     "JsonSchemaSerializer",
     # Typed transpilers
@@ -125,12 +127,10 @@ __all__ = [
     "RawDocument",
     "ReificationError",
     "ResolutionError",
-    # Resolver
-    "JsonSchemaRefResolver",
     "Result",
     "SchemaValidationError",
-    "SqlReifier",
     "SourceLocation",
+    "SqlReifier",
     "TranspilationError",
     "TranspilationWarning",
     "Transpiler",

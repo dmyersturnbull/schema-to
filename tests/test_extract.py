@@ -23,9 +23,7 @@ def _make_json_doc(data: object, source_id: str = "test://doc") -> RawDocument:
 @given(openapi=openapi_doc_st())
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_openapi_extract_schemas(openapi: dict) -> None:
-    """Extracted artifact count matches component schema count, IDs match names, and
-    each extracted schema re-parses successfully.
-    """
+    """Extracted artifact count matches component schema count, IDs match names, and each extracted schema re-parses successfully."""
     doc = _make_json_doc(openapi)
     transpiler = OpenApiExtractTranspiler()
 

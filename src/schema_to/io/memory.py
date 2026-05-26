@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from schema_to.io._sink import DataSink, OutputArtifact
-from schema_to.io._source import DataSource, RawDocument
+from schema_to.io.sink import DataSink, OutputArtifact
+from schema_to.io.source import DataSource, RawDocument
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -25,15 +25,15 @@ class InMemoryDataSource(DataSource):
     """
 
     def __init__(self, documents: Sequence[RawDocument], *, source_id: str = "<memory>") -> None:
-        self._documents = list(documents)
-        self._source_id = source_id
+        self.documents = list(documents)
+        self.source_id = source_id
 
     @property
     def source_id(self) -> str:
-        return self._source_id
+        return self.source_id
 
     def documents(self) -> Iterator[RawDocument]:
-        return iter(self._documents)
+        return iter(self.documents)
 
 
 class InMemoryDataSink(DataSink):
@@ -43,21 +43,21 @@ class InMemoryDataSink(DataSink):
     """
 
     def __init__(self, *, sink_id: str = "<memory>") -> None:
-        self._sink_id = sink_id
-        self._artifacts: list[OutputArtifact] = []
+        self.sink_id = sink_id
+        self.artifacts: list[OutputArtifact] = []
 
     @property
     def sink_id(self) -> str:
-        return self._sink_id
+        return self.sink_id
 
     @property
     def artifacts(self) -> tuple[OutputArtifact, ...]:
         """All artifacts written so far, in insertion order."""
-        return tuple(self._artifacts)
+        return tuple(self.artifacts)
 
     def write(self, artifact: OutputArtifact) -> None:
-        self._artifacts.append(artifact)
+        self.artifacts.append(artifact)
 
     def clear(self) -> None:
         """Discard all accumulated artifacts."""
-        self._artifacts.clear()
+        self.artifacts.clear()

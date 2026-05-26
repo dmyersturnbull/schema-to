@@ -2,15 +2,15 @@
 
 Mapping rules
 -------------
-* An ``object``-typed schema (root or ``$defs`` entry) becomes a
-  ``pydantic.BaseModel`` subclass (``ClassStyle.PYDANTIC``).
-* Non-object named schemas become PEP 695 ``type`` aliases.
-* Properties that appear in ``required`` get a plain annotation; all others
-  get ``T | None = None``.
-* ``$ref: "#/$defs/Name"`` becomes a forward reference to the generated class.
-* ``anyOf`` / ``oneOf`` with exactly one non-null branch collapses to ``T | None``.
-* ``enum`` / ``const`` map to ``Literal[…]``.
-* Unsupported constructs emit ``TranspilationWarning`` and fall back to ``Any``.
+* An `object`-typed schema (root or `$defs` entry) becomes a
+  `pydantic.BaseModel` subclass (`ClassStyle.PYDANTIC`).
+* Non-object named schemas become PEP 695 `type` aliases.
+* Properties that appear in `required` get a plain annotation; all others
+  get `T | None = None`.
+* `$ref: "#/$defs/Name"` becomes a forward reference to the generated class.
+* `anyOf` / `oneOf` with exactly one non-null branch collapses to `T | None`.
+* `enum` / `const` map to `Literal[…]`.
+* Unsupported constructs emit `TranspilationWarning` and fall back to `Any`.
 """
 
 from __future__ import annotations
@@ -18,16 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to._errors import (
-    GenerationError,
-    SourceLocation,
-    TranspilationError,
-    TranspilationWarning,
-)
-from schema_to._names import safe_python_class_name, safe_python_field_name
-from schema_to._pipeline import Generator
-from schema_to._result import Err, Ok, Result
-from schema_to.ast._python import (
+from schema_to.ast.python import (
     ClassDef,
     ClassStyle,
     FieldDef,
@@ -37,18 +28,27 @@ from schema_to.ast._python import (
     PythonTypeAnnotation,
     TypeAliasDef,
 )
-from schema_to.cst._json_schema import (
+from schema_to.cst.json_schema import (
     BooleanSchema,
     JsonSchema,
     JsonSchemaDocument,
     JsonSchemaType,
     ObjectSchema,
 )
+from schema_to.errors import (
+    GenerationError,
+    SourceLocation,
+    TranspilationError,
+    TranspilationWarning,
+)
+from schema_to.names import safe_python_class_name, safe_python_field_name
+from schema_to.pipeline import Generator
+from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from schema_to.resolve._json_schema import JsonSchemaRefResolver
+    from schema_to.resolve.json_schema import JsonSchemaRefResolver
 
 __all__ = ["PydanticGenerator"]
 
@@ -82,7 +82,7 @@ def _literal(*values: object) -> PythonTypeAnnotation:
 
 
 def _ref_to_class_name(ref: str) -> str:
-    """Extract a class name from a ``$ref`` like ``"#/$defs/MyModel"``."""
+    """Extract a class name from a `$ref` like `"#/$defs/MyModel"`."""
     fragment = ref.split("#", 1)[-1] if "#" in ref else ref
     part = fragment.rstrip("/").rsplit("/", 1)[-1]
     return safe_python_class_name(part) if part else "Unknown"
@@ -95,11 +95,11 @@ def _ref_to_class_name(ref: str) -> str:
 
 @dataclass
 class PydanticGenerator(Generator[JsonSchemaDocument, PythonModule]):
-    """Generates a ``PythonModule`` with Pydantic v2 ``BaseModel`` classes.
+    """Generates a `PythonModule` with Pydantic v2 `BaseModel` classes.
 
     Attributes:
-        resolver: Optional resolver for cross-document ``$ref`` lookup.
-        _warnings: Accumulated warnings from the most recent ``apply`` call.
+        resolver: Optional resolver for cross-document `$ref` lookup.
+        _warnings: Accumulated warnings from the most recent `apply` call.
     """
 
     resolver: JsonSchemaRefResolver | None = None
@@ -107,11 +107,11 @@ class PydanticGenerator(Generator[JsonSchemaDocument, PythonModule]):
 
     @property
     def warnings(self) -> Sequence[TranspilationWarning]:
-        return list(self._warnings)
+        return list(self.warnings)
 
     def apply(self, input: JsonSchemaDocument) -> Result[PythonModule]:
-        self._warnings = []
-        ctx = _GenCtx(source_id=input.source_id, resolver=self.resolver, warnings=self._warnings)
+        self.warnings = []
+        ctx = _GenCtx(source_id=input.source_id, resolver=self.resolver, warnings=self.warnings)
 
         declarations: list[TypeAliasDef | ClassDef] = []
         errors: list[TranspilationError] = []
@@ -161,8 +161,8 @@ class _GenCtx:
     """Per-document generation state threaded through the CST walk.
 
     Holds the source document identifier, an optional ref resolver for
-    cross-document ``$ref`` lookup, and the mutable warnings list that is
-    shared with the owning ``PydanticGenerator``.
+    cross-document `$ref` lookup, and the mutable warnings list that is
+    shared with the owning `PydanticGenerator`.
     """
 
     source_id: str
@@ -175,8 +175,8 @@ class _GenCtx:
         """Convert a top-level schema to a declaration node, or None for booleans."""
         if isinstance(schema, BooleanSchema):
             return None
-        if self._is_object_schema(schema):
-            return self._make_class(schema, name)
+        if self.is_object_schema(schema):
+            return self.make_class(schema, name)
         ann = self.schema_to_annotation(schema, required=True)
         doc = None
         if schema.title or schema.description:
@@ -253,7 +253,7 @@ class _GenCtx:
 
     def schema_to_annotation(self, schema: JsonSchema, *, required: bool) -> PythonTypeAnnotation:
         """Return the Python type annotation for a field's schema."""
-        ann = self._annotation_inner(schema)
+        ann = self.annotation_inner(schema)
         if not required and not ann.nullable and ann != _NONE:
             ann = _nullable(ann)
         return ann
@@ -277,10 +277,10 @@ class _GenCtx:
         # anyOf / oneOf: collapse [T, null] → T | None, else Any
         for applicator in (schema.any_of, schema.one_of):
             if applicator is not None:
-                result = self._nullable_union(list(applicator))
+                result = self.nullable_union(list(applicator))
                 if result is not None:
                     return result
-                self._warn(
+                self.warn(
                     f"anyOf/oneOf with {len(applicator)} branches cannot be "
                     "expressed precisely; using Any.",
                     code="anyof-fallback",
@@ -291,19 +291,19 @@ class _GenCtx:
         # allOf: warn + Any (complex merge not supported)
         if schema.all_of is not None:
             if len(schema.all_of) == 1:
-                return self._annotation_inner(schema.all_of[0])
-            self._warn(
+                return self.annotation_inner(schema.all_of[0])
+            self.warn(
                 "allOf with multiple branches uses Any.", code="allof-fallback", schema=schema
             )
             return _ANY
 
         # Union type array, e.g. type: [string, null]
         if isinstance(schema.type, frozenset):
-            return self._type_set_annotation(schema.type, schema)
+            return self.type_set_annotation(schema.type, schema)
 
         # Single primitive type
         if schema.type is not None:
-            return self._single_type_annotation(schema.type, schema)
+            return self.single_type_annotation(schema.type, schema)
 
         # No type specified — Any
         return _ANY
@@ -313,7 +313,7 @@ class _GenCtx:
     ) -> PythonTypeAnnotation:
         if t == JsonSchemaType.ARRAY:
             if schema.items is not None:
-                item_ann = self._annotation_inner(schema.items)
+                item_ann = self.annotation_inner(schema.items)
             elif schema.prefix_items:
                 item_ann = _ANY
             else:
@@ -331,9 +331,9 @@ class _GenCtx:
         if not non_null:
             return _NONE
         if len(non_null) == 1:
-            base = self._single_type_annotation(next(iter(non_null)), schema)
+            base = self.single_type_annotation(next(iter(non_null)), schema)
             return _nullable(base) if has_null else base
-        self._warn(
+        self.warn(
             f"type array {sorted(str(t) for t in types)} maps to Any.",
             code="multi-type-fallback",
             schema=schema,
@@ -341,7 +341,7 @@ class _GenCtx:
         return _nullable(_ANY) if has_null else _ANY
 
     def _nullable_union(self, schemas: list[JsonSchema]) -> PythonTypeAnnotation | None:
-        """If exactly one branch is ``null`` and one is non-null, return ``T | None``."""
+        """If exactly one branch is `null` and one is non-null, return `T | None`."""
         null_count = sum(
             1 for s in schemas if isinstance(s, ObjectSchema) and s.type == JsonSchemaType.NULL
         )
@@ -351,9 +351,9 @@ class _GenCtx:
             if not (isinstance(s, ObjectSchema) and s.type == JsonSchemaType.NULL)
         ]
         if null_count == 1 and len(non_null) == 1:
-            return _nullable(self._annotation_inner(non_null[0]))
+            return _nullable(self.annotation_inner(non_null[0]))
         if null_count == 0 and len(schemas) == 1:
-            return self._annotation_inner(schemas[0])
+            return self.annotation_inner(schemas[0])
         return None
 
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:

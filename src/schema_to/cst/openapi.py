@@ -1,7 +1,7 @@
 """Concrete Syntax Tree for [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0).
 
 OpenAPI 3.1 fully aligns with JSON Schema 2020-12: every `schema` field in this
-module is typed as `JsonSchema` (from `cst._json_schema`), not as a separate
+module is typed as `JsonSchema` (from `cst.json_schema`), not as a separate
 "Schema Object" type.  This means a single `JsonSchemaDocument` transpiler can
 process embedded schemas without a dedicated OpenAPI-to-JSON-Schema conversion.
 
@@ -12,13 +12,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from enum import Enum, StrEnum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from schema_to.cst._base import CstNode, JsonValue, SourceRef
+from schema_to.cst.base import CstNode, JsonValue, SourceRef
 
 if TYPE_CHECKING:
-    from schema_to.cst._json_schema import JsonSchema
+    from schema_to.cst.json_schema import JsonSchema
 
 __all__ = [
     "ApiKeyLocation",

@@ -20,12 +20,12 @@ from tests.strategies import json_schema_with_defs_st, object_schema_st
 from schema_to import (
     Err,
     JsonSchemaParser,
+    JsonSchemaRefResolver,
     JsonSchemaToPydanticTranspiler,
     MediaTypes,
     Ok,
     PydanticGenerator,
     PythonReifier,
-    JsonSchemaRefResolver,
     RawDocument,
 )
 
@@ -375,7 +375,7 @@ def test_empty_object_produces_valid_class() -> None:
 
 
 def test_boolean_true_schema_fails() -> None:
-    """``true`` as the root schema cannot produce a Pydantic model."""
+    """`true` as the root schema cannot produce a Pydantic model."""
     cst_r = _PARSER.apply(_doc(True))
     assert isinstance(cst_r, Ok)
     gen = PydanticGenerator()
@@ -384,7 +384,7 @@ def test_boolean_true_schema_fails() -> None:
 
 
 def test_boolean_false_schema_fails() -> None:
-    """``false`` as the root schema cannot produce a Pydantic model."""
+    """`false` as the root schema cannot produce a Pydantic model."""
     cst_r = _PARSER.apply(_doc(False))
     assert isinstance(cst_r, Ok)
     gen = PydanticGenerator()

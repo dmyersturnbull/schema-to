@@ -5,43 +5,44 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to._pipeline import Transpiler
-from schema_to._result import Err, Result
-from schema_to.generate._pydantic import PydanticGenerator
-from schema_to.io._source import JsonSchemaRawDocument, OpenApiRawDocument, RawDocument
-from schema_to.parse._json_schema import JsonSchemaParser
-from schema_to.reify._python import PythonReifier
-from schema_to.resolve._json_schema import JsonSchemaRefResolver
-from schema_to.transpile._utils import JSON_YAML_ESSENCES, peek_is_openapi
+from schema_to.transpile.utils import JSON_YAML_ESSENCES, peek_is_openapi
+
+from schema_to.generate.pydantic import PydanticGenerator
+from schema_to.io.source import JsonSchemaRawDocument, OpenApiRawDocument, RawDocument
+from schema_to.parse.json_schema import JsonSchemaParser
+from schema_to.pipeline import Transpiler
+from schema_to.reify.python import PythonReifier
+from schema_to.resolve.json_schema import JsonSchemaRefResolver
+from schema_to.result import Err, Result
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from schema_to._errors import TranspilationWarning
-    from schema_to.ast._python import PythonModule
-    from schema_to.cst._json_schema import JsonSchemaDocument
-    from schema_to.io._sink import OutputArtifact
+    from schema_to.ast.python import PythonModule
+    from schema_to.cst.json_schema import JsonSchemaDocument
+    from schema_to.errors import TranspilationWarning
+    from schema_to.io.sink import OutputArtifact
 
 __all__ = ["JsonSchemaToPydanticTranspiler"]
 
 
 @dataclass(frozen=True)
 class JsonSchemaToPydanticTranspiler(Transpiler):
-    """End-to-end transpiler: JSON Schema 2020-12 → Pydantic v2 ``BaseModel`` classes.
+    """End-to-end transpiler: JSON Schema 2020-12 → Pydantic v2 `BaseModel` classes.
 
     The four pipeline stages are:
 
-    1. **parse** — ``JsonSchemaParser`` decodes JSON/YAML to a ``JsonSchemaDocument`` CST.
-    2. **resolve** — ``JsonSchemaRefResolver`` validates all ``$ref`` / ``$dynamicRef`` links.
-    3. **generate** — ``PydanticGenerator`` maps the CST to a ``PythonModule`` AST.
-    4. **reify** — ``PythonReifier`` serialises the AST to ``.py`` bytes.
+    1. **parse** — `JsonSchemaParser` decodes JSON/YAML to a `JsonSchemaDocument` CST.
+    2. **resolve** — `JsonSchemaRefResolver` validates all `$ref` / `$dynamicRef` links.
+    3. **generate** — `PydanticGenerator` maps the CST to a `PythonModule` AST.
+    4. **reify** — `PythonReifier` serialises the AST to `.py` bytes.
 
     Attributes:
         parser: JSON Schema parser (injected for testability).
         resolver: Ref resolver shared across documents (injected for testability).
         generator: Pydantic code generator (injected for testability).
         reifier: Python source reifier (injected for testability).
-        output_name: Base name for the emitted ``.py`` artifact.
+        output_name: Base name for the emitted `.py` artifact.
     """
 
     parser: JsonSchemaParser = field(default_factory=JsonSchemaParser)

@@ -1,13 +1,13 @@
-"""Reifier: SQL AST → ``.sql`` bytes.
+"""Reifier: SQL AST → `.sql` bytes.
 
-Emits PostgreSQL-compatible DDL that can be executed directly by ``psql``.
+Emits PostgreSQL-compatible DDL that can be executed directly by `psql`.
 Output style:
 
-* ``CREATE TABLE IF NOT EXISTS name (`` with one column per line.
-* Column constraints inline: ``NOT NULL``, ``CHECK (...)``, ``REFERENCES``.
+* `CREATE TABLE IF NOT EXISTS name (` with one column per line.
+* Column constraints inline: `NOT NULL`, `CHECK (...)`, `REFERENCES`.
 * Table-level constraints after all column lines.
-* ``COMMENT ON TABLE`` and ``COMMENT ON COLUMN`` immediately after each table.
-* ``CREATE INDEX`` and standalone ``COMMENT ON`` in statement order.
+* `COMMENT ON TABLE` and `COMMENT ON COLUMN` immediately after each table.
+* `CREATE INDEX` and standalone `COMMENT ON` in statement order.
 """
 
 from __future__ import annotations
@@ -15,9 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from schema_to._pipeline import Reifier
-from schema_to._result import Ok, Result
-from schema_to.ast._sql import (
+from schema_to.ast.sql import (
     ColumnConstraint,
     CommentOnStmt,
     CreateIndexStmt,
@@ -28,8 +26,10 @@ from schema_to.ast._sql import (
     SqlScript,
     TableConstraint,
 )
-from schema_to.io._sink import OutputArtifact
-from schema_to.io._source import MediaTypes
+from schema_to.io.sink import OutputArtifact
+from schema_to.io.source import MediaTypes
+from schema_to.pipeline import Reifier
+from schema_to.result import Ok, Result
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -41,19 +41,19 @@ _INDENT = "    "
 
 @dataclass(frozen=True)
 class SqlReifier(Reifier[SqlScript]):
-    """Serialise a ``SqlScript`` AST to a single ``.sql`` ``OutputArtifact``.
+    """Serialise a `SqlScript` AST to a single `.sql` `OutputArtifact`.
 
     Attributes:
-        artifact_name: Base file name for the output artifact (e.g. ``"schema.sql"``).
+        artifact_name: Base file name for the output artifact (e.g. `"schema.sql"`).
     """
 
     artifact_name: str
 
     def apply(self, input: SqlScript) -> Result[Sequence[OutputArtifact]]:
-        return Ok([self._apply(input)])
+        return Ok([self.apply(input)])
 
     def _apply(self, input: SqlScript) -> OutputArtifact:
-        sql = "\n\n".join(self._emit_script(input)) + "\n"
+        sql = "\n\n".join(self.emit_script(input)) + "\n"
         return OutputArtifact(
             artifact_id=self.artifact_name,
             content=sql.encode("utf-8"),
@@ -70,9 +70,9 @@ class SqlReifier(Reifier[SqlScript]):
             yield script.preamble
         for stmt in script.statements:
             if isinstance(stmt, CreateTableStmt):
-                yield from self._emit_table_block(stmt)
+                yield from self.emit_table_block(stmt)
             elif isinstance(stmt, CreateIndexStmt):
-                yield self._emit_create_index(stmt)
+                yield self.emit_create_index(stmt)
             elif isinstance(stmt, CommentOnStmt):
                 yield (
                     f"COMMENT ON {stmt.object_type} {stmt.object_name} IS {_sql_str(stmt.comment)};"
@@ -83,7 +83,7 @@ class SqlReifier(Reifier[SqlScript]):
     # ------------------------------------------------------------------
 
     def _emit_table_block(self, stmt: CreateTableStmt) -> Iterator[str]:
-        yield self._emit_create_table(stmt)
+        yield self.emit_create_table(stmt)
         if stmt.doc:
             yield f"COMMENT ON TABLE {stmt.table_name} IS {_sql_str(stmt.doc)};"
         yield from (
