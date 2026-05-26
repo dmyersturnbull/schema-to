@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to.transpile.utils import JSON_YAML_ESSENCES, encode, peek_is_openapi
+from schema_to.transpile._utils import JSON_YAML_ESSENCES, encode, peek_is_openapi
 
 from schema_to.io.sink import OutputArtifact
 from schema_to.io.source import JsonSchemaRawDocument, OpenApiRawDocument, RawDocument

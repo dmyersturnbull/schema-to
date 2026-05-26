@@ -50,10 +50,10 @@ class SqlReifier(Reifier[SqlScript]):
     artifact_name: str
 
     def apply(self, input: SqlScript) -> Result[Sequence[OutputArtifact]]:
-        return Ok([self.apply(input)])
+        return Ok([self._apply(input)])
 
     def _apply(self, input: SqlScript) -> OutputArtifact:
-        sql = "\n\n".join(self.emit_script(input)) + "\n"
+        sql = "\n\n".join(self._emit_script(input)) + "\n"
         return OutputArtifact(
             artifact_id=self.artifact_name,
             content=sql.encode("utf-8"),
@@ -70,9 +70,9 @@ class SqlReifier(Reifier[SqlScript]):
             yield script.preamble
         for stmt in script.statements:
             if isinstance(stmt, CreateTableStmt):
-                yield from self.emit_table_block(stmt)
+                yield from self._emit_table_block(stmt)
             elif isinstance(stmt, CreateIndexStmt):
-                yield self.emit_create_index(stmt)
+                yield self._emit_create_index(stmt)
             elif isinstance(stmt, CommentOnStmt):
                 yield (
                     f"COMMENT ON {stmt.object_type} {stmt.object_name} IS {_sql_str(stmt.comment)};"
@@ -83,7 +83,7 @@ class SqlReifier(Reifier[SqlScript]):
     # ------------------------------------------------------------------
 
     def _emit_table_block(self, stmt: CreateTableStmt) -> Iterator[str]:
-        yield self.emit_create_table(stmt)
+        yield self._emit_create_table(stmt)
         if stmt.doc:
             yield f"COMMENT ON TABLE {stmt.table_name} IS {_sql_str(stmt.doc)};"
         yield from (

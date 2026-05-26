@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to.transpile.utils import JSON_YAML_ESSENCES, peek_is_openapi
+from schema_to.transpile._utils import JSON_YAML_ESSENCES, peek_is_openapi
 
 from schema_to.generate.pydantic import PydanticGenerator
 from schema_to.io.source import JsonSchemaRawDocument, OpenApiRawDocument, RawDocument
