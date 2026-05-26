@@ -218,7 +218,8 @@ def test_defs_classes_generated_before_root() -> None:
     src = _transpile(schema)
     leaf_pos = src.find("class Leaf(BaseModel):")
     root_pos = src.find("class Root(BaseModel):")
-    assert leaf_pos != -1 and root_pos != -1
+    assert leaf_pos != -1
+    assert root_pos != -1
     assert leaf_pos < root_pos, "Leaf should be defined before Root"
 
 
@@ -263,7 +264,8 @@ def test_enum_produces_literal() -> None:
     }
     src = _transpile(schema)
     assert "Literal" in src
-    assert "from typing import" in src and "Literal" in src
+    assert "from typing import" in src
+    assert "Literal" in src
 
 
 def test_const_produces_literal() -> None:
@@ -436,7 +438,8 @@ def test_integration_full_pipeline() -> None:
     # --- Boilerplate ---
     assert "from __future__ import annotations" in src
     assert "from pydantic import BaseModel" in src
-    assert "from typing import" in src and "Literal" in src
+    assert "from typing import" in src
+    assert "Literal" in src
 
     # --- Class structure and ordering ---
     address_pos = src.find("class Address(BaseModel):")

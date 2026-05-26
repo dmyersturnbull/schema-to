@@ -27,8 +27,8 @@ Mapping rules
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from schema_to._errors import GenerationError, SourceLocation, TranspilationWarning
 from schema_to._names import safe_sql_identifier
@@ -42,7 +42,6 @@ from schema_to.ast._sql import (
     PgDataType,
     SqlScript,
 )
-from schema_to.cst._base import JsonValue
 from schema_to.cst._json_schema import (
     BooleanSchema,
     JsonSchema,
@@ -50,7 +49,12 @@ from schema_to.cst._json_schema import (
     JsonSchemaType,
     ObjectSchema,
 )
-from schema_to.resolve._json_schema import JsonSchemaRefResolver
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from schema_to.cst._base import JsonValue
+    from schema_to.resolve._json_schema import JsonSchemaRefResolver
 
 __all__ = ["PostgresGenerator"]
 
@@ -186,14 +190,19 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
             )
         root = input.root
         if not _is_object_schema(root):
-            raise GenerationError(
+            msg = (
                 f"Root schema type {root.type!r} is not 'object'; "
                 "cannot generate a CREATE TABLE statement."
+            )
+            raise GenerationError(
+                msg
             )
 
         sid = input.source_id
         def_stmts = [
-            self._schema_to_table(def_schema, safe_sql_identifier(def_schema.title or def_name), sid)
+            self._schema_to_table(
+                def_schema, safe_sql_identifier(def_schema.title or def_name), sid
+            )
             for def_name, def_schema in (root.defs or {}).items()
             if isinstance(def_schema, ObjectSchema) and _is_object_schema(def_schema)
         ]
@@ -220,13 +229,7 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
             source_ids=(source_id,),
         )
 
-    def _prop_to_column(
-        self,
-        prop_name: str,
-        schema: JsonSchema,
-        *,
-        required: bool,
-    ) -> ColumnDef:
+    def _prop_to_column(self, prop_name: str, schema: JsonSchema, *, required: bool) -> ColumnDef:
         col_name = safe_sql_identifier(prop_name)
 
         if isinstance(schema, BooleanSchema):
@@ -250,10 +253,7 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
         return ColumnDef(
             name=col_name,
             data_type=data_type,
-            constraint=ColumnConstraint(
-                not_null=not nullable,
-                check_expr=check.check_expr,
-            ),
+            constraint=ColumnConstraint(not_null=not nullable, check_expr=check.check_expr),
             doc=doc,
         )
 
@@ -372,7 +372,6 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
         loc: SourceLocation | None = None
         if schema.source_ref:
             loc = SourceLocation(
-                source_id=schema.source_ref.source_id,
-                json_pointer=schema.source_ref.json_pointer,
+                source_id=schema.source_ref.source_id, json_pointer=schema.source_ref.json_pointer
             )
         self._warnings.append(TranspilationWarning(msg, code=code, location=loc))

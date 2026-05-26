@@ -8,12 +8,12 @@ cross-cutting enumerations used by more than one target.
 from __future__ import annotations
 
 from abc import ABC
-from enum import Enum
+from enum import Enum, StrEnum
 
 __all__ = ["AstNode", "DocString", "Visibility"]
 
 
-class Visibility(str, Enum):
+class Visibility(StrEnum):
     """Visibility modifier applicable across multiple target languages.
 
     Not all targets support every level; generators emit the closest equivalent

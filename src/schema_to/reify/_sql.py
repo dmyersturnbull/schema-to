@@ -12,8 +12,8 @@ Output style:
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from schema_to._pipeline import Reifier
 from schema_to._result import Ok, Result
@@ -30,6 +30,9 @@ from schema_to.ast._sql import (
 )
 from schema_to.io._sink import OutputArtifact
 from schema_to.io._source import MediaTypes
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator, Sequence
 
 __all__ = ["SqlReifier"]
 
@@ -72,8 +75,7 @@ class SqlReifier(Reifier[SqlScript]):
                 yield self._emit_create_index(stmt)
             elif isinstance(stmt, CommentOnStmt):
                 yield (
-                    f"COMMENT ON {stmt.object_type} {stmt.object_name}"
-                    f" IS {_sql_str(stmt.comment)};"
+                    f"COMMENT ON {stmt.object_type} {stmt.object_name} IS {_sql_str(stmt.comment)};"
                 )
 
     # ------------------------------------------------------------------

@@ -11,7 +11,7 @@ diagnostics rather than stopping at the first fault.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from schema_to._errors import ParseError, SchemaValidationError, SourceLocation, TranspilationError
 from schema_to._pipeline import DocumentParser
@@ -27,8 +27,10 @@ from schema_to.cst._json_schema import (
     ObjectSchema,
     SchemaType,
 )
-from schema_to.io._source import RawDocument
 from schema_to.parse._utils import loc, ptr
+
+if TYPE_CHECKING:
+    from schema_to.io._source import RawDocument
 
 __all__ = ["JsonSchemaParser"]
 

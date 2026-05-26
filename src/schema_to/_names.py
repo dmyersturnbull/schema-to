@@ -20,7 +20,7 @@ __all__ = [
     "to_snake",
 ]
 
-_NON_IDENT = re.compile(r"[^\w]")
+_NON_IDENT = re.compile(r"\W")
 
 
 def safe_python_class_name(name: str) -> str:

@@ -2,20 +2,24 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from schema_to._errors import TranspilationWarning
 from schema_to._pipeline import Transpiler
 from schema_to._result import Err, Result
-from schema_to.ast._sql import SqlScript
-from schema_to.cst._json_schema import JsonSchemaDocument
 from schema_to.generate._sql import PostgresGenerator
-from schema_to.io._sink import OutputArtifact
 from schema_to.io._source import JsonSchemaRawDocument, RawDocument
 from schema_to.parse._json_schema import JsonSchemaParser
 from schema_to.reify._sql import SqlReifier
 from schema_to.resolve._json_schema import JsonSchemaRefResolver
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from schema_to._errors import TranspilationWarning
+    from schema_to.ast._sql import SqlScript
+    from schema_to.cst._json_schema import JsonSchemaDocument
+    from schema_to.io._sink import OutputArtifact
 
 __all__ = ["JsonSchemaToPostgresTranspiler"]
 

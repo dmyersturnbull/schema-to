@@ -13,8 +13,8 @@ formatted by ``ruff format`` without errors.  The output style is:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from schema_to._errors import ReificationError
 from schema_to._pipeline import Reifier
@@ -32,6 +32,9 @@ from schema_to.ast._python import (
 )
 from schema_to.io._sink import OutputArtifact
 from schema_to.io._source import MediaTypes
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 __all__ = ["PythonReifier"]
 
@@ -158,7 +161,7 @@ class PythonReifier(Reifier[PythonModule]):
 
     def _class_bases(self, decl: ClassDef) -> list[str]:
         style_bases: list[str] = []
-        if decl.style in (ClassStyle.PYDANTIC, ClassStyle.PYDANTIC_FROZEN):
+        if decl.style in {ClassStyle.PYDANTIC, ClassStyle.PYDANTIC_FROZEN}:
             style_bases = ["BaseModel"]
         elif decl.style == ClassStyle.DATACLASS:
             pass  # decorator handles it

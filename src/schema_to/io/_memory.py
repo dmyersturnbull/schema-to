@@ -6,10 +6,13 @@ directly into the next without touching the filesystem.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from typing import TYPE_CHECKING
 
 from schema_to.io._sink import DataSink, OutputArtifact
 from schema_to.io._source import DataSource, RawDocument
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator, Sequence
 
 __all__ = ["InMemoryDataSink", "InMemoryDataSource"]
 

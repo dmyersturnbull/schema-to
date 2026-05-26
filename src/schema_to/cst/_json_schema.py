@@ -9,11 +9,14 @@ vocabulary sub-objects so that serializers and parsers can iterate
 from __future__ import annotations
 
 import enum
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from schema_to.cst._base import CstNode, JsonValue, SourceRef
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
 
 __all__ = [
     "BooleanSchema",
