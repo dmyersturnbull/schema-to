@@ -12,6 +12,7 @@ from schema_to.io._source import JsonSchemaRawDocument, OpenApiRawDocument, RawD
 from schema_to.parse._json_schema import JsonSchemaParser
 from schema_to.reify._python import PythonReifier
 from schema_to.resolve._json_schema import JsonSchemaRefResolver
+from schema_to.transpile._utils import JSON_YAML_ESSENCES, peek_is_openapi
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -22,8 +23,6 @@ if TYPE_CHECKING:
     from schema_to.io._sink import OutputArtifact
 
 __all__ = ["JsonSchemaToPydanticTranspiler"]
-
-_JSON_YAML_ESSENCES = frozenset({"application/json", "application/yaml", "text/yaml"})
 
 
 @dataclass(frozen=True)
@@ -60,21 +59,7 @@ class JsonSchemaToPydanticTranspiler(Transpiler):
             return True
         if isinstance(document, OpenApiRawDocument):
             return False
-        if document.media_type.essence not in _JSON_YAML_ESSENCES:
-            return False
-        # Peek to ensure it's not OpenAPI.
-        try:
-            import orjson  # noqa: PLC0415
-
-            if document.media_type.essence == "application/json":
-                data = orjson.loads(document.content)
-            else:
-                from yaml12 import parse_yaml  # noqa: PLC0415
-
-                data = parse_yaml(document.content.decode("utf-8"))
-            return not (isinstance(data, dict) and isinstance(data.get("openapi"), str))
-        except Exception:  # noqa: BLE001
-            return False
+        return document.media_type.essence in JSON_YAML_ESSENCES and not peek_is_openapi(document)
 
     def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
         # Stage 1: parse

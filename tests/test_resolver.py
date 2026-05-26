@@ -14,11 +14,7 @@ import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import json_schema_st, json_schema_with_defs_st
 
-from schema_to._errors import ResolutionError
-from schema_to._result import Err, Ok
-from schema_to.io._source import MediaTypes, RawDocument
-from schema_to.parse._json_schema import JsonSchemaParser
-from schema_to.resolve._json_schema import JsonSchemaRefResolver
+from schema_to import Err, JsonSchemaParser, JsonSchemaRefResolver, MediaTypes, Ok, ResolutionError, RawDocument
 
 _PARSER = JsonSchemaParser()
 

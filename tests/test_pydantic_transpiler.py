@@ -17,13 +17,17 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import json_schema_with_defs_st, object_schema_st
 
-from schema_to._result import Err, Ok
-from schema_to.generate._pydantic import PydanticGenerator
-from schema_to.io._source import MediaTypes, RawDocument
-from schema_to.parse._json_schema import JsonSchemaParser
-from schema_to.reify._python import PythonReifier
-from schema_to.resolve._json_schema import JsonSchemaRefResolver
-from schema_to.transpile._pydantic import JsonSchemaToPydanticTranspiler
+from schema_to import (
+    Err,
+    JsonSchemaParser,
+    JsonSchemaToPydanticTranspiler,
+    MediaTypes,
+    Ok,
+    PydanticGenerator,
+    PythonReifier,
+    JsonSchemaRefResolver,
+    RawDocument,
+)
 
 _PARSER = JsonSchemaParser()
 

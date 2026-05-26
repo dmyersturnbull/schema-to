@@ -6,10 +6,7 @@ import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import openapi_doc_st
 
-from schema_to._result import Ok
-from schema_to.io._source import MediaTypes, RawDocument
-from schema_to.parse._json_schema import JsonSchemaParser
-from schema_to.transpile._extract import OpenApiExtractTranspiler
+from schema_to import JsonSchemaParser, MediaTypes, Ok, OpenApiExtractTranspiler, RawDocument
 
 _JS_PARSER = JsonSchemaParser()
 

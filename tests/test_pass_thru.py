@@ -9,9 +9,13 @@ import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import json_schema_st, openapi_doc_st
 
-from schema_to._result import Ok
-from schema_to.io._source import MediaTypes, RawDocument
-from schema_to.transpile._pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
+from schema_to import (
+    JsonSchemaPassThruTranspiler,
+    MediaTypes,
+    Ok,
+    OpenApiPassThruTranspiler,
+    RawDocument,
+)
 
 
 def _make_json_doc(data: object, source_id: str = "test://doc") -> RawDocument:
