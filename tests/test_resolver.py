@@ -46,7 +46,7 @@ def test_no_refs_always_resolve(schema: object) -> None:
     # Strip $ref / $dynamicRef from the generated schema so we guarantee none.
     def _strip_refs(obj: object) -> object:
         if isinstance(obj, dict):
-            return {k: _strip_refs(v) for k, v in obj.items() if k not in ("$ref", "$dynamicRef")}
+            return {k: _strip_refs(v) for k, v in obj.items() if k not in {"$ref", "$dynamicRef"}}
         if isinstance(obj, list):
             return [_strip_refs(v) for v in obj]
         return obj

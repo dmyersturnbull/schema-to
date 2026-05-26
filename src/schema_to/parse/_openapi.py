@@ -10,7 +10,7 @@ the complete diagnostic set.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from schema_to._errors import ParseError, SchemaValidationError, TranspilationError
 from schema_to._pipeline import DocumentParser
@@ -35,9 +35,11 @@ from schema_to.cst._openapi import (
     ServerVariable,
     Tag,
 )
-from schema_to.io._source import RawDocument
 from schema_to.parse._json_schema import JsonSchemaParser
 from schema_to.parse._utils import extract, loc, ptr
+
+if TYPE_CHECKING:
+    from schema_to.io._source import RawDocument
 
 __all__ = ["OpenApiParser"]
 
@@ -60,7 +62,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
     def supports(self, document: RawDocument) -> bool:
         return document.media_type.essence in _SUPPORTED_ESSENCES
 
-    def apply(self, input: RawDocument) -> Result[OpenApiDocument]:  # noqa: A002
+    def apply(self, input: RawDocument) -> Result[OpenApiDocument]:
         raw = self._js._decode(input)  # noqa: SLF001
         if isinstance(raw, Err):
             return raw

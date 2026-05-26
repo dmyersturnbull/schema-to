@@ -14,11 +14,14 @@ Custom extension keywords supported by the generator:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, StrEnum
+from typing import TYPE_CHECKING
 
 from schema_to.ast._base import AstNode
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 __all__ = [
     "ColumnConstraint",
@@ -40,7 +43,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-class PgDataType(str, Enum):
+class PgDataType(StrEnum):
     """PostgreSQL built-in data types used by the code generator.
 
     This list covers the types reachable from JSON Schema primitives plus
@@ -81,7 +84,7 @@ class PgDataType(str, Enum):
     CUSTOM = "custom"
 
 
-class ForeignKeyAction(str, Enum):
+class ForeignKeyAction(StrEnum):
     """Actions for `ON DELETE` and `ON UPDATE` foreign-key clauses."""
 
     NO_ACTION = "NO ACTION"
@@ -91,7 +94,7 @@ class ForeignKeyAction(str, Enum):
     SET_DEFAULT = "SET DEFAULT"
 
 
-class IndexMethod(str, Enum):
+class IndexMethod(StrEnum):
     """PostgreSQL index access methods."""
 
     BTREE = "btree"

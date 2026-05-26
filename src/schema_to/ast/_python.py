@@ -10,11 +10,14 @@ and [Pydantic v2](https://docs.pydantic.dev/latest/) `BaseModel` subclasses.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, StrEnum
+from typing import TYPE_CHECKING
 
 from schema_to.ast._base import AstNode, DocString
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 __all__ = [
     "ClassDef",
@@ -36,7 +39,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-class ClassStyle(str, Enum):
+class ClassStyle(StrEnum):
     """Code-generation style for a Python class node.
 
     Attributes:

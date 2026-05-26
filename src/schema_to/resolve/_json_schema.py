@@ -18,8 +18,8 @@ The `lookup` / `lookup_anchor` methods are intended for use by generators after
 from __future__ import annotations
 
 import urllib.parse
-from collections.abc import Iterator
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import referencing
 import referencing.exceptions
@@ -31,6 +31,9 @@ from schema_to._pipeline import RefResolver
 from schema_to._result import Err, Ok, Result
 from schema_to.cst._json_schema import BooleanSchema, JsonSchema, JsonSchemaDocument, ObjectSchema
 from schema_to.serialize._json_schema import JsonSchemaSerializer
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 __all__ = ["JsonSchemaRefResolver"]
 

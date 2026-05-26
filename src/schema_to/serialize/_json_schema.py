@@ -5,8 +5,8 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from schema_to._core import JsonObject, JsonValue
 from schema_to.cst._json_schema import (
     BooleanSchema,
     ConstValue,
@@ -16,6 +16,9 @@ from schema_to.cst._json_schema import (
     JsonSchemaType,
     ObjectSchema,
 )
+
+if TYPE_CHECKING:
+    from schema_to._core import JsonObject, JsonValue
 
 __all__ = ["JsonSchemaSerializer"]
 

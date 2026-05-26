@@ -8,8 +8,8 @@ Both accept a `use_yaml` flag (emit YAML instead of JSON, default `False`).
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import orjson
 
@@ -27,6 +27,9 @@ from schema_to.parse._json_schema import JsonSchemaParser
 from schema_to.parse._openapi import OpenApiParser
 from schema_to.serialize._json_schema import JsonSchemaSerializer
 from schema_to.serialize._openapi import OpenApiSerializer
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 __all__ = ["JsonSchemaPassThruTranspiler", "OpenApiPassThruTranspiler"]
 

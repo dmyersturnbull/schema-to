@@ -8,11 +8,13 @@ short-circuits on the first failure.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import final
+from typing import TYPE_CHECKING, final
 
-from schema_to._errors import TranspilationError
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from schema_to._errors import TranspilationError
 
 __all__ = ["Err", "Ok", "Result"]
 

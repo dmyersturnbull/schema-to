@@ -15,8 +15,8 @@ Mapping rules
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from schema_to._errors import (
     GenerationError,
@@ -44,7 +44,11 @@ from schema_to.cst._json_schema import (
     JsonSchemaType,
     ObjectSchema,
 )
-from schema_to.resolve._json_schema import JsonSchemaRefResolver
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from schema_to.resolve._json_schema import JsonSchemaRefResolver
 
 __all__ = ["PydanticGenerator"]
 

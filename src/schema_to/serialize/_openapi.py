@@ -3,31 +3,34 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from schema_to._core import JsonObject
-from schema_to.cst._openapi import (
-    Components,
-    Contact,
-    ExternalDocumentation,
-    Header,
-    Info,
-    License,
-    Link,
-    MediaTypeObject,
-    OAuthFlow,
-    OAuthFlows,
-    OpenApiDocument,
-    Operation,
-    Parameter,
-    PathItem,
-    RequestBody,
-    Response,
-    SecurityScheme,
-    Server,
-    ServerVariable,
-    Tag,
-)
 from schema_to.serialize._json_schema import JsonSchemaSerializer
+
+if TYPE_CHECKING:
+    from schema_to._core import JsonObject
+    from schema_to.cst._openapi import (
+        Components,
+        Contact,
+        ExternalDocumentation,
+        Header,
+        Info,
+        License,
+        Link,
+        MediaTypeObject,
+        OAuthFlow,
+        OAuthFlows,
+        OpenApiDocument,
+        Operation,
+        Parameter,
+        PathItem,
+        RequestBody,
+        Response,
+        SecurityScheme,
+        Server,
+        ServerVariable,
+        Tag,
+    )
 
 __all__ = ["OpenApiSerializer"]
 

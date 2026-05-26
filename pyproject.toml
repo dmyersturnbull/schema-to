@@ -97,6 +97,9 @@ extend-unsafe-fixes = [
 [tool.ruff.lint.flake8-bandit]
 check-typed-exception = true
 
+[tool.ruff.lint.flake8-builtins]
+ignorelist = ["input"]
+
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 

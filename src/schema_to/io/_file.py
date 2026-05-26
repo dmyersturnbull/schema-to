@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from schema_to.io._sink import DataSink, OutputArtifact
 from schema_to.io._source import DataSource, MediaType, RawDocument
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 __all__ = ["DirectoryDataSource", "FileDataSink", "FileDataSource"]
 
