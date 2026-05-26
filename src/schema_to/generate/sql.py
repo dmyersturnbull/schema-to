@@ -174,12 +174,12 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
 
     @property
     def warnings(self) -> Sequence[TranspilationWarning]:
-        return list(self.warnings)
+        return list(self._warnings)
 
     def apply(self, input: JsonSchemaDocument) -> Result[SqlScript]:
-        self.warnings = []
+        self._warnings.clear()
         try:
-            return Ok(self.apply(input))
+            return Ok(self._apply(input))
         except GenerationError as exc:
             return Err((exc,))
 
@@ -198,11 +198,11 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
 
         sid = input.source_id
         def_stmts = [
-            self.schema_to_table(def_schema, safe_sql_identifier(def_schema.title or def_name), sid)
+            self._schema_to_table(def_schema, safe_sql_identifier(def_schema.title or def_name), sid)
             for def_name, def_schema in (root.defs or {}).items()
             if isinstance(def_schema, ObjectSchema) and _is_object_schema(def_schema)
         ]
-        root_stmt = self.schema_to_table(root, safe_sql_identifier(root.title or sid), sid)
+        root_stmt = self._schema_to_table(root, safe_sql_identifier(root.title or sid), sid)
         return SqlScript(statements=(*def_stmts, root_stmt), source_ids=(sid,))
 
     # ------------------------------------------------------------------
@@ -214,7 +214,7 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
     ) -> CreateTableStmt:
         required_set = schema.get_required()
         columns = [
-            self.prop_to_column(prop_name, prop_schema, required=prop_name in required_set)
+            self._prop_to_column(prop_name, prop_schema, required=prop_name in required_set)
             for prop_name, prop_schema in (schema.properties or {}).items()
         ]
         return CreateTableStmt(
@@ -238,9 +238,9 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
         extra_nullable, eff_schema = _unwrap_nullable(schema)
         nullable = not required or extra_nullable
 
-        data_type = self.schema_to_data_type(eff_schema, col_name)
+        data_type = self._schema_to_data_type(eff_schema, col_name)
         check = (
-            self.check_exprs(eff_schema, col_name, data_type)
+            self._check_exprs(eff_schema, col_name, data_type)
             if isinstance(eff_schema, ObjectSchema)
             else ColumnConstraint()
         )
@@ -275,8 +275,8 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
                     if not (isinstance(s, ObjectSchema) and s.get_types() == {JsonSchemaType.NULL})
                 ]
                 if len(non_null) == 1:
-                    return self.schema_to_data_type(non_null[0], col_name)
-                self.warn(
+                    return self._schema_to_data_type(non_null[0], col_name)
+                self._warn(
                     f"anyOf/oneOf with {len(applicator)} branches; using JSONB for {col_name!r}.",
                     code="anyof-fallback",
                     schema=schema,
@@ -287,9 +287,9 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
         types = schema.get_types()
         non_null_types = types - {JsonSchemaType.NULL}
         if len(non_null_types) == 1:
-            return self.type_to_data_type(next(iter(non_null_types)), schema, col_name)
+            return self._type_to_data_type(next(iter(non_null_types)), schema, col_name)
         if non_null_types:
-            self.warn(
+            self._warn(
                 f"Union type {sorted(str(t) for t in types)}; using JSONB for {col_name!r}.",
                 code="multi-type-fallback",
                 schema=schema,
@@ -302,9 +302,9 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
         if t == JsonSchemaType.STRING:
             return _string_type(schema)
         if t == JsonSchemaType.ARRAY:
-            return self.array_type(schema, col_name)
+            return self._array_type(schema, col_name)
         if t == JsonSchemaType.NULL:
-            self.warn(
+            self._warn(
                 f"Column {col_name!r} has type null; falling back to TEXT.",
                 code="null-type-fallback",
                 schema=schema,
@@ -314,10 +314,10 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
 
     def _array_type(self, schema: ObjectSchema, col_name: str) -> DataType:
         if schema.items is not None and isinstance(schema.items, ObjectSchema):
-            item_type = self.schema_to_data_type(schema.items, col_name + "_item")
+            item_type = self._schema_to_data_type(schema.items, col_name + "_item")
             if item_type.base not in {PgDataType.JSONB, PgDataType.ARRAY}:
                 return DataType.array_of(item_type)
-        self.warn(
+        self._warn(
             f"Array with non-simple items; using JSONB for {col_name!r}.",
             code="array-fallback",
             schema=schema,
@@ -370,4 +370,4 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
             loc = SourceLocation(
                 source_id=schema.source_ref.source_id, json_pointer=schema.source_ref.json_pointer
             )
-        self.warnings.append(TranspilationWarning(msg, code=code, location=loc))
+        self._warnings.append(TranspilationWarning(msg, code=code, location=loc))

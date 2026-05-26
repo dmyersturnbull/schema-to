@@ -129,21 +129,21 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
 
     def register(self, cst: JsonSchemaDocument) -> None:
         """Add a document to the registry for cross-document ref resolution."""
-        if cst.source_id in self.docs:
+        if cst.source_id in self._docs:
             return
-        self.docs[cst.source_id] = cst
-        self.index_cst(cst.root, source_id=cst.source_id, pointer="")
+        self._docs[cst.source_id] = cst
+        self._index_cst(cst.root, source_id=cst.source_id, pointer="")
 
         raw = _SERIALIZER.serialize_document(cst)
         resource = Resource.from_contents(raw, default_specification=DRAFT202012)
-        self.registry = self.registry.with_resource(cst.source_id, resource)
+        self._registry = self._registry.with_resource(cst.source_id, resource)
 
         if isinstance(cst.root, ObjectSchema) and cst.root.id:
             abs_id = urllib.parse.urljoin(cst.source_id, cst.root.id)
             if abs_id != cst.source_id:
-                self.id_to_source[abs_id] = cst.source_id
+                self._id_to_source[abs_id] = cst.source_id
                 # Also register the $id URI with the referencing library.
-                self.registry = self.registry.with_resource(abs_id, resource)
+                self._registry = self._registry.with_resource(abs_id, resource)
 
     def apply(self, input: JsonSchemaDocument) -> Result[JsonSchemaDocument]:
         """Validate all `$ref` / `$dynamicRef` in *input*.
@@ -152,16 +152,16 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         `Err` with one `ResolutionError` per unresolvable reference.
         Auto-registers the document if it has not been registered yet.
         """
-        if input.source_id not in self.docs:
+        if input.source_id not in self._docs:
             self.register(input)
 
         try:
-            ref_resolver = self.registry.resolver(base_uri=input.source_id)
-        except Exception as exc:
+            ref_resolver = self._registry.resolver(base_uri=input.source_id)
+        except referencing.exceptions.Unresolvable as exc:
             return Err((ResolutionError(str(exc), location=_loc(input.source_id, "")),))
 
         errors: list[TranspilationError] = []
-        self.check_refs(
+        self._check_refs(
             input.root, ref_resolver=ref_resolver, source_id=input.source_id, errors=errors
         )
 
@@ -175,40 +175,40 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         Returns `None` when the ref cannot be resolved (i.e. the document
         was never registered, or the pointer / anchor does not exist).
         """
-        doc_uri, fragment = self.split_ref(ref, base_uri)
-        source_id = self.find_source_id(doc_uri)
+        doc_uri, fragment = self._split_ref(ref, base_uri)
+        source_id = self._find_source_id(doc_uri)
         if source_id is None:
             return None
         if not fragment or fragment.startswith("/"):
-            return self.cst_by_pointer.get((source_id, fragment))
-        return self.cst_by_anchor.get((source_id, fragment))
+            return self._cst_by_pointer.get((source_id, fragment))
+        return self._cst_by_anchor.get((source_id, fragment))
 
     def lookup_anchor(self, anchor: str, *, source_id: str) -> JsonSchema | None:
         """Return the CST node that declares the given `$anchor` or `$dynamicAnchor`."""
-        return self.cst_by_anchor.get((source_id, anchor))
+        return self._cst_by_anchor.get((source_id, anchor))
 
     def registered_source_ids(self) -> frozenset[str]:
         """Return the set of source IDs currently in the registry."""
-        return frozenset(self.docs)
+        return frozenset(self._docs)
 
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
 
     def _index_cst(self, schema: JsonSchema, source_id: str, pointer: str) -> None:
-        self.cst_by_pointer[source_id, pointer] = schema
+        self._cst_by_pointer[source_id, pointer] = schema
         if isinstance(schema, BooleanSchema):
             return
         if schema.anchor:
-            self.cst_by_anchor[source_id, schema.anchor] = schema
+            self._cst_by_anchor[source_id, schema.anchor] = schema
         if schema.dynamic_anchor:
-            self.cst_by_anchor[source_id, schema.dynamic_anchor] = schema
+            self._cst_by_anchor[source_id, schema.dynamic_anchor] = schema
         if schema.id:
             abs_id = urllib.parse.urljoin(source_id, schema.id)
             if abs_id != source_id:
-                self.id_to_source[abs_id] = source_id
+                self._id_to_source[abs_id] = source_id
         for sub_pointer, sub_schema in _iter_sub_schemas(schema, pointer):
-            self.index_cst(sub_schema, source_id, sub_pointer)
+            self._index_cst(sub_schema, source_id, sub_pointer)
 
     def _check_refs(
         self,
@@ -248,11 +248,11 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
             try:
                 resolved = ref_resolver.lookup(schema.id)
                 current_resolver = resolved.resolver
-            except Exception:  # noqa: BLE001
+            except referencing.exceptions.Unresolvable:
                 pass
 
         for _, sub_schema in _iter_sub_schemas(schema, pointer):
-            self.check_refs(
+            self._check_refs(
                 sub_schema, ref_resolver=current_resolver, source_id=source_id, errors=errors
             )
 
@@ -275,9 +275,9 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         return doc_uri, fragment
 
     def _find_source_id(self, doc_uri: str) -> str | None:
-        if doc_uri in self.docs:
+        if doc_uri in self._docs:
             return doc_uri
-        return self.id_to_source.get(doc_uri)
+        return self._id_to_source.get(doc_uri)
 
 
 def _loc(source_id: str, pointer: str) -> SourceLocation:

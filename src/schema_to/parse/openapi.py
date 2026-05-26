@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from schema_to.parse.utils import extract, loc, ptr
+from schema_to.parse._utils import extract, loc, ptr
 
 from schema_to.cst.base import SourceRef
 from schema_to.cst.openapi import (
@@ -64,10 +64,10 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         return document.media_type.essence in _SUPPORTED_ESSENCES
 
     def apply(self, input: RawDocument) -> Result[OpenApiDocument]:
-        raw = self.js.decode(input)
-        if isinstance(raw, Err):
-            return raw
-        data = raw.value
+        try:
+            data = self.js._decode(input)
+        except TranspilationError as exc:
+            return Err((exc,))
         if not isinstance(data, dict):
             return Err(
                 (
@@ -76,7 +76,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
                     ),
                 )
             )
-        return self.build_document(data, source_id=input.source_id, display_name=input.display_name)
+        return self._build_document(data, source_id=input.source_id, display_name=input.display_name)
 
     # -- Document root -------------------------------------------------------
 
@@ -99,7 +99,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
             errors.append(ParseError("info must be an object.", location=loc(source_id, "/info")))
         else:
             info = extract(
-                self.build_info(data["info"], source_id=source_id, pointer="/info"), errors
+                self._build_info(data["info"], source_id=source_id, pointer="/info"), errors
             )
 
         if errors:
@@ -111,7 +111,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
                 pi_ptr = ptr("", "paths", path)
                 if isinstance(pi_data, dict):
                     pi = extract(
-                        self.build_path_item(pi_data, source_id=source_id, pointer=pi_ptr), errors
+                        self._build_path_item(pi_data, source_id=source_id, pointer=pi_ptr), errors
                     )
                     if pi is not None:
                         paths[path] = pi
@@ -129,20 +129,20 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
                 wh_ptr = ptr("", "webhooks", name)
                 if isinstance(pi_data, dict):
                     pi = extract(
-                        self.build_path_item(pi_data, source_id=source_id, pointer=wh_ptr), errors
+                        self._build_path_item(pi_data, source_id=source_id, pointer=wh_ptr), errors
                     )
                     if pi is not None:
                         webhooks[name] = pi
 
         components = extract(
-            self.build_components(
+            self._build_components(
                 data.get("components", {}), source_id=source_id, pointer="/components"
             ),
             errors,
         )
 
-        servers = self.build_server_list(data, source_id=source_id, pointer="", errors=errors)
-        tags = self.build_tags(data, source_id=source_id, pointer="", errors=errors)
+        servers = self._build_server_list(data, source_id=source_id, pointer="", errors=errors)
+        tags = self._build_tags(data, source_id=source_id, pointer="", errors=errors)
 
         security: list[dict] = []
         if isinstance(data.get("security"), list):
@@ -155,7 +155,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         external_docs: ExternalDocumentation | None = None
         if isinstance(data.get("externalDocs"), dict):
             external_docs = extract(
-                self.build_external_docs(
+                self._build_external_docs(
                     data["externalDocs"], source_id=source_id, pointer="/externalDocs"
                 ),
                 errors,
@@ -362,7 +362,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         for method_str in _HTTP_METHODS:
             if method_str in data and isinstance(data[method_str], dict):
                 op = extract(
-                    self.build_operation(
+                    self._build_operation(
                         data[method_str], source_id=source_id, pointer=ptr(pointer, method_str)
                     ),
                     errors,
@@ -370,10 +370,10 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
                 if op is not None:
                     method_ops[method_str] = op
 
-        parameters = self.build_parameter_list(
+        parameters = self._build_parameter_list(
             data, source_id=source_id, pointer=pointer, errors=errors
         )
-        servers = self.build_server_list(data, source_id=source_id, pointer=pointer, errors=errors)
+        servers = self._build_server_list(data, source_id=source_id, pointer=pointer, errors=errors)
 
         if errors:
             return Err(tuple(errors))
@@ -411,7 +411,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
                 if isinstance(resp_data, dict):
                     rptr = ptr(pointer, "responses", status)
                     resp = extract(
-                        self.build_response(resp_data, source_id=source_id, pointer=rptr), errors
+                        self._build_response(resp_data, source_id=source_id, pointer=rptr), errors
                     )
                     if resp is not None:
                         responses[status] = resp
@@ -423,14 +423,14 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
                 )
             )
 
-        parameters = self.build_parameter_list(
+        parameters = self._build_parameter_list(
             data, source_id=source_id, pointer=pointer, errors=errors
         )
 
         request_body: RequestBody | None = None
         if isinstance(data.get("requestBody"), dict):
             request_body = extract(
-                self.build_request_body(
+                self._build_request_body(
                     data["requestBody"], source_id=source_id, pointer=ptr(pointer, "requestBody")
                 ),
                 errors,
@@ -439,13 +439,13 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         external_docs: ExternalDocumentation | None = None
         if isinstance(data.get("externalDocs"), dict):
             external_docs = extract(
-                self.build_external_docs(
+                self._build_external_docs(
                     data["externalDocs"], source_id=source_id, pointer=ptr(pointer, "externalDocs")
                 ),
                 errors,
             )
 
-        servers = self.build_server_list(data, source_id=source_id, pointer=pointer, errors=errors)
+        servers = self._build_server_list(data, source_id=source_id, pointer=pointer, errors=errors)
 
         security: list[dict] | None = None
         if isinstance(data.get("security"), list):
@@ -498,7 +498,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
             if not isinstance(p_data, dict):
                 continue
             pptr = ptr(pointer, "parameters", i)
-            p = extract(self.build_parameter(p_data, source_id=source_id, pointer=pptr), errors)
+            p = extract(self._build_parameter(p_data, source_id=source_id, pointer=pptr), errors)
             if p is not None:
                 parameters.append(p)
         return parameters
@@ -533,7 +533,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         schema = None
         if isinstance(data.get("schema"), dict):
             schema = extract(
-                self.js.build_schema(
+                self.js._build_schema(
                     data["schema"], source_id=source_id, pointer=ptr(pointer, "schema")
                 ),
                 errors,
@@ -567,7 +567,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
             for media_type_str, mt_data in content_raw.items():
                 if isinstance(mt_data, dict):
                     mt = extract(
-                        self.build_media_type_obj(
+                        self._build_media_type_obj(
                             mt_data,
                             source_id=source_id,
                             pointer=ptr(pointer, "content", media_type_str),
@@ -603,7 +603,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
             for hname, hdata in data["headers"].items():
                 if isinstance(hdata, dict):
                     h = extract(
-                        self.build_header(
+                        self._build_header(
                             hdata, source_id=source_id, pointer=ptr(pointer, "headers", hname)
                         ),
                         errors,
@@ -616,7 +616,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
             for media_type_str, mt_data in data["content"].items():
                 if isinstance(mt_data, dict):
                     mt = extract(
-                        self.build_media_type_obj(
+                        self._build_media_type_obj(
                             mt_data,
                             source_id=source_id,
                             pointer=ptr(pointer, "content", media_type_str),
@@ -645,7 +645,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         schema = None
         if isinstance(data.get("schema"), dict):
             schema = extract(
-                self.js.build_schema(
+                self.js._build_schema(
                     data["schema"], source_id=source_id, pointer=ptr(pointer, "schema")
                 ),
                 errors,
@@ -671,7 +671,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         schema = None
         if isinstance(data.get("schema"), dict):
             schema = extract(
-                self.js.build_schema(
+                self.js._build_schema(
                     data["schema"], source_id=source_id, pointer=ptr(pointer, "schema")
                 ),
                 errors,
@@ -702,7 +702,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         if isinstance(data.get("schemas"), dict):
             for name, s_data in data["schemas"].items():
                 s = extract(
-                    self.js.build_schema(
+                    self.js._build_schema(
                         s_data, source_id=source_id, pointer=ptr(pointer, "schemas", name)
                     ),
                     errors,
@@ -715,7 +715,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
             for name, p_data in data["parameters"].items():
                 if isinstance(p_data, dict):
                     p = extract(
-                        self.build_parameter(
+                        self._build_parameter(
                             p_data, source_id=source_id, pointer=ptr(pointer, "parameters", name)
                         ),
                         errors,
@@ -728,7 +728,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
             for name, r_data in data["responses"].items():
                 if isinstance(r_data, dict):
                     r = extract(
-                        self.build_response(
+                        self._build_response(
                             r_data, source_id=source_id, pointer=ptr(pointer, "responses", name)
                         ),
                         errors,
@@ -741,7 +741,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
             for name, rb_data in data["requestBodies"].items():
                 if isinstance(rb_data, dict):
                     rb = extract(
-                        self.build_request_body(
+                        self._build_request_body(
                             rb_data,
                             source_id=source_id,
                             pointer=ptr(pointer, "requestBodies", name),
@@ -756,7 +756,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
             for name, h_data in data["headers"].items():
                 if isinstance(h_data, dict):
                     h = extract(
-                        self.build_header(
+                        self._build_header(
                             h_data, source_id=source_id, pointer=ptr(pointer, "headers", name)
                         ),
                         errors,

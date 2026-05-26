@@ -107,11 +107,11 @@ class PydanticGenerator(Generator[JsonSchemaDocument, PythonModule]):
 
     @property
     def warnings(self) -> Sequence[TranspilationWarning]:
-        return list(self.warnings)
+        return list(self._warnings)
 
     def apply(self, input: JsonSchemaDocument) -> Result[PythonModule]:
-        self.warnings = []
-        ctx = _GenCtx(source_id=input.source_id, resolver=self.resolver, warnings=self.warnings)
+        self._warnings.clear()
+        ctx = _GenCtx(source_id=input.source_id, resolver=self.resolver, warnings=self._warnings)
 
         declarations: list[TypeAliasDef | ClassDef] = []
         errors: list[TranspilationError] = []
@@ -175,8 +175,8 @@ class _GenCtx:
         """Convert a top-level schema to a declaration node, or None for booleans."""
         if isinstance(schema, BooleanSchema):
             return None
-        if self.is_object_schema(schema):
-            return self.make_class(schema, name)
+        if self._is_object_schema(schema):
+            return self._make_class(schema, name)
         ann = self.schema_to_annotation(schema, required=True)
         doc = None
         if schema.title or schema.description:
@@ -253,7 +253,7 @@ class _GenCtx:
 
     def schema_to_annotation(self, schema: JsonSchema, *, required: bool) -> PythonTypeAnnotation:
         """Return the Python type annotation for a field's schema."""
-        ann = self.annotation_inner(schema)
+        ann = self._annotation_inner(schema)
         if not required and not ann.nullable and ann != _NONE:
             ann = _nullable(ann)
         return ann
@@ -277,10 +277,10 @@ class _GenCtx:
         # anyOf / oneOf: collapse [T, null] → T | None, else Any
         for applicator in (schema.any_of, schema.one_of):
             if applicator is not None:
-                result = self.nullable_union(list(applicator))
+                result = self._nullable_union(list(applicator))
                 if result is not None:
                     return result
-                self.warn(
+                self._warn(
                     f"anyOf/oneOf with {len(applicator)} branches cannot be "
                     "expressed precisely; using Any.",
                     code="anyof-fallback",
@@ -291,19 +291,19 @@ class _GenCtx:
         # allOf: warn + Any (complex merge not supported)
         if schema.all_of is not None:
             if len(schema.all_of) == 1:
-                return self.annotation_inner(schema.all_of[0])
-            self.warn(
+                return self._annotation_inner(schema.all_of[0])
+            self._warn(
                 "allOf with multiple branches uses Any.", code="allof-fallback", schema=schema
             )
             return _ANY
 
         # Union type array, e.g. type: [string, null]
         if isinstance(schema.type, frozenset):
-            return self.type_set_annotation(schema.type, schema)
+            return self._type_set_annotation(schema.type, schema)
 
         # Single primitive type
         if schema.type is not None:
-            return self.single_type_annotation(schema.type, schema)
+            return self._single_type_annotation(schema.type, schema)
 
         # No type specified — Any
         return _ANY
@@ -313,7 +313,7 @@ class _GenCtx:
     ) -> PythonTypeAnnotation:
         if t == JsonSchemaType.ARRAY:
             if schema.items is not None:
-                item_ann = self.annotation_inner(schema.items)
+                item_ann = self._annotation_inner(schema.items)
             elif schema.prefix_items:
                 item_ann = _ANY
             else:
@@ -331,9 +331,9 @@ class _GenCtx:
         if not non_null:
             return _NONE
         if len(non_null) == 1:
-            base = self.single_type_annotation(next(iter(non_null)), schema)
+            base = self._single_type_annotation(next(iter(non_null)), schema)
             return _nullable(base) if has_null else base
-        self.warn(
+        self._warn(
             f"type array {sorted(str(t) for t in types)} maps to Any.",
             code="multi-type-fallback",
             schema=schema,
@@ -351,9 +351,9 @@ class _GenCtx:
             if not (isinstance(s, ObjectSchema) and s.type == JsonSchemaType.NULL)
         ]
         if null_count == 1 and len(non_null) == 1:
-            return _nullable(self.annotation_inner(non_null[0]))
+            return _nullable(self._annotation_inner(non_null[0]))
         if null_count == 0 and len(schemas) == 1:
-            return self.annotation_inner(schemas[0])
+            return self._annotation_inner(schemas[0])
         return None
 
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:

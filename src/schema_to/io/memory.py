@@ -1,0 +1,49 @@
+"""In-memory `DataSource` and `DataSink` implementations."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+from schema_to.io.sink import DataSink, OutputArtifact
+from schema_to.io.source import DataSource, RawDocument
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+__all__ = ["InMemoryDataSink", "InMemoryDataSource"]
+
+
+@dataclass
+class InMemoryDataSource(DataSource):
+    """A `DataSource` backed by an in-memory list of `RawDocument`s."""
+
+    _documents: list[RawDocument] = field(default_factory=list)
+
+    @property
+    def source_id(self) -> str:
+        return "memory"
+
+    def documents(self) -> Iterator[RawDocument]:
+        yield from self._documents
+
+    def add(self, document: RawDocument) -> None:
+        self._documents.append(document)
+
+
+@dataclass
+class InMemoryDataSink(DataSink):
+    """A `DataSink` that accumulates `OutputArtifact`s in memory."""
+
+    _artifacts: list[OutputArtifact] = field(default_factory=list)
+
+    @property
+    def sink_id(self) -> str:
+        return "memory"
+
+    def write(self, artifact: OutputArtifact) -> None:
+        self._artifacts.append(artifact)
+
+    @property
+    def artifacts(self) -> list[OutputArtifact]:
+        return list(self._artifacts)

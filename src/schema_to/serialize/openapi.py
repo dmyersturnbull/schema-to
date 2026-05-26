@@ -53,22 +53,22 @@ class OpenApiSerializer:
     js: JsonSchemaSerializer = field(default_factory=JsonSchemaSerializer)
 
     def serialize(self, doc: OpenApiDocument) -> JsonObject:
-        out: JsonObject = {"openapi": doc.openapi, "info": self.info(doc.info)}
+        out: JsonObject = {"openapi": doc.openapi, "info": self._info(doc.info)}
         if doc.paths:
-            out["paths"] = {p: self.path_item(pi) for p, pi in doc.paths.items()}
-        comp = self.components(doc.components)
+            out["paths"] = {p: self._path_item(pi) for p, pi in doc.paths.items()}
+        comp = self._components(doc.components)
         if comp:
             out["components"] = comp
         if doc.servers:
-            out["servers"] = [self.server(s) for s in doc.servers]
+            out["servers"] = [self._server(s) for s in doc.servers]
         if doc.security:
             out["security"] = [dict(req) for req in doc.security]
         if doc.tags:
-            out["tags"] = [self.tag(t) for t in doc.tags]
+            out["tags"] = [self._tag(t) for t in doc.tags]
         if doc.external_docs is not None:
-            out["externalDocs"] = self.external_docs(doc.external_docs)
+            out["externalDocs"] = self._external_docs(doc.external_docs)
         if doc.webhooks:
-            out["webhooks"] = {n: self.path_item(pi) for n, pi in doc.webhooks.items()}
+            out["webhooks"] = {n: self._path_item(pi) for n, pi in doc.webhooks.items()}
         out.update(doc.extensions)
         return out
 
@@ -78,9 +78,9 @@ class OpenApiSerializer:
         _set(out, "description", info.description)
         _set(out, "termsOfService", info.terms_of_service)
         if info.contact is not None:
-            out["contact"] = self.contact(info.contact)
+            out["contact"] = self._contact(info.contact)
         if info.license_ is not None:
-            out["license"] = self.license(info.license_)
+            out["license"] = self._license(info.license_)
         out.update(info.extensions)
         return out
 
@@ -103,7 +103,7 @@ class OpenApiSerializer:
         out: JsonObject = {"url": s.url}
         _set(out, "description", s.description)
         if s.variables:
-            out["variables"] = {k: self.server_variable(v) for k, v in s.variables.items()}
+            out["variables"] = {k: self._server_variable(v) for k, v in s.variables.items()}
         out.update(s.extensions)
         return out
 
@@ -119,7 +119,7 @@ class OpenApiSerializer:
         out: JsonObject = {"name": t.name}
         _set(out, "description", t.description)
         if t.external_docs is not None:
-            out["externalDocs"] = self.external_docs(t.external_docs)
+            out["externalDocs"] = self._external_docs(t.external_docs)
         out.update(t.extensions)
         return out
 
@@ -136,33 +136,33 @@ class OpenApiSerializer:
         for method in _HTTP_METHODS:
             op = getattr(pi, method)
             if op is not None:
-                out[method] = self.operation(op)
+                out[method] = self._operation(op)
         if pi.parameters:
-            out["parameters"] = [self.parameter(p) for p in pi.parameters]
+            out["parameters"] = [self._parameter(p) for p in pi.parameters]
         if pi.servers:
-            out["servers"] = [self.server(s) for s in pi.servers]
+            out["servers"] = [self._server(s) for s in pi.servers]
         out.update(pi.extensions)
         return out
 
     def _operation(self, op: Operation) -> JsonObject:
-        out: JsonObject = {"responses": {k: self.response(v) for k, v in op.responses.items()}}
+        out: JsonObject = {"responses": {k: self._response(v) for k, v in op.responses.items()}}
         if op.tags:
             out["tags"] = list(op.tags)
         _set(out, "summary", op.summary)
         _set(out, "description", op.description)
         if op.external_docs is not None:
-            out["externalDocs"] = self.external_docs(op.external_docs)
+            out["externalDocs"] = self._external_docs(op.external_docs)
         _set(out, "operationId", op.operation_id)
         if op.parameters:
-            out["parameters"] = [self.parameter(p) for p in op.parameters]
+            out["parameters"] = [self._parameter(p) for p in op.parameters]
         if op.request_body is not None:
-            out["requestBody"] = self.request_body(op.request_body)
+            out["requestBody"] = self._request_body(op.request_body)
         if op.deprecated:
             out["deprecated"] = True
         if op.security is not None:
             out["security"] = [dict(req) for req in op.security]
         if op.servers:
-            out["servers"] = [self.server(s) for s in op.servers]
+            out["servers"] = [self._server(s) for s in op.servers]
         out.update(op.extensions)
         return out
 
@@ -184,7 +184,7 @@ class OpenApiSerializer:
         return out
 
     def _request_body(self, rb: RequestBody) -> JsonObject:
-        out: JsonObject = {"content": {k: self.media_type_obj(v) for k, v in rb.content.items()}}
+        out: JsonObject = {"content": {k: self._media_type_obj(v) for k, v in rb.content.items()}}
         _set(out, "description", rb.description)
         if rb.required:
             out["required"] = True
@@ -194,11 +194,11 @@ class OpenApiSerializer:
     def _response(self, r: Response) -> JsonObject:
         out: JsonObject = {"description": r.description}
         if r.headers:
-            out["headers"] = {k: self.header(v) for k, v in r.headers.items()}
+            out["headers"] = {k: self._header(v) for k, v in r.headers.items()}
         if r.content:
-            out["content"] = {k: self.media_type_obj(v) for k, v in r.content.items()}
+            out["content"] = {k: self._media_type_obj(v) for k, v in r.content.items()}
         if r.links:
-            out["links"] = {k: self.link(v) for k, v in r.links.items()}
+            out["links"] = {k: self._link(v) for k, v in r.links.items()}
         out.update(r.extensions)
         return out
 
@@ -235,7 +235,7 @@ class OpenApiSerializer:
             out["requestBody"] = lnk.request_body
         _set(out, "description", lnk.description)
         if lnk.server is not None:
-            out["server"] = self.server(lnk.server)
+            out["server"] = self._server(lnk.server)
         out.update(lnk.extensions)
         return out
 
@@ -244,19 +244,19 @@ class OpenApiSerializer:
         if comp.schemas:
             out["schemas"] = {k: self.js.serialize(v) for k, v in comp.schemas.items()}
         if comp.responses:
-            out["responses"] = {k: self.response(v) for k, v in comp.responses.items()}
+            out["responses"] = {k: self._response(v) for k, v in comp.responses.items()}
         if comp.parameters:
-            out["parameters"] = {k: self.parameter(v) for k, v in comp.parameters.items()}
+            out["parameters"] = {k: self._parameter(v) for k, v in comp.parameters.items()}
         if comp.request_bodies:
-            out["requestBodies"] = {k: self.request_body(v) for k, v in comp.request_bodies.items()}
+            out["requestBodies"] = {k: self._request_body(v) for k, v in comp.request_bodies.items()}
         if comp.headers:
-            out["headers"] = {k: self.header(v) for k, v in comp.headers.items()}
+            out["headers"] = {k: self._header(v) for k, v in comp.headers.items()}
         if comp.security_schemes:
             out["securitySchemes"] = {
-                k: self.security_scheme(v) for k, v in comp.security_schemes.items()
+                k: self._security_scheme(v) for k, v in comp.security_schemes.items()
             }
         if comp.links:
-            out["links"] = {k: self.link(v) for k, v in comp.links.items()}
+            out["links"] = {k: self._link(v) for k, v in comp.links.items()}
         out.update(comp.extensions)
         return out
 
@@ -269,7 +269,7 @@ class OpenApiSerializer:
         _set(out, "scheme", ss.scheme)
         _set(out, "bearerFormat", ss.bearer_format)
         if ss.flows is not None:
-            out["flows"] = self.oauth_flows(ss.flows)
+            out["flows"] = self._oauth_flows(ss.flows)
         _set(out, "openIdConnectUrl", ss.open_id_connect_url)
         out.update(ss.extensions)
         return out
@@ -277,13 +277,13 @@ class OpenApiSerializer:
     def _oauth_flows(self, flows: OAuthFlows) -> JsonObject:
         out: JsonObject = {}
         if flows.implicit is not None:
-            out["implicit"] = self.oauth_flow(flows.implicit)
+            out["implicit"] = self._oauth_flow(flows.implicit)
         if flows.password is not None:
-            out["password"] = self.oauth_flow(flows.password)
+            out["password"] = self._oauth_flow(flows.password)
         if flows.client_credentials is not None:
-            out["clientCredentials"] = self.oauth_flow(flows.client_credentials)
+            out["clientCredentials"] = self._oauth_flow(flows.client_credentials)
         if flows.authorization_code is not None:
-            out["authorizationCode"] = self.oauth_flow(flows.authorization_code)
+            out["authorizationCode"] = self._oauth_flow(flows.authorization_code)
         out.update(flows.extensions)
         return out
 

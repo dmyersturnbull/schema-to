@@ -100,7 +100,7 @@ class JsonSchemaSerializer:
     def serialize(self, schema: JsonSchema) -> JsonValue:
         if isinstance(schema, BooleanSchema):
             return schema.value
-        return self.obj(schema)
+        return self._obj(schema)
 
     def _obj(self, s: ObjectSchema) -> JsonObject:
         out: JsonObject = {}
@@ -113,7 +113,7 @@ class JsonSchemaSerializer:
                 if value:
                     out[json_key] = True
             elif value is not None:
-                out[json_key] = self.val(value)
+                out[json_key] = self._val(value)
         out.update(s.extensions)
         return out
 

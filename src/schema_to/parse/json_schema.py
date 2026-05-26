@@ -47,45 +47,37 @@ class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):
         return document.media_type.essence in _SUPPORTED_ESSENCES
 
     def apply(self, input: RawDocument) -> Result[JsonSchemaDocument]:
-        raw = self.decode(input)
-        if isinstance(raw, Err):
-            return raw
-        return self.build_document(raw.value, document=input)
+        try:
+            raw = self._decode(input)
+        except TranspilationError as exc:
+            return Err((exc,))
+        return self._build_document(raw, document=input)
 
-    def _decode(self, document: RawDocument) -> Result[Any]:
+    def _decode(self, document: RawDocument) -> Any:
         essence = document.media_type.essence
         try:
             if essence == "application/json":
-                return Ok(json.loads(document.content))
-            if essence in {"application/yaml", "text/yaml"}:
-                import yaml12  # noqa: PLC0415
+                from schema_to.io.core import JsonReader  # noqa: PLC0415
 
-                return Ok(yaml12.parse_yaml(document.content.decode("utf-8")))
+                return JsonReader().read(document.content.decode("utf-8"))
+            if essence in {"application/yaml", "text/yaml"}:
+                from schema_to.io.core import YamlReader  # noqa: PLC0415
+
+                return YamlReader().read(document.content.decode("utf-8"))
         except json.JSONDecodeError as exc:
-            return Err(
-                (
-                    ParseError(
-                        str(exc),
-                        location=SourceLocation(
-                            document.source_id, line=exc.lineno, column=exc.colno
-                        ),
-                        cause=exc,
-                    ),
-                )
-            )
-        except Exception as exc:  # noqa: BLE001
-            return Err((ParseError(str(exc), location=loc(document.source_id, ""), cause=exc),))
-        return Err(
-            (
-                ParseError(
-                    f"Unsupported media type for JSON Schema: {essence!r}",
-                    location=loc(document.source_id, ""),
-                ),
-            )
+            raise ParseError(
+                str(exc),
+                location=SourceLocation(document.source_id, line=exc.lineno, column=exc.colno),
+            ) from exc
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise ParseError(str(exc), location=loc(document.source_id, "")) from exc
+        raise ParseError(
+            f"Unsupported media type for JSON Schema: {essence!r}",
+            location=loc(document.source_id, ""),
         )
 
     def _build_document(self, data: Any, *, document: RawDocument) -> Result[JsonSchemaDocument]:
-        root_r = self.build_schema(data, source_id=document.source_id, pointer="")
+        root_r = self._build_schema(data, source_id=document.source_id, pointer="")
         if isinstance(root_r, Err):
             return root_r
         return Ok(
@@ -101,11 +93,11 @@ class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):
         if isinstance(data, bool):
             return Ok(BooleanSchema(value=data, source_ref=SourceRef(source_id, pointer)))
         if isinstance(data, dict):
-            return self.build_object_schema(data, source_id=source_id, pointer=pointer)
+            return self._build_object_schema(data, source_id=source_id, pointer=pointer)
         return Err(
             (
                 ParseError(
-                    f"Schema must be `true`, `false`, or an object; got {type(data)._name__!r}.",
+                    f"Schema must be `true`, `false`, or an object; got {type(data).__name__!r}.",
                     location=loc(source_id, pointer),
                 ),
             )
@@ -117,7 +109,7 @@ class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):
         errors: list[TranspilationError] = []
 
         # -- Core vocabulary -----------------------------------------------
-        defs = self.build_schema_map(
+        defs = self._build_schema_map(
             data, "$defs", source_id=source_id, pointer=pointer, errors=errors
         )
         vocabulary: dict[str, bool] | None = None
@@ -160,7 +152,7 @@ class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):
         # -- Validation vocabulary -----------------------------------------
         schema_type: SchemaType | None = None
         if "type" in data:
-            r = self.parse_schema_type(data["type"], location=loc(source_id, ptr(pointer, "type")))
+            r = self._parse_schema_type(data["type"], location=loc(source_id, ptr(pointer, "type")))
             if isinstance(r, Err):
                 errors.extend(r.errors)
             else:
@@ -200,30 +192,30 @@ class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):
                 )
 
         # -- Array keywords ------------------------------------------------
-        prefix_items = self.build_schema_list(
+        prefix_items = self._build_schema_list(
             data, "prefixItems", source_id=source_id, pointer=pointer, errors=errors
         )
-        items = self.build_optional_schema(
+        items = self._build_optional_schema(
             data, "items", source_id=source_id, pointer=pointer, errors=errors
         )
-        contains = self.build_optional_schema(
+        contains = self._build_optional_schema(
             data, "contains", source_id=source_id, pointer=pointer, errors=errors
         )
 
         # -- Object keywords -----------------------------------------------
-        properties = self.build_schema_map(
+        properties = self._build_schema_map(
             data, "properties", source_id=source_id, pointer=pointer, errors=errors
         )
-        pattern_properties = self.build_schema_map(
+        pattern_properties = self._build_schema_map(
             data, "patternProperties", source_id=source_id, pointer=pointer, errors=errors
         )
-        additional_properties = self.build_optional_schema(
+        additional_properties = self._build_optional_schema(
             data, "additionalProperties", source_id=source_id, pointer=pointer, errors=errors
         )
-        property_names = self.build_optional_schema(
+        property_names = self._build_optional_schema(
             data, "propertyNames", source_id=source_id, pointer=pointer, errors=errors
         )
-        dependent_schemas = self.build_schema_map(
+        dependent_schemas = self._build_schema_map(
             data, "dependentSchemas", source_id=source_id, pointer=pointer, errors=errors
         )
 
@@ -264,38 +256,38 @@ class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):
                         dependent_required[prop] = frozenset(deps)
 
         # -- Applicator vocabulary -----------------------------------------
-        all_of = self.build_schema_list(
+        all_of = self._build_schema_list(
             data, "allOf", source_id=source_id, pointer=pointer, errors=errors
         )
-        any_of = self.build_schema_list(
+        any_of = self._build_schema_list(
             data, "anyOf", source_id=source_id, pointer=pointer, errors=errors
         )
-        one_of = self.build_schema_list(
+        one_of = self._build_schema_list(
             data, "oneOf", source_id=source_id, pointer=pointer, errors=errors
         )
-        not_ = self.build_optional_schema(
+        not_ = self._build_optional_schema(
             data, "not", source_id=source_id, pointer=pointer, errors=errors
         )
-        if_ = self.build_optional_schema(
+        if_ = self._build_optional_schema(
             data, "if", source_id=source_id, pointer=pointer, errors=errors
         )
-        then = self.build_optional_schema(
+        then = self._build_optional_schema(
             data, "then", source_id=source_id, pointer=pointer, errors=errors
         )
-        else_ = self.build_optional_schema(
+        else_ = self._build_optional_schema(
             data, "else", source_id=source_id, pointer=pointer, errors=errors
         )
 
         # -- Unevaluated vocabulary ----------------------------------------
-        unevaluated_items = self.build_optional_schema(
+        unevaluated_items = self._build_optional_schema(
             data, "unevaluatedItems", source_id=source_id, pointer=pointer, errors=errors
         )
-        unevaluated_properties = self.build_optional_schema(
+        unevaluated_properties = self._build_optional_schema(
             data, "unevaluatedProperties", source_id=source_id, pointer=pointer, errors=errors
         )
 
         # -- Content vocabulary --------------------------------------------
-        content_schema = self.build_optional_schema(
+        content_schema = self._build_optional_schema(
             data, "contentSchema", source_id=source_id, pointer=pointer, errors=errors
         )
 
@@ -417,7 +409,7 @@ class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):
         return Err(
             (
                 SchemaValidationError(
-                    f"type must be a string or array, got {type(value)._name__!r}.",
+                    f"type must be a string or array, got {type(value).__name__!r}.",
                     location=location,
                 ),
             )
@@ -434,7 +426,7 @@ class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):
     ) -> JsonSchema | None:
         if key not in data:
             return None
-        r = self.build_schema(data[key], source_id=source_id, pointer=ptr(pointer, key))
+        r = self._build_schema(data[key], source_id=source_id, pointer=ptr(pointer, key))
         if isinstance(r, Err):
             errors.extend(r.errors)
             return None
@@ -461,7 +453,7 @@ class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):
             return None
         result: list[JsonSchema] = []
         for i, item in enumerate(raw):
-            r = self.build_schema(item, source_id=source_id, pointer=ptr(pointer, key, i))
+            r = self._build_schema(item, source_id=source_id, pointer=ptr(pointer, key, i))
             if isinstance(r, Err):
                 errors.extend(r.errors)
             else:
@@ -489,7 +481,7 @@ class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):
             return None
         result: dict[str, JsonSchema] = {}
         for name, value in raw.items():
-            r = self.build_schema(value, source_id=source_id, pointer=ptr(pointer, key, name))
+            r = self._build_schema(value, source_id=source_id, pointer=ptr(pointer, key, name))
             if isinstance(r, Err):
                 errors.extend(r.errors)
             else:
