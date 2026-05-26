@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-import orjson
-
 from schema_to._pipeline import Transpiler
 from schema_to._result import Err, Ok, Result
 from schema_to.cst._base import SourceRef
@@ -14,29 +12,17 @@ from schema_to.cst._json_schema import JsonSchemaDocument
 from schema_to.io._sink import OutputArtifact
 from schema_to.io._source import (
     JsonSchemaRawDocument,
-    MediaType,
-    MediaTypes,
     OpenApiRawDocument,
     RawDocument,
 )
 from schema_to.parse._openapi import OpenApiParser
 from schema_to.serialize._json_schema import JsonSchemaSerializer
-from schema_to.transpile._pass_thru import _peek_is_openapi
+from schema_to.transpile._utils import encode, peek_is_openapi
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
 __all__ = ["OpenApiExtractTranspiler"]
-
-
-def _encode(data: object, *, use_yaml: bool) -> tuple[bytes, MediaType]:
-    if use_yaml:
-        from yaml12 import format_yaml  # noqa: PLC0415
-
-        return format_yaml(data).encode("utf-8"), MediaTypes.yaml
-    return orjson.dumps(
-        data, option=orjson.OPT_INDENT_2 | orjson.OPT_APPEND_NEWLINE
-    ), MediaTypes.json
 
 
 @dataclass(frozen=True)
@@ -61,7 +47,7 @@ class OpenApiExtractTranspiler(Transpiler):
             return True
         if isinstance(document, JsonSchemaRawDocument):
             return False
-        return _peek_is_openapi(document)
+        return peek_is_openapi(document)
 
     def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
         result = self.parser.apply(document)
@@ -79,7 +65,7 @@ class OpenApiExtractTranspiler(Transpiler):
                 source_ref=SourceRef(document.source_id, f"/components/schemas/{name}"),
             )
             data = self.js_serializer.serialize_document(doc_cst)
-            content, media_type = _encode(data, use_yaml=self.use_yaml)
+            content, media_type = encode(data, use_yaml=self.use_yaml)
             artifacts.append(
                 OutputArtifact(
                     artifact_id=f"{name}.schema{ext}",

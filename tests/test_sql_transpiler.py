@@ -20,11 +20,17 @@ import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import object_schema_st, sql_object_schema_st
 
-from schema_to._result import Err, Ok
-from schema_to.generate._sql import PostgresGenerator
-from schema_to.io._source import JsonSchemaRawDocument, MediaTypes, OpenApiRawDocument, RawDocument
-from schema_to.parse._json_schema import JsonSchemaParser
-from schema_to.transpile._sql import JsonSchemaToPostgresTranspiler
+from schema_to import (
+    Err,
+    JsonSchemaParser,
+    JsonSchemaRawDocument,
+    JsonSchemaToPostgresTranspiler,
+    MediaTypes,
+    Ok,
+    OpenApiRawDocument,
+    PostgresGenerator,
+    RawDocument,
+)
 
 _PARSER = JsonSchemaParser()
 

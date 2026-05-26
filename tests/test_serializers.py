@@ -11,12 +11,15 @@ import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import json_schema_st, openapi_doc_st
 
-from schema_to._result import Ok
-from schema_to.io._source import MediaTypes, RawDocument
-from schema_to.parse._json_schema import JsonSchemaParser
-from schema_to.parse._openapi import OpenApiParser
-from schema_to.serialize._json_schema import JsonSchemaSerializer
-from schema_to.serialize._openapi import OpenApiSerializer
+from schema_to import (
+    JsonSchemaParser,
+    JsonSchemaSerializer,
+    MediaTypes,
+    Ok,
+    OpenApiParser,
+    OpenApiSerializer,
+    RawDocument,
+)
 
 _JS_PARSER = JsonSchemaParser()
 _JS_SERIALIZER = JsonSchemaSerializer()
