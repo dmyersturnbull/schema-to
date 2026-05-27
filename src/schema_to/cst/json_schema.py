@@ -8,15 +8,16 @@ vocabulary sub-objects so that serializers and parsers can iterate
 
 from __future__ import annotations
 
-import enum
 from dataclasses import dataclass, field
-from enum import StrEnum
+from enum import StrEnum, auto
 from typing import TYPE_CHECKING
 
-from schema_to.cst.base import CstNode, JsonValue, SourceRef
+from schema_to.cst.base import CstNode, SourceRef
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
+    from schema_to.core import JsonValue
 
 __all__ = [
     "BooleanSchema",
@@ -41,13 +42,13 @@ class JsonSchemaType(StrEnum):
     Corresponds to the allowed string values of the `type` keyword.
     """
 
-    STRING = enum.auto()
-    NUMBER = enum.auto()
-    INTEGER = enum.auto()
-    BOOLEAN = enum.auto()
-    ARRAY = enum.auto()
-    OBJECT = enum.auto()
-    NULL = enum.auto()
+    STRING = auto()
+    NUMBER = auto()
+    INTEGER = auto()
+    BOOLEAN = auto()
+    ARRAY = auto()
+    OBJECT = auto()
+    NULL = auto()
 
 
 # A schema's `type` keyword is either a single type or a non-empty set of types.
@@ -78,8 +79,31 @@ class ConstValue:
 # ---------------------------------------------------------------------------
 
 
+class _JsonSchema(CstNode):
+    """Either a boolean or a full keyword object.
+
+    This is an internal, sealed abstract class.
+    Use `JsonSchema` instead.
+    """
+
+    def get_types(self) -> frozenset[JsonSchemaType]:
+        """Return the schema's types as a frozenset, or empty frozenset if unset."""
+        match self:
+            case BooleanSchema():
+                return frozenset({bool})
+            case ObjectSchema(type=None):
+                return frozenset()
+            case ObjectSchema(type=frozenset()) as types_:
+                return types_
+        msg = f"Unsupported JSON Schema node: {type(self).__name__}"
+        raise AssertionError(msg)
+
+
+type JsonSchema = BooleanSchema | ObjectSchema
+
+
 @dataclass(frozen=True, slots=True)
-class BooleanSchema(CstNode):
+class BooleanSchema(_JsonSchema):
     """A JSON Schema that is always-valid (`true`) or never-valid (`false`)."""
 
     value: bool
@@ -87,7 +111,7 @@ class BooleanSchema(CstNode):
 
 
 @dataclass(frozen=True, slots=True)
-class ObjectSchema(CstNode):
+class ObjectSchema(_JsonSchema):
     """A JSON Schema expressed as a keyword-bearing object.
 
     Fields are ordered by vocabulary: core, metadata, validation, numeric,
@@ -181,21 +205,9 @@ class ObjectSchema(CstNode):
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
     source_ref: SourceRef | None = None
 
-    def get_types(self) -> frozenset[JsonSchemaType]:
-        """Return the schema's types as a frozenset, or empty frozenset if unset."""
-        if self.type is None:
-            return frozenset()
-        if isinstance(self.type, frozenset):
-            return self.type
-        return frozenset({self.type})
-
     def get_required(self) -> frozenset[str]:
         """Return required property names, or empty frozenset if unset."""
         return self.required or frozenset()
-
-
-# A schema is either a boolean shorthand or a full keyword object.
-type JsonSchema = BooleanSchema | ObjectSchema
 
 
 @dataclass(frozen=True, slots=True)

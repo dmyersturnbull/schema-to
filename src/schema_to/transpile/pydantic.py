@@ -5,10 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to.transpile._utils import JSON_YAML_ESSENCES, peek_is_openapi
-
 from schema_to.generate.pydantic import PydanticGenerator
-from schema_to.io.source import JsonSchemaRawDocument, OpenApiRawDocument, RawDocument
+from schema_to.io.source import JsonSchemaRawDocument, RawDocument
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.pipeline import Transpiler
 from schema_to.reify.python import PythonReifier
@@ -56,11 +54,7 @@ class JsonSchemaToPydanticTranspiler(Transpiler):
         return list(self.generator.warnings)
 
     def accepts(self, document: RawDocument) -> bool:
-        if isinstance(document, JsonSchemaRawDocument):
-            return True
-        if isinstance(document, OpenApiRawDocument):
-            return False
-        return document.media_type.essence in JSON_YAML_ESSENCES and not peek_is_openapi(document)
+        return isinstance(document, JsonSchemaRawDocument)
 
     def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
         # Stage 1: parse

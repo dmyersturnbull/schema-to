@@ -15,35 +15,35 @@ __all__ = ["InMemoryDataSink", "InMemoryDataSource"]
 
 
 @dataclass
-class InMemoryDataSource(DataSource):
+class InMemoryDataSource[T : RawDocument](DataSource[T]):
     """A `DataSource` backed by an in-memory list of `RawDocument`s."""
 
-    _documents: list[RawDocument] = field(default_factory=list)
+    _documents: list[T] = field(default_factory=list)
 
     @property
     def source_id(self) -> str:
         return "memory"
 
-    def documents(self) -> Iterator[RawDocument]:
+    def documents(self) -> Iterator[T]:
         yield from self._documents
 
-    def add(self, document: RawDocument) -> None:
+    def add(self, document: T) -> None:
         self._documents.append(document)
 
 
 @dataclass
-class InMemoryDataSink(DataSink):
+class InMemoryDataSink[T : OutputArtifact](DataSink[T]):
     """A `DataSink` that accumulates `OutputArtifact`s in memory."""
 
-    _artifacts: list[OutputArtifact] = field(default_factory=list)
+    _artifacts: list[T] = field(default_factory=list)
 
     @property
     def sink_id(self) -> str:
         return "memory"
 
-    def write(self, artifact: OutputArtifact) -> None:
+    def write(self, artifact: T) -> None:
         self._artifacts.append(artifact)
 
     @property
-    def artifacts(self) -> list[OutputArtifact]:
+    def artifacts(self) -> list[T]:
         return list(self._artifacts)

@@ -12,8 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from schema_to.parse._utils import extract, loc, ptr
-
+from schema_to import OpenApiRawDocument
 from schema_to.cst.base import SourceRef
 from schema_to.cst.openapi import (
     Components,
@@ -35,21 +34,17 @@ from schema_to.cst.openapi import (
     Tag,
 )
 from schema_to.errors import ParseError, SchemaValidationError, TranspilationError
+from schema_to.parse._utils import extract, loc, ptr
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.pipeline import DocumentParser
 from schema_to.result import Err, Ok, Result
 
-if TYPE_CHECKING:
-    from schema_to.io.source import RawDocument
-
 __all__ = ["OpenApiParser"]
-
-_SUPPORTED_ESSENCES = frozenset({"application/json", "application/yaml", "text/yaml"})
 
 _HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
 
 
-class OpenApiParser(DocumentParser[OpenApiDocument]):
+class OpenApiParser(DocumentParser[OpenApiDocument]):  # FIXME
     """Parses JSON or YAML bytes into an `OpenApiDocument` CST.
 
     Accepts documents whose root object contains an `"openapi"` field starting
@@ -60,20 +55,18 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
     def __init__(self) -> None:
         self.js = JsonSchemaParser()
 
-    def supports(self, document: RawDocument) -> bool:
-        return document.media_type.essence in _SUPPORTED_ESSENCES
+    def accepts(self, document: OpenApiRawDocument) -> bool:
+        return isinstance(document, OpenApiRawDocument)
 
-    def apply(self, input: RawDocument) -> Result[OpenApiDocument]:
+    def apply(self, input: OpenApiRawDocument) -> Result[OpenApiDocument]:
         try:
             data = self.js._decode(input)
         except TranspilationError as exc:
             return Err((exc,))
         if not isinstance(data, dict):
-            return Err(
-                (
-                    ParseError(
-                        "OpenAPI document must be a JSON object.", location=loc(input.source_id, "")
-                    ),
+            return Err.of(
+                ParseError(
+                    "OpenAPI document must be a JSON object.", location=loc(input.source_id, "")
                 )
             )
         return self._build_document(data, source_id=input.source_id, display_name=input.display_name)
@@ -255,41 +248,38 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):
         pointer: str,
         errors: list[TranspilationError],
     ) -> list[Server]:
-        servers: list[Server] = []
         raw = data.get("servers")
         if not isinstance(raw, list):
-            return servers
-        for i, s in enumerate(raw):
-            if not isinstance(s, dict):
-                continue
-            url = s.get("url", "")
-            variables: dict[str, ServerVariable] = {}
-            if isinstance(s.get("variables"), dict):
-                for vname, vdata in s["variables"].items():
-                    if isinstance(vdata, dict):
-                        variables[vname] = ServerVariable(
-                            default=vdata.get("default", "")
-                            if isinstance(vdata.get("default"), str)
-                            else "",
-                            enum=list(vdata["enum"])
-                            if isinstance(vdata.get("enum"), list)
-                            else None,
-                            description=vdata.get("description")
-                            if isinstance(vdata.get("description"), str)
-                            else None,
-                            extensions={k: v for k, v in vdata.items() if k.startswith("x-")},
-                        )
-            servers.append(
-                Server(
-                    url=url,
-                    description=s.get("description")
-                    if isinstance(s.get("description"), str)
+            return []
+        return [self._extract_server(s) for s in raw if isinstance(s, dict)]
+
+    def _extract_server(self, s: dict) -> Server:
+        url = s.get("url", "")
+        if not isinstance(s.get("variables"), dict):
+            return {}
+        variables: dict[str, ServerVariable] = {}
+        for vname, vdata in s["variables"].items():
+            if isinstance(vdata, dict):
+                variables[vname] = ServerVariable(
+                    default=vdata.get("default", "")
+                    if isinstance(vdata.get("default"), str)
+                    else "",
+                    enum=list(vdata["enum"])
+                    if isinstance(vdata.get("enum"), list)
                     else None,
-                    variables=variables,
-                    extensions={k: v for k, v in s.items() if k.startswith("x-")},
+                    description=vdata.get("description")
+                    if isinstance(vdata.get("description"), str)
+                    else None,
+                    extensions={k: v for k, v in vdata.items() if k.startswith("x-")},
                 )
-            )
-        return servers
+        return Server(
+            url=url,
+            description=s.get("description")
+            if isinstance(s.get("description"), str)
+            else None,
+            variables=variables,
+            extensions={k: v for k, v in s.items() if k.startswith("x-")},
+        )
 
     def _build_tags(
         self,

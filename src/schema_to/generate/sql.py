@@ -53,7 +53,7 @@ from schema_to.result import Err, Ok, Result
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from schema_to.cst.base import JsonValue
+    from schema_to.core import JsonValue
     from schema_to.resolve.json_schema import JsonSchemaRefResolver
 
 __all__ = ["PostgresGenerator"]
@@ -98,10 +98,12 @@ def _num_literal(v: float) -> str:
     return str(v).removesuffix(".0")
 
 
-def _is_object_schema(schema: ObjectSchema) -> bool:
+def _is_object_schema(schema: JsonSchema) -> bool:
     """Return `True` if the schema should map to a `CREATE TABLE` statement."""
+    if not isinstance(schema, ObjectSchema):
+        return False
     types = schema.get_types()
-    return JsonSchemaType.OBJECT in types or (not types and schema.properties is not None)
+    return JsonSchemaType.OBJECT in types or not types and schema.properties is not None
 
 
 def _unwrap_nullable(schema: ObjectSchema) -> tuple[bool, JsonSchema]:
@@ -119,7 +121,7 @@ def _unwrap_nullable(schema: ObjectSchema) -> tuple[bool, JsonSchema]:
                 for s in applicator
                 if not (isinstance(s, ObjectSchema) and s.get_types() == {JsonSchemaType.NULL})
             ]
-            if len(applicator) > len(non_null) and len(non_null) == 1:
+            if len(applicator) > len(non_null) == 1:
                 return True, non_null[0]
     non_null_from_type = schema.get_types() - {JsonSchemaType.NULL}
     if JsonSchemaType.NULL in schema.get_types() and non_null_from_type:
@@ -134,7 +136,7 @@ def _join_checks(exprs: list[str]) -> str | None:
     return " AND ".join(f"({e})" for e in exprs)
 
 
-def _string_type(schema: ObjectSchema) -> DataType:
+def _string_type(schema: ObjectSchema) -> DataType:  # noqa: PLR0911
     """Map a `type: string` schema (with format / maxLength) to a `DataType`."""
     match schema.format:
         case "date-time":
@@ -184,15 +186,11 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
             return Err((exc,))
 
     def _apply(self, input: JsonSchemaDocument) -> SqlScript:
-        if isinstance(input.root, BooleanSchema):
-            raise GenerationError(
-                "Root schema is a boolean schema; cannot generate PostgreSQL DDL."
-            )
         root = input.root
-        if not _is_object_schema(root):
+        if not _is_object_schema(input.root):
             msg = (
-                f"Root schema type {root.type!r} is not 'object'; "
-                "cannot generate a CREATE TABLE statement."
+                f"Root schema types are {input.root.get_types()!r}, not 'object'; "
+                "cannot generate a PostgreSQL DDL."
             )
             raise GenerationError(msg)
 

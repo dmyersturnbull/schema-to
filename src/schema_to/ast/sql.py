@@ -15,8 +15,8 @@ Custom extension keywords supported by the generator:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import StrEnum
-from typing import TYPE_CHECKING
+from enum import StrEnum, auto
+from typing import TYPE_CHECKING, override
 
 from schema_to.ast.base import AstNode
 
@@ -42,8 +42,15 @@ __all__ = [
 # Enumerations
 # ---------------------------------------------------------------------------
 
+class _SqlEnum(StrEnum):
 
-class PgDataType(StrEnum):
+    @staticmethod
+    @override
+    def _generate_next_value_(name: str, start: int, count: int, last_values: list[str]) -> str:
+        return name.lower().replace("_", " ")
+
+
+class PgDataType(_SqlEnum):
     """PostgreSQL built-in data types used by the code generator.
 
     This list covers the types reachable from JSON Schema primitives plus
@@ -52,57 +59,56 @@ class PgDataType(StrEnum):
     """
 
     # Numeric
-    SMALLINT = "smallint"
-    INTEGER = "integer"
-    BIGINT = "bigint"
-    NUMERIC = "numeric"
-    REAL = "real"
-    DOUBLE_PRECISION = "double precision"
+    SMALLINT = auto()
+    INTEGER = auto()
+    BIGINT = auto()
+    NUMERIC = auto()
+    REAL = auto()
+    DOUBLE_PRECISION = auto()
     # Character
-    TEXT = "text"
-    VARCHAR = "varchar"
-    CHAR = "char"
+    TEXT = auto()
+    VARCHAR = auto()
+    CHAR = auto()
     # Boolean
-    BOOLEAN = "boolean"
+    BOOLEAN = auto()
     # Date / time
-    DATE = "date"
-    TIME = "time"
-    TIMETZ = "timetz"
-    TIMESTAMP = "timestamp"
-    TIMESTAMPTZ = "timestamptz"
-    INTERVAL = "interval"
-    # Binary
-    BYTEA = "bytea"
+    DATE = auto()
+    TIME = auto()
+    TIMETZ = auto()
+    TIMESTAMP = auto()
+    TIMESTAMPTZ = auto()
+    INTERVAL = auto()
+    BYTEA = auto()
     # UUID
-    UUID = "uuid"
+    UUID = auto()
     # JSON
-    JSON = "json"
-    JSONB = "jsonb"
+    JSON = auto()
+    JSONB = auto()
     # Arrays (use DataType.array_of)
-    ARRAY = "array"
+    ARRAY = auto()
     # Other
-    CUSTOM = "custom"
+    CUSTOM = auto()
 
 
-class ForeignKeyAction(StrEnum):
+class ForeignKeyAction(_SqlEnum):
     """Actions for `ON DELETE` and `ON UPDATE` foreign-key clauses."""
 
-    NO_ACTION = "NO ACTION"
-    RESTRICT = "RESTRICT"
-    CASCADE = "CASCADE"
-    SET_NULL = "SET NULL"
-    SET_DEFAULT = "SET DEFAULT"
+    NO_ACTION = auto()
+    RESTRICT = auto()
+    CASCADE = auto()
+    SET_NULL = auto()
+    SET_DEFAULT = auto()
 
 
-class IndexMethod(StrEnum):
+class IndexMethod(_SqlEnum):
     """PostgreSQL index access methods."""
 
-    BTREE = "btree"
-    HASH = "hash"
-    GIN = "gin"
-    GIST = "gist"
-    SPGIST = "spgist"
-    BRIN = "brin"
+    BTREE = auto()
+    HASH = auto()
+    GIN = auto()
+    GIST = auto()
+    SPGIST = auto()
+    BRIN = auto()
 
 
 # ---------------------------------------------------------------------------

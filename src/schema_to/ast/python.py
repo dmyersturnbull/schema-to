@@ -11,7 +11,7 @@ and [Pydantic v2](https://docs.pydantic.dev/latest/) `BaseModel` subclasses.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import StrEnum
+from enum import StrEnum, auto
 from typing import TYPE_CHECKING
 
 from schema_to.ast.base import AstNode, DocString
@@ -51,11 +51,11 @@ class ClassStyle(StrEnum):
         PYDANTIC_FROZEN: `pydantic.BaseModel` with `model_config = ConfigDict(frozen=True, slots=True)`.
     """
 
-    PLAIN = "plain"
-    DATACLASS = "dataclass"
-    FROZEN_DATACLASS = "frozen_dataclass"
-    PYDANTIC = "pydantic"
-    PYDANTIC_FROZEN = "pydantic_frozen"
+    PLAIN = auto()
+    DATACLASS = auto()
+    FROZEN_DATACLASS = auto()
+    PYDANTIC = auto()
+    PYDANTIC_FROZEN = auto()
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +108,8 @@ class PythonDocString(DocString):
     returns: str | None = None
 
     @property
-    def text(self) -> str: ...
+    def text(self) -> str:
+        raise NotImplementedError
 
 
 # ---------------------------------------------------------------------------

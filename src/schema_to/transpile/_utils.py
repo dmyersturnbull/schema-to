@@ -6,7 +6,7 @@ import json
 from typing import TYPE_CHECKING
 
 from schema_to.io.core import JsonReader, JsonWriter, YamlReader, YamlWriter
-from schema_to.io.source import MediaType, MediaTypes
+from schema_to import MediaType, MediaTypes
 
 if TYPE_CHECKING:
     from schema_to.io.source import RawDocument

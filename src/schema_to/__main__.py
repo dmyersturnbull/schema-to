@@ -13,7 +13,7 @@ from typing import Annotated, Final, Literal, override
 import typer
 
 from schema_to.io.file import DirectoryDataSource, FileDataSink, FileDataSource
-from schema_to.io.source import MediaTypes
+from schema_to import MediaTypes
 from schema_to.pipeline import Pipeline
 from schema_to.result import Err, Ok
 from schema_to.transpile.pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler

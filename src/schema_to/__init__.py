@@ -60,12 +60,10 @@ from schema_to.io.sink import DataSink, OutputArtifact
 from schema_to.io.source import (
     DataSource,
     JsonSchemaRawDocument,
-    MediaType,
-    MediaTypeParam,
-    MediaTypes,
     OpenApiRawDocument,
     RawDocument,
 )
+from schema_to.io.media_type import MediaType, MediaTypes, MediaTypeParam
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.parse.openapi import OpenApiParser
 from schema_to.pipeline import Pipeline, ProcessSummary, Transpiler, TypedTranspiler

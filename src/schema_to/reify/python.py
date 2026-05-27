@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from schema_to import MediaTypes
 from schema_to.ast.python import (
     ClassDef,
     ClassStyle,
@@ -29,7 +30,6 @@ from schema_to.ast.python import (
 )
 from schema_to.errors import ReificationError
 from schema_to.io.sink import OutputArtifact
-from schema_to.io.source import MediaTypes
 from schema_to.pipeline import Reifier
 from schema_to.result import Err, Ok, Result
 

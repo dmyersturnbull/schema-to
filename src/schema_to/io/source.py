@@ -9,8 +9,10 @@ never assumes a filesystem is present.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, NamedTuple
+from dataclasses import KW_ONLY, dataclass
+from typing import TYPE_CHECKING
+
+from schema_to.io.media_type import MediaType
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -18,59 +20,9 @@ if TYPE_CHECKING:
 __all__ = [
     "DataSource",
     "JsonSchemaRawDocument",
-    "MediaType",
-    "MediaTypeParam",
-    "MediaTypes",
     "OpenApiRawDocument",
     "RawDocument",
 ]
-
-
-class MediaTypeParam(NamedTuple):
-    key: str
-    value: str
-
-
-@dataclass(frozen=True, slots=True)
-class MediaType:
-    """An [IANA media type](https://www.iana.org/assignments/media-types/)."""
-
-    type: str
-    subtype: str
-    params: tuple[MediaTypeParam, ...] = ()
-
-    @property
-    def essence(self) -> str:
-        return f"{self.type}/{self.subtype}"
-
-    @property
-    def string(self) -> str:
-        return self.essence + "".join(f";{k}={v}" for k, v in self.params)
-
-    @property
-    def is_discrete(self) -> bool:
-        return self.type not in {"message", "multipart"}
-
-    def __str__(self) -> str:
-        return self.string
-
-    @classmethod
-    def from_extension(cls, suffix: str) -> MediaType | None:
-        """Infer a media type from a file extension such as `".json"` or `".yaml"`."""
-        return {".json": MediaTypes.json, ".yaml": MediaTypes.yaml, ".yml": MediaTypes.yaml}.get(
-            suffix.lower()
-        )
-
-
-class MediaTypes:
-    """Common media type constants."""
-
-    commonmark = MediaType("text", "markdown")
-    json = MediaType("application", "json")
-    python = MediaType("text", "x-python")
-    sql = MediaType("application", "sql")
-    typescript = MediaType("application", "typescript")
-    yaml = MediaType("application", "yaml")
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,21 +33,22 @@ class RawDocument:
     a `DataSource` as a `RawDocument`, decoupling I/O from transformation.
 
     Attributes:
-        source_id: Globally unique, opaque identifier (e.g. an absolute URI or
-            a content-addressed hash). Used as the key for `$ref` resolution and
-            error reporting.
+        source_id: Globally unique, opaque identifier
+            (e.g. an absolute URI or a content-addressed hash).
+            Used as the key for `$ref` resolution and error reporting.
         content: Raw bytes exactly as supplied by the source.
         media_type: Content type, used to select the appropriate `DocumentParser`.
-        display_name: Short human-readable name for log messages and generated
-            identifiers (e.g. `"users"` from `"users.schema.json"`). Defaults to
-            the last path segment of `source_id`.
-        base_uri: Base URI for resolving relative `$ref` values.  Defaults to
-            `source_id` when not explicitly set.
+        display_name: Short human-readable name for log messages and generated identifiers
+            (e.g. `"users"` from `"users.schema.json"`).
+            A good default is the last path segment of `source_id`.
+        base_uri: Base URI for resolving relative `$ref` values.
+            A good default is `source_id`.
     """
 
     source_id: str
     content: bytes
     media_type: MediaType
+    _: KW_ONLY
     display_name: str | None = None
     base_uri: str | None = None
 
@@ -110,7 +63,7 @@ class OpenApiRawDocument(RawDocument):
     """A `RawDocument` known to contain an OpenAPI 3.1 document."""
 
 
-class DataSource(ABC):
+class DataSource[T : RawDocument](ABC):
     """A lazily-iterable supplier of raw documents.
 
     A single `DataSource` may yield any number of documents: zero (empty),
@@ -125,6 +78,6 @@ class DataSource(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def documents(self) -> Iterator[RawDocument]:
+    def documents(self) -> Iterator[T]:
         """Yield each document provided by this source in an unspecified order."""
         raise NotImplementedError

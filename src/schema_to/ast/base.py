@@ -8,7 +8,7 @@ cross-cutting enumerations used by more than one target.
 from __future__ import annotations
 
 from abc import ABC
-from enum import StrEnum
+from enum import StrEnum, auto
 
 __all__ = ["AstNode", "DocString", "Visibility"]
 
@@ -20,10 +20,10 @@ class Visibility(StrEnum):
     or omit the modifier when the concept does not apply.
     """
 
-    PUBLIC = "public"
-    PROTECTED = "protected"
-    PRIVATE = "private"
-    INTERNAL = "internal"
+    PUBLIC = auto()
+    PROTECTED = auto()
+    PRIVATE = auto()
+    INTERNAL = auto()
 
 
 class AstNode(ABC):
@@ -46,3 +46,4 @@ class DocString(AstNode, ABC):
     @property
     def text(self) -> str:
         """The raw documentation text, which may contain Markdown."""
+        raise NotImplementedError

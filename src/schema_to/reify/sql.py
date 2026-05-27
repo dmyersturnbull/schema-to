@@ -27,7 +27,7 @@ from schema_to.ast.sql import (
     TableConstraint,
 )
 from schema_to.io.sink import OutputArtifact
-from schema_to.io.source import MediaTypes
+from schema_to import MediaTypes
 from schema_to.pipeline import Reifier
 from schema_to.result import Ok, Result
 

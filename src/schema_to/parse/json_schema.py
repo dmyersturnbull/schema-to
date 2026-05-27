@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
+from schema_to import JsonSchemaRawDocument
+from schema_to.core import JsonValue
 from schema_to.cst.base import SourceRef
 from schema_to.cst.json_schema import (
     BooleanSchema,
@@ -25,6 +27,7 @@ from schema_to.cst.json_schema import (
     SchemaType,
 )
 from schema_to.errors import ParseError, SchemaValidationError, SourceLocation, TranspilationError
+from schema_to.io.core import JsonLikeReader, ReadError
 from schema_to.parse._utils import loc, ptr
 from schema_to.pipeline import DocumentParser
 from schema_to.result import Err, Ok, Result
@@ -37,46 +40,32 @@ __all__ = ["JsonSchemaParser"]
 _SUPPORTED_ESSENCES = frozenset({"application/json", "application/yaml", "text/yaml"})
 
 
-class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):
+class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):  # FIXME
     """Parses JSON or YAML bytes into a `JsonSchemaDocument` CST.
 
     The parser is stateless: a single instance may be reused across documents.
     """
 
-    def supports(self, document: RawDocument) -> bool:
-        return document.media_type.essence in _SUPPORTED_ESSENCES
+    def accepts(self, document: JsonSchemaRawDocument) -> bool:
+        return isinstance(document, JsonSchemaRawDocument)
 
-    def apply(self, input: RawDocument) -> Result[JsonSchemaDocument]:
+    def apply(self, input: JsonSchemaRawDocument) -> Result[JsonSchemaDocument]:
         try:
             raw = self._decode(input)
         except TranspilationError as exc:
             return Err((exc,))
         return self._build_document(raw, document=input)
 
-    def _decode(self, document: RawDocument) -> Any:
-        essence = document.media_type.essence
+    def _decode(self, document: JsonSchemaRawDocument) -> JsonValue:
         try:
-            if essence == "application/json":
-                from schema_to.io.core import JsonReader  # noqa: PLC0415
-
-                return JsonReader().read(document.content.decode("utf-8"))
-            if essence in {"application/yaml", "text/yaml"}:
-                from schema_to.io.core import YamlReader  # noqa: PLC0415
-
-                return YamlReader().read(document.content.decode("utf-8"))
-        except json.JSONDecodeError as exc:
+            return JsonLikeReader().read(document.content, document.media_type)
+        except ReadError as e:
             raise ParseError(
-                str(exc),
-                location=SourceLocation(document.source_id, line=exc.lineno, column=exc.colno),
-            ) from exc
-        except (ValueError, UnicodeDecodeError) as exc:
-            raise ParseError(str(exc), location=loc(document.source_id, "")) from exc
-        raise ParseError(
-            f"Unsupported media type for JSON Schema: {essence!r}",
-            location=loc(document.source_id, ""),
-        )
+                str(e),
+                location=SourceLocation(document.source_id, line=e.line, column=e.column),
+            ) from e
 
-    def _build_document(self, data: Any, *, document: RawDocument) -> Result[JsonSchemaDocument]:
+    def _build_document(self, data: JsonValue, *, document: RawDocument) -> Result[JsonSchemaDocument]:
         root_r = self._build_schema(data, source_id=document.source_id, pointer="")
         if isinstance(root_r, Err):
             return root_r
@@ -89,7 +78,7 @@ class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):
             )
         )
 
-    def _build_schema(self, data: Any, *, source_id: str, pointer: str) -> Result[JsonSchema]:
+    def _build_schema(self, data: JsonValue, *, source_id: str, pointer: str) -> Result[JsonSchema]:
         if isinstance(data, bool):
             return Ok(BooleanSchema(value=data, source_ref=SourceRef(source_id, pointer)))
         if isinstance(data, dict):

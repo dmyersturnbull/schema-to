@@ -9,7 +9,7 @@ short-circuits on the first failure.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, final, Self
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -53,10 +53,14 @@ class Err:
 
     errors: tuple[TranspilationError, ...]
 
-    def map(self, f: object) -> Err:
+    @classmethod
+    def of(cls, *errors: TranspilationError) -> Self:
+        return cls(tuple(errors))
+
+    def map(self, f: object) -> Err:  # FIXME
         return self
 
-    def flat_map(self, f: object) -> Err:
+    def flat_map(self, f: object) -> Err:  # FIXME
         return self
 
     @property

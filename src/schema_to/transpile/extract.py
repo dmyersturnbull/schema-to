@@ -5,16 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to.transpile._utils import encode, peek_is_openapi
-
 from schema_to.cst.base import SourceRef
 from schema_to.cst.json_schema import JsonSchemaDocument
 from schema_to.io.sink import OutputArtifact
-from schema_to.io.source import JsonSchemaRawDocument, OpenApiRawDocument, RawDocument
+from schema_to.io.source import OpenApiRawDocument, RawDocument
 from schema_to.parse.openapi import OpenApiParser
 from schema_to.pipeline import Transpiler
 from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
+from schema_to.transpile._utils import encode
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -40,11 +39,7 @@ class OpenApiExtractTranspiler(Transpiler):
     use_yaml: bool = False
 
     def accepts(self, document: RawDocument) -> bool:
-        if isinstance(document, OpenApiRawDocument):
-            return True
-        if isinstance(document, JsonSchemaRawDocument):
-            return False
-        return peek_is_openapi(document)
+        return isinstance(document, OpenApiRawDocument)
 
     def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
         result = self.parser.apply(document)

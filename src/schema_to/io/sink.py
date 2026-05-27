@@ -15,22 +15,21 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from schema_to.io.source import MediaType
+    from schema_to import MediaType
 
 __all__ = ["DataSink", "OutputArtifact"]
 
 
 @dataclass(frozen=True, slots=True)
-class OutputArtifact:
+class OutputArtifact(ABC):
     """A single output document ready to be written to a sink.
 
     Attributes:
-        artifact_id: Suggested name for the artifact within the sink, typically
-            a relative path such as `"migrations/001_users.sql"`.
+        artifact_id: Suggested name for the artifact within the sink,
+            typically a relative path such as `"migrations/001_users.sql"`.
         content: Serialised output bytes.
         media_type: Content type of the output.
-        source_ids: `source_id`s of the `RawDocument`s that contributed to this
-            artifact, for traceability.
+        source_ids: `source_id`s of the `RawDocument`s that contributed to this artifact, for traceability.
     """
 
     artifact_id: str
@@ -39,7 +38,7 @@ class OutputArtifact:
     source_ids: tuple[str, ...] = ()
 
 
-class DataSink(ABC):
+class DataSink[T : OutputArtifact](ABC):
     """An abstract destination for output artifacts produced by the pipeline."""
 
     @property
@@ -49,11 +48,11 @@ class DataSink(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def write(self, artifact: OutputArtifact) -> None:
+    def write(self, artifact: T) -> None:
         """Persist or collect a single output artifact."""
         raise NotImplementedError
 
-    def write_all(self, artifacts: Iterable[OutputArtifact]) -> None:
+    def write_all(self, artifacts: Iterable[T]) -> None:
         """Write every artifact from an iterable by delegating to `write`."""
         for artifact in artifacts:
             self.write(artifact)

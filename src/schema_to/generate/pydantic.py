@@ -208,11 +208,11 @@ class _GenCtx:
             if py_name != prop_name:
                 alias_kwargs = f'alias="{prop_name}"'
 
-            default: str | None = None
+            default_: str | None = None
             if not is_required:
-                default = "None"
+                default_ = "None"
             elif isinstance(prop_schema, ObjectSchema) and prop_schema.default is not None:
-                default = repr(prop_schema.default.value)
+                default_ = repr(prop_schema.default.value)
 
             doc: str | None = None
             if isinstance(prop_schema, ObjectSchema):
@@ -234,13 +234,13 @@ class _GenCtx:
                     field_kw.append(f"pattern={prop_schema.pattern!r}")
 
             if field_kw:
-                default = (
+                default_ = (
                     f"Field({', '.join(field_kw)})"
-                    if default is None
-                    else f"Field({default}, {', '.join(field_kw)})"
+                    if default_ is None
+                    else f"Field({default_}, {', '.join(field_kw)})"
                 )
 
-            fields.append(FieldDef(name=py_name, annotation=ann, default=default, doc=doc))
+            fields.append(FieldDef(name=py_name, annotation=ann, default=default_, doc=doc))
 
         doc_node: PythonDocString | None = None
         if schema.title or schema.description:
@@ -374,8 +374,8 @@ def _build_imports(declarations: list[TypeAliasDef | ClassDef], ctx: _GenCtx) ->
     """Collect all needed imports from the declaration tree."""
     needed: dict[str, set[str]] = {}  # module -> names
 
-    def _add(module: str, name: str) -> None:
-        needed.setdefault(module, set()).add(name)
+    def _add(module_: str, name: str) -> None:
+        needed.setdefault(module_, set()).add(name)
 
     def _scan_ann(ann: PythonTypeAnnotation) -> None:
         if ann.module:

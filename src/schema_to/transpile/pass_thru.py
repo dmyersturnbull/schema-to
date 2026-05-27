@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to.transpile._utils import JSON_YAML_ESSENCES, encode, peek_is_openapi
+from schema_to.transpile._utils import encode
 
 from schema_to.io.sink import OutputArtifact
 from schema_to.io.source import JsonSchemaRawDocument, OpenApiRawDocument, RawDocument
@@ -42,12 +42,8 @@ class JsonSchemaPassThruTranspiler(Transpiler):
     serializer: JsonSchemaSerializer = field(default_factory=JsonSchemaSerializer)
     use_yaml: bool = False
 
-    def accepts(self, document: RawDocument) -> bool:
-        if isinstance(document, JsonSchemaRawDocument):
-            return True
-        if isinstance(document, OpenApiRawDocument):
-            return False
-        return document.media_type.essence in JSON_YAML_ESSENCES and not peek_is_openapi(document)
+    def accepts(self, document: JsonSchemaRawDocument) -> bool:
+        return isinstance(document, JsonSchemaRawDocument)
 
     def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
         result = self.parser.apply(document)
@@ -84,11 +80,7 @@ class OpenApiPassThruTranspiler(Transpiler):
     use_yaml: bool = False
 
     def accepts(self, document: RawDocument) -> bool:
-        if isinstance(document, OpenApiRawDocument):
-            return True
-        if isinstance(document, JsonSchemaRawDocument):
-            return False
-        return peek_is_openapi(document)
+        return isinstance(document, OpenApiRawDocument)
 
     def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
         result = self.parser.apply(document)

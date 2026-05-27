@@ -80,17 +80,21 @@ class Stage[A, B](ABC):
     """
 
     @abstractmethod
-    def apply(self, input: A) -> Result[B]:
+    def apply(self, /, input: A) -> Result[B]:
         """Run this stage, returning `Ok[B]` on success or `Err` on failure."""
         raise NotImplementedError
 
-    def then[C](self, other: Stage[B, C]) -> Stage[A, C]:
+    def then[C](self, /, other: Stage[B, C]) -> Stage[A, C]:
         """Compose `self` with `other`, running `other` only if `self` succeeds."""
-        return _ComposedStage(self, other)  # type: ignore[return-value]
+        return _ComposedStage(self, other)
 
-    def map_error(self, f: Callable[[TranspilationError], TranspilationError]) -> Stage[A, B]:
+    def recover(self, /, f: Callable[[Err], A]) -> Stage[A, B]:
+        """Attempt to recover an error from `self` using `recover`."""
+        return _RecoverStage(self, f)
+
+    def map_errors(self, /, f: Callable[[TranspilationError], TranspilationError]) -> Stage[A, B]:
         """Transform every error produced by this stage without changing its type."""
-        return _MappedErrorStage(self, f)  # type: ignore[return-value]
+        return _MappedErrorStage(self, f)
 
 
 # `Stage.then` and `Stage.map_error` reference these helpers by name; the
@@ -98,31 +102,45 @@ class Stage[A, B](ABC):
 # safe to define the helpers here, after `Stage`.
 
 
-class _ComposedStage(Stage):  # type: ignore[type-arg]
+class _ComposedStage[A, B, C](Stage):
     """Internal: result of `Stage.then()`."""
 
-    def __init__(self, first: object, second: object) -> None:
+    def __init__(self, /, first: Stage[A, B], second: Stage[B, C]) -> None:
         self.first = first
         self.second = second
 
-    def apply(self, input: object) -> object:  # type: ignore[override]
-        r = self.first.apply(input)  # type: ignore[attr-defined]
+    def apply(self, /, input: A) -> C:
+        r = self.first.apply(input)
         if isinstance(r, Err):
             return r
-        return self.second.apply(r.value)  # type: ignore[attr-defined]
+        return self.second.apply(r.value)
 
 
-class _MappedErrorStage(Stage):  # type: ignore[type-arg]
+class _MappedErrorStage[A, B](Stage):
     """Internal: result of `Stage.map_error()`."""
 
-    def __init__(self, inner: object, f: object) -> None:
-        self.inner = inner
+    def __init__(self, /, first: Stage[A, B], if_error: Callable[[TranspilationError], TranspilationError]) -> None:
+        self.inner = first
+        self.if_error = if_error
+
+    def apply(self, /, input: A) -> B:
+        r = self.inner.apply(input)
+        if isinstance(r, Err):
+            return Err(tuple(self.if_error(e) for e in r.errors))
+        return r
+
+
+class _RecoverStage[A, B](Stage):
+    """Internal: result of `Stage.recover()`."""
+
+    def __init__(self, /, first: Stage[A, B], f: Callable[Err, B]) -> None:
+        self.first = first
         self.f = f
 
-    def apply(self, input: object) -> object:  # type: ignore[override]
-        r = self.inner.apply(input)  # type: ignore[attr-defined]
+    def apply(self, /, input: A) -> B:
+        r = self.first.apply(input)
         if isinstance(r, Err):
-            return Err(tuple(self.f(e) for e in r.errors))  # type: ignore[operator]
+            return self.f.apply(r)
         return r
 
 
@@ -131,7 +149,7 @@ class _MappedErrorStage(Stage):  # type: ignore[type-arg]
 # ---------------------------------------------------------------------------
 
 
-class DocumentParser[CstT: CstNode](Stage[RawDocument, CstT]):
+class DocumentParser[T : RawDocument, CstT: CstNode](Stage[T, CstT]):
     """Parses a `RawDocument` into a typed `CstT`.
 
     A parser is responsible for:
@@ -142,11 +160,11 @@ class DocumentParser[CstT: CstNode](Stage[RawDocument, CstT]):
     """
 
     @abstractmethod
-    def apply(self, input: RawDocument) -> Result[CstT]:
+    def apply(self, input: T) -> Result[CstT]:
         raise NotImplementedError
 
     @abstractmethod
-    def supports(self, document: RawDocument) -> bool:
+    def accepts(self, document: T) -> bool:
         """Return `True` if this parser can process the given document."""
         raise NotImplementedError
 
@@ -208,7 +226,7 @@ class Reifier[AstT: AstNode](Stage[AstT, Sequence[OutputArtifact]]):
 # ---------------------------------------------------------------------------
 
 
-class Transpiler(ABC):
+class Transpiler[T : RawDocument](ABC):
     """Type-erased base for a complete single-document transpilation unit.
 
     A `Transpiler` accepts a `RawDocument` and produces zero or more
@@ -222,12 +240,12 @@ class Transpiler(ABC):
     """
 
     @abstractmethod
-    def accepts(self, document: RawDocument) -> bool:
+    def accepts(self, document: T) -> bool:
         """Return `True` if this transpiler can process `document`."""
         raise NotImplementedError
 
     @abstractmethod
-    def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
+    def transpile(self, document: T) -> Result[Sequence[OutputArtifact]]:
         """Run the full parse → resolve → generate → reify pipeline."""
         raise NotImplementedError
 
@@ -237,15 +255,15 @@ class Transpiler(ABC):
         return ()
 
 
-class TypedTranspiler[CstT: CstNode, AstT: AstNode](Transpiler):
-    """A fully-typed transpiler with individually-overridable stage methods.
+class TypedTranspiler[T : RawDocument, CstT: CstNode, AstT: AstNode](Transpiler):
+    """A fully typed transpiler with individually-overridable stage methods.
 
     Subclasses override `parse`, `resolve`, `generate`, and `reify`; the
     provided `transpile` implementation chains them via `Result.flat_map`.
 
     Example:
         ```python
-        class JsonSchemaToSqlTranspiler(TypedTranspiler[JsonSchemaDocument, SqlScript]):
+        class JsonSchemaToSqlTranspiler(TypedTranspiler[RawJsonSchemaDocument, JsonSchemaDocument, SqlScript]):
             def accepts(self, doc):
                 return doc.media_type == MediaType.json()
 
@@ -264,7 +282,7 @@ class TypedTranspiler[CstT: CstNode, AstT: AstNode](Transpiler):
     """
 
     @abstractmethod
-    def parse(self, document: RawDocument) -> Result[CstT]:
+    def parse(self, document: T) -> Result[CstT]:
         """Stage 1: decode bytes and construct the CST."""
         raise NotImplementedError
 
@@ -283,7 +301,7 @@ class TypedTranspiler[CstT: CstNode, AstT: AstNode](Transpiler):
         """Stage 4: serialise the AST to output bytes."""
         raise NotImplementedError
 
-    def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
+    def transpile(self, document: T) -> Result[Sequence[OutputArtifact]]:
         """Run all four stages sequentially, short-circuiting on any `Err`."""
         r1 = self.parse(document)
         if isinstance(r1, Err):
@@ -318,7 +336,7 @@ class ProcessSummary:
 
 
 @dataclass
-class Pipeline:
+class Pipeline[T : RawDocument]:
     """Immutable transpilation pipeline.
 
     A `Pipeline` is configured once — sources, transpilers, and sink — and
@@ -334,7 +352,7 @@ class Pipeline:
     Example:
         ```python
         pipeline = Pipeline(
-            sources=[FileDataSource("schemas/")],
+            sources=[DirectoryDataSource("schemas/")],
             transpilers=[JsonSchemaToSqlTranspiler(), JsonSchemaToTypeScriptTranspiler()],
             sink=DirectoryDataSink("out/"),
         )
@@ -347,7 +365,7 @@ class Pipeline:
         ```
     """
 
-    sources: Sequence[DataSource]
+    sources: Sequence[DataSource[T]]
     transpilers: Sequence[Transpiler]
     sink: DataSink
 

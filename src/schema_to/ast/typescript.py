@@ -10,8 +10,8 @@ The AST covers the subset of TypeScript needed to express schemas: `interface`,
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import StrEnum
-from typing import TYPE_CHECKING
+from enum import StrEnum, auto
+from typing import TYPE_CHECKING, override
 
 from schema_to.ast.base import AstNode, DocString
 
@@ -38,7 +38,15 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-class UtilityType(StrEnum):
+class _CapitalizedEnum(StrEnum):
+
+    @staticmethod
+    @override
+    def _generate_next_value_(name: str, start: int, count: int, last_values: list[str]) -> str:
+        return name.lower().capitalize()
+
+
+class UtilityType(_CapitalizedEnum):
     """TypeScript built-in utility types applied to a base type.
 
     Attributes:
@@ -49,11 +57,11 @@ class UtilityType(StrEnum):
         OMIT: `Omit<T, K>` — exclude a subset of properties.
     """
 
-    PARTIAL = "Partial"
-    REQUIRED = "Required"
-    READONLY = "Readonly"
-    PICK = "Pick"
-    OMIT = "Omit"
+    PARTIAL = auto()
+    REQUIRED = auto()
+    READONLY = auto()
+    PICK = auto()
+    OMIT = auto()
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +118,8 @@ class JSDocComment(DocString):
     tags: Sequence[tuple[str, str]] = field(default_factory=list)
 
     @property
-    def text(self) -> str: ...
+    def text(self) -> str:
+        raise NotImplementedError
 
 
 # ---------------------------------------------------------------------------
