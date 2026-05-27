@@ -14,15 +14,13 @@ import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import json_schema_st, json_schema_with_defs_st
 
-from schema_to import (
-    Err,
-    JsonSchemaParser,
-    JsonSchemaRefResolver,
-    MediaTypes,
-    Ok,
-    RawDocument,
-    ResolutionError,
-)
+from schema_to.cst.json_schema import JsonSchemaDocument, JsonSchemaType, ObjectSchema
+from schema_to.errors import ResolutionError
+from schema_to.io.media_type import MediaTypes
+from schema_to.io.source import RawDocument
+from schema_to.parse.json_schema import JsonSchemaParser
+from schema_to.pipeline import Err, Ok
+from schema_to.resolve.json_schema import JsonSchemaRefResolver
 
 _PARSER = JsonSchemaParser()
 
@@ -31,7 +29,7 @@ def _doc(data: object, source_id: str = "test://doc") -> RawDocument:
     return RawDocument(source_id=source_id, content=orjson.dumps(data), media_type=MediaTypes.json)
 
 
-def _parse(data: object, source_id: str = "test://doc"):
+def _parse(data: object, source_id: str = "test://doc") -> JsonSchemaDocument:
     r = _PARSER.apply(_doc(data, source_id))
     assert isinstance(r, Ok), f"Parse failed: {r}"
     return r.value
@@ -118,10 +116,8 @@ def test_lookup_pointer_to_def() -> None:
 
     node = resolver.lookup("#/$defs/Email", base_uri="test://doc")
     assert node is not None
-    from schema_to.cst.json_schema import ObjectSchema
 
     assert isinstance(node, ObjectSchema)
-    from schema_to.cst.json_schema import JsonSchemaType
 
     assert node.type == JsonSchemaType.STRING
     assert node.format == "email"

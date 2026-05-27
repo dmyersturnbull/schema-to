@@ -15,6 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from schema_to import MediaTypes
 from schema_to.ast.sql import (
     ColumnConstraint,
     CommentOnStmt,
@@ -26,8 +27,7 @@ from schema_to.ast.sql import (
     SqlScript,
     TableConstraint,
 )
-from schema_to.io.sink import OutputArtifact
-from schema_to import MediaTypes
+from schema_to.io.sink import OutputArtifact, SqlOutputArtifact
 from schema_to.pipeline import Reifier
 from schema_to.result import Ok, Result
 
@@ -40,7 +40,7 @@ _INDENT = "    "
 
 
 @dataclass(frozen=True)
-class SqlReifier(Reifier[SqlScript]):
+class SqlReifier(Reifier[SqlScript, SqlOutputArtifact]):
     """Serialise a `SqlScript` AST to a single `.sql` `OutputArtifact`.
 
     Attributes:
@@ -49,16 +49,13 @@ class SqlReifier(Reifier[SqlScript]):
 
     artifact_name: str
 
-    def apply(self, input: SqlScript) -> Result[Sequence[OutputArtifact]]:
+    def apply(self, input: SqlScript) -> Result[Sequence[SqlOutputArtifact]]:
         return Ok([self._apply(input)])
 
-    def _apply(self, input: SqlScript) -> OutputArtifact:
+    def _apply(self, input: SqlScript) -> SqlOutputArtifact:
         sql = "\n\n".join(self._emit_script(input)) + "\n"
-        return OutputArtifact(
-            artifact_id=self.artifact_name,
-            content=sql.encode("utf-8"),
-            media_type=MediaTypes.sql,
-            source_ids=input.source_ids,
+        return SqlOutputArtifact(
+            artifact_id=self.artifact_name, content=sql.encode("utf-8"), source_ids=input.source_ids
         )
 
     # ------------------------------------------------------------------

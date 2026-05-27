@@ -17,12 +17,7 @@ from schema_to.io.media_type import MediaType
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-__all__ = [
-    "DataSource",
-    "JsonSchemaRawDocument",
-    "OpenApiRawDocument",
-    "RawDocument",
-]
+__all__ = ["DataSource", "JsonSchemaRawDocument", "OpenApiRawDocument", "RawDocument"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,7 +58,7 @@ class OpenApiRawDocument(RawDocument):
     """A `RawDocument` known to contain an OpenAPI 3.1 document."""
 
 
-class DataSource[T : RawDocument](ABC):
+class DataSource[T: RawDocument](ABC):
     """A lazily-iterable supplier of raw documents.
 
     A single `DataSource` may yield any number of documents: zero (empty),

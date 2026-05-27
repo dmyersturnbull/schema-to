@@ -118,26 +118,30 @@ class JsonSchemaSerializer:
         return out
 
     def _val(self, value: object) -> JsonValue:
-        if isinstance(value, (BooleanSchema, ObjectSchema)):
-            return self.serialize(value)
-        if isinstance(value, (DefaultValue, ConstValue)):
-            return value.value
-        if isinstance(value, JsonSchemaType):
-            return str(value)
-        if isinstance(value, frozenset):
-            return sorted(str(t) for t in value)
-        if isinstance(value, Sequence) and not isinstance(value, str):
-            items = list(value)
-            if items and isinstance(items[0], (BooleanSchema, ObjectSchema)):
-                return [self.serialize(v) for v in items]  # type: ignore[arg-type]
-            return items  # type: ignore[return-value]
-        if isinstance(value, Mapping):
-            if not value:
-                return {}
-            first_v = next(iter(value.values()))
-            if isinstance(first_v, (BooleanSchema, ObjectSchema)):
-                return {k: self.serialize(v) for k, v in value.items()}  # type: ignore[arg-type]
-            if isinstance(first_v, frozenset):
-                return {k: sorted(v) for k, v in value.items()}  # type: ignore[return-value]
-            return dict(value)  # type: ignore[return-value]
-        return value  # type: ignore[return-value]
+        match value:
+            case BooleanSchema() | ObjectSchema():
+                return self.serialize(value)
+            case DefaultValue(value=v) | ConstValue(value=v):
+                return v
+            case JsonSchemaType() as t:
+                return str(t)
+            case frozenset(types_):
+                return sorted(str(t) for t in types_)
+            case str():
+                return value
+            case Sequence() as seq:
+                items = list(seq)
+                if items and isinstance(items[0], (BooleanSchema, ObjectSchema)):
+                    return [self.serialize(v) for v in items]
+                return items
+            case Mapping() as mapping:
+                if not mapping:
+                    return {}
+                first_v = next(iter(mapping.values()))
+                if isinstance(first_v, (BooleanSchema, ObjectSchema)):
+                    return {k: self.serialize(v) for k, v in mapping.items()}
+                if isinstance(first_v, frozenset):
+                    return {k: sorted(v) for k, v in mapping.items()}
+                return dict(mapping)
+            case _:
+                return value

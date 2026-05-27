@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import NamedTuple
+from typing import NamedTuple, AbstractSet
 
 __all__ = ["MediaType", "MediaTypes"]
 
@@ -29,18 +29,28 @@ class MediaType:
 class MediaTypes:
     """Common media type constants."""
 
-    commonmark = MediaType("text", "markdown")
+    # JSON-compatible
     json = MediaType("application", "json")
+    yaml = MediaType("application", "yaml")
+    # Others
+    commonmark = MediaType("text", "markdown")
     python = MediaType("text", "x-python")
     sql = MediaType("application", "sql")
     typescript = MediaType("application", "typescript")
-    yaml = MediaType("application", "yaml")
-    _valid: dict[str, MediaType] = {".json": json, ".yaml": yaml, ".yml": yaml}.items()
+
+    _input_suffixes: dict[str, MediaType] = {".json": json, ".yaml": yaml, ".yml": yaml}.items()
+    input_suffixes: AbstractSet[str] = _input_suffixes.keys()
 
     @classmethod
-    def from_extension(cls, suffix: str) -> MediaType | None:
+    def from_input_suffix(cls, suffix: str) -> MediaType | None:
         """Infer a media type from a file extension such as `".json"` or `".yaml"`."""
-        return cls._valid.get(suffix.lower())
+        if found := cls._input_suffixes.get(suffix.lower()):
+            return found
+        msg = (
+            f"The suffix {suffix} is not an allowed input file extension."
+            f" Use one of: {', '.join(cls.input_suffixes)}"
+        )
+        raise ValueError(msg)
 
 
 class MediaTypeParam(NamedTuple):

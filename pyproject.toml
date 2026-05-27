@@ -15,7 +15,7 @@ dependencies = [
   "py-yaml12>=0.1", # YAML 1.2 library
   "pydantic>=2.13",
   "referencing>=0.37", # JSON Schema $ref / $dynamicRef resolution
-  "typer>=0.25", # CLI framework
+  "typer>=0.25",
 ]
 
 [project.scripts]
@@ -23,9 +23,10 @@ schema-to = "schema_to._main__:cli"
 
 [dependency-groups]
 dev = [
-  "ruff>=0.15.12",
-  "pytest>=9.0",
   "hypothesis>=6.152.7",
+  "pytest>=9.0",
+  "ruff>=0.15.12",
+  "ty>=0.0.40",
 ]
 
 [tool.ruff]
@@ -76,7 +77,17 @@ unfixable = [
   "TC007",
 ]
 extend-safe-fixes = [
+  "D205",
+  "EM102",
+  "I001",
   "LOG004",
+  "PLC0415",
+  "PLR6201",
+  "PT018",
+  "RUF022",
+  "TC001",
+  "TC003",
+  "UP042",
 ]
 extend-unsafe-fixes = [
   "PLW1510",

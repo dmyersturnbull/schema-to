@@ -11,8 +11,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to.transpile._utils import encode
-
 from schema_to.io.sink import OutputArtifact
 from schema_to.io.source import JsonSchemaRawDocument, OpenApiRawDocument, RawDocument
 from schema_to.parse.json_schema import JsonSchemaParser
@@ -21,6 +19,7 @@ from schema_to.pipeline import Transpiler
 from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 from schema_to.serialize.openapi import OpenApiSerializer
+from schema_to.transpile._utils import encode
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

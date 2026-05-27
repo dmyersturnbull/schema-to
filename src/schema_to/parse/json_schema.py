@@ -10,11 +10,9 @@ diagnostics rather than stopping at the first fault.
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING, Any
 
 from schema_to import JsonSchemaRawDocument
-from schema_to.core import JsonValue
 from schema_to.cst.base import SourceRef
 from schema_to.cst.json_schema import (
     BooleanSchema,
@@ -28,19 +26,20 @@ from schema_to.cst.json_schema import (
 )
 from schema_to.errors import ParseError, SchemaValidationError, SourceLocation, TranspilationError
 from schema_to.io.core import JsonLikeReader, ReadError
-from schema_to.parse._utils import loc, ptr
+from schema_to.parse._utils import ptr
 from schema_to.pipeline import DocumentParser
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
+    from schema_to.core import JsonValue
     from schema_to.io.source import RawDocument
 
 __all__ = ["JsonSchemaParser"]
 
-_SUPPORTED_ESSENCES = frozenset({"application/json", "application/yaml", "text/yaml"})
+loc = SourceLocation
 
 
-class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):  # FIXME
+class JsonSchemaParser(DocumentParser[JsonSchemaRawDocument, JsonSchemaDocument]):
     """Parses JSON or YAML bytes into a `JsonSchemaDocument` CST.
 
     The parser is stateless: a single instance may be reused across documents.
@@ -61,11 +60,12 @@ class JsonSchemaParser(DocumentParser[JsonSchemaDocument]):  # FIXME
             return JsonLikeReader().read(document.content, document.media_type)
         except ReadError as e:
             raise ParseError(
-                str(e),
-                location=SourceLocation(document.source_id, line=e.line, column=e.column),
+                str(e), location=SourceLocation(document.source_id, line=e.line, column=e.column)
             ) from e
 
-    def _build_document(self, data: JsonValue, *, document: RawDocument) -> Result[JsonSchemaDocument]:
+    def _build_document(
+        self, data: JsonValue, *, document: RawDocument
+    ) -> Result[JsonSchemaDocument]:
         root_r = self._build_schema(data, source_id=document.source_id, pointer="")
         if isinstance(root_r, Err):
             return root_r

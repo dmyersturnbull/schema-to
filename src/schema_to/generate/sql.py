@@ -196,7 +196,9 @@ class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
 
         sid = input.source_id
         def_stmts = [
-            self._schema_to_table(def_schema, safe_sql_identifier(def_schema.title or def_name), sid)
+            self._schema_to_table(
+                def_schema, safe_sql_identifier(def_schema.title or def_name), sid
+            )
             for def_name, def_schema in (root.defs or {}).items()
             if isinstance(def_schema, ObjectSchema) and _is_object_schema(def_schema)
         ]

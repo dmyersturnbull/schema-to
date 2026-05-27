@@ -2,34 +2,38 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import glob
+from collections.abc import Callable, Iterator, Sequence
+from dataclasses import KW_ONLY, dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from schema_to import MediaType
+from schema_to.io.media_type import MediaTypes
+from schema_to.io.os_errors import PathMissingError, TypedNotADirectoryError
 from schema_to.io.sink import DataSink, OutputArtifact
 from schema_to.io.source import DataSource, RawDocument
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-    from pathlib import Path
+    from schema_to.io.media_type import MediaType
 
-__all__ = ["FileDataSink", "FileDataSource"]
+__all__ = ["DirectoryDataSource", "FileDataSink", "FileDataSource", "FileDataSourceFactory"]
 
 
 @dataclass(frozen=True, slots=True)
 class FileDataSource(DataSource):
     """A `DataSource` backed by a single file on the local filesystem.
 
-    The media type is inferred from the file extension; pass `media_type`
-    explicitly to override.
-
     Attributes:
         path: Absolute or relative path to the file.
-        media_type: Content type override.  Inferred from suffix if `None`.
     """
 
     path: Path
-    media_type: MediaType
+    media_type: MediaType = field(init=False, hash=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if not self.path.is_file():
+            raise PathMissingError(filename=self.path)
+        setattr(self, "media_type", MediaTypes.from_input_suffix(self.path.suffix))  # noqa: B010
 
     @property
     def source_id(self) -> str:
@@ -43,6 +47,69 @@ class FileDataSource(DataSource):
             display_name=self.path.stem,
             base_uri=self.path.as_uri(),
         )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class FileDataSourceFactory(Callable[[Sequence[Path]], Iterator[DataSource]]):
+    recursive: bool
+
+    def __call__(self, paths: Sequence[Path]) -> Iterator[DataSource]:
+        for p in paths:
+            if p.is_dir():
+                yield DirectoryDataSource(p, recursive=self.recursive)
+            elif p.is_file():
+                yield FileDataSource(p)
+
+
+@dataclass(frozen=True, slots=True)
+class DirectoryDataSource(DataSource):
+    """A `DataSource` that yields all files matching globs patterns under a directory.
+
+    Files whose extension maps to no known media type are silently skipped,
+    so a directory can contain a mix of schema files and unrelated assets.
+
+    Attributes:
+        root: Path to the directory.
+        recursive: Whether to look in subdirectories.
+        include_hidden: Whether to look in dotted directories.
+    """
+
+    root: Path
+    _: KW_ONLY
+    recursive: bool
+    include_hidden: bool = False
+    paths: frozenset[Path] = field(init=False, hash=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if not self.root.is_dir():
+            raise TypedNotADirectoryError(filename=self.root)
+        setattr(self, "paths", frozenset(sorted(self.__expand_sources())))  # noqa: B010
+
+    def __expand_sources(self) -> Iterator[Path]:
+        # ruff: noqa: PTH207 -- `glob.glob` skips hidden dirs (including `.git/`).
+        for suffix in MediaTypes.input_suffixes:
+            for path in glob.glob(
+                f"**/*{suffix}" if self.recursive else f"*{suffix}",
+                root_dir=str(self.root),
+                recursive=True,  # True just means that `**` works.
+                include_hidden=self.include_hidden,
+            ):
+                if (p := Path(path)).is_file():
+                    yield p
+
+    @property
+    def source_id(self) -> str:
+        return self.root.as_uri()
+
+    def documents(self) -> Iterator[RawDocument]:
+        for path in self.paths:
+            yield RawDocument(
+                source_id=path.as_uri(),
+                content=path.read_bytes(),
+                media_type=MediaTypes.from_input_suffix(path.suffix),
+                display_name=path.stem,
+                base_uri=path.as_uri(),
+            )
 
 
 @dataclass(frozen=True, slots=True)

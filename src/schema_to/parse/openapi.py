@@ -10,7 +10,7 @@ the complete diagnostic set.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from schema_to import OpenApiRawDocument
 from schema_to.cst.base import SourceRef
@@ -33,8 +33,8 @@ from schema_to.cst.openapi import (
     ServerVariable,
     Tag,
 )
-from schema_to.errors import ParseError, SchemaValidationError, TranspilationError
-from schema_to.parse._utils import extract, loc, ptr
+from schema_to.errors import ParseError, SchemaValidationError, SourceLocation, TranspilationError
+from schema_to.parse._utils import extract, ptr
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.pipeline import DocumentParser
 from schema_to.result import Err, Ok, Result
@@ -42,9 +42,10 @@ from schema_to.result import Err, Ok, Result
 __all__ = ["OpenApiParser"]
 
 _HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
+loc = SourceLocation
 
 
-class OpenApiParser(DocumentParser[OpenApiDocument]):  # FIXME
+class OpenApiParser(DocumentParser[OpenApiRawDocument, OpenApiDocument]):
     """Parses JSON or YAML bytes into an `OpenApiDocument` CST.
 
     Accepts documents whose root object contains an `"openapi"` field starting
@@ -69,7 +70,9 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):  # FIXME
                     "OpenAPI document must be a JSON object.", location=loc(input.source_id, "")
                 )
             )
-        return self._build_document(data, source_id=input.source_id, display_name=input.display_name)
+        return self._build_document(
+            data, source_id=input.source_id, display_name=input.display_name
+        )
 
     # -- Document root -------------------------------------------------------
 
@@ -264,9 +267,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):  # FIXME
                     default=vdata.get("default", "")
                     if isinstance(vdata.get("default"), str)
                     else "",
-                    enum=list(vdata["enum"])
-                    if isinstance(vdata.get("enum"), list)
-                    else None,
+                    enum=list(vdata["enum"]) if isinstance(vdata.get("enum"), list) else None,
                     description=vdata.get("description")
                     if isinstance(vdata.get("description"), str)
                     else None,
@@ -274,9 +275,7 @@ class OpenApiParser(DocumentParser[OpenApiDocument]):  # FIXME
                 )
         return Server(
             url=url,
-            description=s.get("description")
-            if isinstance(s.get("description"), str)
-            else None,
+            description=s.get("description") if isinstance(s.get("description"), str) else None,
             variables=variables,
             extensions={k: v for k, v in s.items() if k.startswith("x-")},
         )

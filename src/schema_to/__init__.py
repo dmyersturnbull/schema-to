@@ -55,15 +55,10 @@ from schema_to.errors import (
 from schema_to.generate.pydantic import PydanticGenerator
 from schema_to.generate.sql import PostgresGenerator
 from schema_to.io.file import DirectoryDataSource, FileDataSink, FileDataSource
+from schema_to.io.media_type import MediaType, MediaTypeParam, MediaTypes
 from schema_to.io.memory import InMemoryDataSink, InMemoryDataSource
 from schema_to.io.sink import DataSink, OutputArtifact
-from schema_to.io.source import (
-    DataSource,
-    JsonSchemaRawDocument,
-    OpenApiRawDocument,
-    RawDocument,
-)
-from schema_to.io.media_type import MediaType, MediaTypes, MediaTypeParam
+from schema_to.io.source import DataSource, JsonSchemaRawDocument, OpenApiRawDocument, RawDocument
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.parse.openapi import OpenApiParser
 from schema_to.pipeline import Pipeline, ProcessSummary, Transpiler, TypedTranspiler

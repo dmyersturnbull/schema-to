@@ -14,7 +14,6 @@ if TYPE_CHECKING:
 
 
 class ReadError(Exception):
-
     def __init__(self, msg: str, *, line: int | None = None, column: int | None = None) -> None:
         super().__init__(msg)
         self.line = line
@@ -22,14 +21,12 @@ class ReadError(Exception):
 
 
 class WriteError(Exception):
-
     def __init__(self, msg: str) -> None:
         super().__init__(msg)
 
 
 @dataclass(frozen=True, slots=True)
 class JsonLikeReader:
-
     def read(self, text: str | bytes, media_type: MediaType) -> JsonValue:
         if media_type == MediaTypes.yaml:
             return YamlReader().read(text)
@@ -41,7 +38,6 @@ class JsonLikeReader:
 
 @dataclass(frozen=True, slots=True)
 class YamlReader:
-
     def read(self, text: str | bytes) -> JsonValue:
         if isinstance(text, bytes):
             text = text.decode("utf-8")
@@ -53,7 +49,6 @@ class YamlReader:
 
 @dataclass(frozen=True, slots=True)
 class YamlWriter:
-
     def write(self, data: JsonValue) -> JsonValue:
         try:
             return format_yaml(data)
@@ -63,7 +58,6 @@ class YamlWriter:
 
 @dataclass(frozen=True, slots=True)
 class JsonReader:
-
     def read(self, text: str | bytes) -> JsonValue:
         try:
             return orjson.loads(text)
@@ -73,7 +67,6 @@ class JsonReader:
 
 @dataclass(frozen=True, slots=True)
 class JsonWriter:
-
     pretty: bool = False
 
     def write(self, data: JsonValue) -> JsonValue:

@@ -5,18 +5,25 @@ Invoked as `schema-to <command> [options]` or `python -m schema_to`.
 
 from __future__ import annotations
 
-import enum
-from enum import StrEnum
+from collections.abc import Iterator
+from enum import StrEnum, auto
 from pathlib import Path
-from typing import Annotated, Final, Literal, override
+from typing import TYPE_CHECKING, Annotated, Final, Literal, override
 
-import typer
+from typer import Argument, Exit, Option, Typer, echo
 
-from schema_to.io.file import DirectoryDataSource, FileDataSink, FileDataSource
-from schema_to import MediaTypes
+from schema_to.io.file import (
+    DirectoryDataSource,
+    FileDataSink,
+    FileDataSource,
+    FileDataSourceFactory,
+)
 from schema_to.pipeline import Pipeline
 from schema_to.result import Err, Ok
 from schema_to.transpile.pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
+
+if TYPE_CHECKING:
+    from schema_to import DataSource
 
 
 class CliEnum(StrEnum):
@@ -27,20 +34,20 @@ class CliEnum(StrEnum):
 
 
 class JsonschemaTarget(CliEnum):
-    POSTGRES = enum.auto()
-    TYPESCRIPT = enum.auto()
-    DATACLASS = enum.auto()
-    PYDANTIC = enum.auto()
-    COMMONMARK = enum.auto()
+    POSTGRES = auto()
+    TYPESCRIPT = auto()
+    DATACLASS = auto()
+    PYDANTIC = auto()
+    COMMONMARK = auto()
 
 
 class OpenapiTarget(CliEnum):
-    FASTAPI = enum.auto()
-    COMMONMARK = enum.auto()
+    FASTAPI = auto()
+    COMMONMARK = auto()
 
 
 CWD: Final = Path.cwd()
-app = typer.Typer(
+app = Typer(
     name="schema-to",
     help="Transpile JSON Schema 2020-12 and OpenAPI 3.1 into code and SQL.",
     no_args_is_help=True,
@@ -49,53 +56,41 @@ app = typer.Typer(
 
 @app.command()
 def transpile(
-    source: Annotated[
-        list[str], typer.Argument(help="Input sources: file paths, directory paths, or URLs.")
-    ],
+    paths: Annotated[list[Path], Argument(help="Input file and/or directory paths.")],
     *,
-    output: Annotated[Path, typer.Option("-o", "--output", help="Output directory.")] = CWD,
+    recursive: Annotated[
+        bool, Option("-r", "--recursive", help="Search for input files in subdirectories")
+    ],
+    output: Annotated[Path, Option("-o", "--output", help="Output directory.")] = CWD,
     to: Annotated[
         JsonschemaTarget | OpenapiTarget | Literal["pass-thru"],
-        typer.Option("-t", "--to", help="Target format."),
+        Option("-t", "--to", help="Target format."),
     ] = "pass-thru",
     yaml: Annotated[
-        bool, typer.Option("--yaml/--json", help="Emit YAML instead of pretty JSON.")
+        bool, Option("--yaml/--json", help="Emit YAML instead of pretty JSON.")
     ] = False,
 ) -> None:
     """Transpile one or more schema sources into the requested target formats."""
-    if to != "pass-thru":
-        typer.echo(f"Target '{to}' is not yet implemented.", err=True)
-        raise typer.Exit(1)
-
-    sources = []
-    for s in source:
-        p = Path(s)
-        if p.is_dir():
-            sources.append(
-                DirectoryDataSource(p, media_type=MediaTypes.json if not yaml else MediaTypes.yaml)
-            )
-        else:
-            sources.append(FileDataSource(p))
-
+    sources = FileDataSourceFactory(recursive=recursive)(paths)
+    # FIXME: Choose the correct target.
     transpilers = [
         OpenApiPassThruTranspiler(use_yaml=yaml),
         JsonSchemaPassThruTranspiler(use_yaml=yaml),
     ]
     sink = FileDataSink(output)
     pipeline = Pipeline(sources=sources, transpilers=transpilers, sink=sink)
-
     match pipeline.process():
         case Ok(summary):
-            typer.echo(
+            echo(
                 f"Wrote {summary.artifacts_written} artifact(s) from "
                 f"{summary.documents_read} document(s)."
             )
             for w in summary.warnings:
-                typer.echo(f"warning: {w.message}", err=True)
+                echo(f"warning: {w.message}", err=True)
         case Err(errors):
             for e in errors:
-                typer.echo(f"error: {e.message}", err=True)
-            raise typer.Exit(1)
+                echo(f"error: {e.message}", err=True)
+            raise Exit(1)
 
 
 def cli() -> None:

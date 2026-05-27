@@ -15,7 +15,7 @@ __all__ = ["InMemoryDataSink", "InMemoryDataSource"]
 
 
 @dataclass
-class InMemoryDataSource[T : RawDocument](DataSource[T]):
+class InMemoryDataSource[T: RawDocument](DataSource[T]):
     """A `DataSource` backed by an in-memory list of `RawDocument`s."""
 
     _documents: list[T] = field(default_factory=list)
@@ -32,7 +32,7 @@ class InMemoryDataSource[T : RawDocument](DataSource[T]):
 
 
 @dataclass
-class InMemoryDataSink[T : OutputArtifact](DataSink[T]):
+class InMemoryDataSink[T: OutputArtifact](DataSink[T]):
     """A `DataSink` that accumulates `OutputArtifact`s in memory."""
 
     _artifacts: list[T] = field(default_factory=list)

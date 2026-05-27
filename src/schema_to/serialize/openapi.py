@@ -248,7 +248,9 @@ class OpenApiSerializer:
         if comp.parameters:
             out["parameters"] = {k: self._parameter(v) for k, v in comp.parameters.items()}
         if comp.request_bodies:
-            out["requestBodies"] = {k: self._request_body(v) for k, v in comp.request_bodies.items()}
+            out["requestBodies"] = {
+                k: self._request_body(v) for k, v in comp.request_bodies.items()
+            }
         if comp.headers:
             out["headers"] = {k: self._header(v) for k, v in comp.headers.items()}
         if comp.security_schemes:

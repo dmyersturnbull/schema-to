@@ -10,12 +10,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from schema_to import MediaType
+    from schema_to import MediaType, MediaTypes
 
 __all__ = ["DataSink", "OutputArtifact"]
 
@@ -34,11 +34,36 @@ class OutputArtifact(ABC):
 
     artifact_id: str
     content: bytes
-    media_type: MediaType
     source_ids: tuple[str, ...] = ()
+    media_type: ClassVar[MediaType]
 
 
-class DataSink[T : OutputArtifact](ABC):
+# TODO: Where should we put these concrete types?
+
+
+# TODO: What about YAML?
+@dataclass(frozen=True, slots=True)
+class JsonOutputArtifact(OutputArtifact):
+    """A `.json` file."""
+
+    media_type: ClassVar[MediaType] = MediaTypes.json
+
+
+@dataclass(frozen=True, slots=True)
+class PythonOutputArtifact(OutputArtifact):
+    """A `.py` file."""
+
+    media_type: ClassVar[MediaType] = MediaTypes.python
+
+
+@dataclass(frozen=True, slots=True)
+class SqlOutputArtifact(OutputArtifact):
+    """A `.sql` file."""
+
+    media_type: ClassVar[MediaType] = MediaTypes.sql
+
+
+class DataSink[T: OutputArtifact](ABC):
     """An abstract destination for output artifacts produced by the pipeline."""
 
     @property

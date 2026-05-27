@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from schema_to.io.core import JsonReader, JsonWriter, YamlReader, YamlWriter
 from schema_to import MediaType, MediaTypes
+from schema_to.io.core import JsonReader, JsonWriter, YamlReader, YamlWriter
 
 if TYPE_CHECKING:
     from schema_to.io.source import RawDocument
@@ -32,5 +32,5 @@ def peek_is_openapi(document: RawDocument) -> bool:
         else:
             data = YamlReader().read(document.content.decode("utf-8"))
         return isinstance(data, dict) and isinstance(data.get("openapi"), str)
-    except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
+    except json.JSONDecodeError, ValueError, UnicodeDecodeError:
         return False

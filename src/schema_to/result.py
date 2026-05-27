@@ -9,7 +9,7 @@ short-circuits on the first failure.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, final, Self
+from typing import TYPE_CHECKING, Self, final
 
 if TYPE_CHECKING:
     from collections.abc import Callable

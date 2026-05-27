@@ -119,7 +119,9 @@ class _ComposedStage[A, B, C](Stage):
 class _MappedErrorStage[A, B](Stage):
     """Internal: result of `Stage.map_error()`."""
 
-    def __init__(self, /, first: Stage[A, B], if_error: Callable[[TranspilationError], TranspilationError]) -> None:
+    def __init__(
+        self, /, first: Stage[A, B], if_error: Callable[[TranspilationError], TranspilationError]
+    ) -> None:
         self.inner = first
         self.if_error = if_error
 
@@ -149,7 +151,7 @@ class _RecoverStage[A, B](Stage):
 # ---------------------------------------------------------------------------
 
 
-class DocumentParser[T : RawDocument, CstT: CstNode](Stage[T, CstT]):
+class DocumentParser[T: RawDocument, CstT: CstNode](Stage[T, CstT]):
     """Parses a `RawDocument` into a typed `CstT`.
 
     A parser is responsible for:
@@ -208,7 +210,7 @@ class Generator[CstT: CstNode, AstT: AstNode](Stage[CstT, AstT]):
         raise NotImplementedError
 
 
-class Reifier[AstT: AstNode](Stage[AstT, Sequence[OutputArtifact]]):
+class Reifier[AstT: AstNode, O: OutputArtifact](Stage[AstT, Sequence[O]]):
     """Serialises an `AstT` into one or more `OutputArtifact`s.
 
     A single AST root (e.g. `PythonModule`) typically produces one artifact,
@@ -217,7 +219,7 @@ class Reifier[AstT: AstNode](Stage[AstT, Sequence[OutputArtifact]]):
     """
 
     @abstractmethod
-    def apply(self, input: AstT) -> Result[Sequence[OutputArtifact]]:
+    def apply(self, input: AstT) -> Result[Sequence[O]]:
         raise NotImplementedError
 
 
@@ -226,7 +228,7 @@ class Reifier[AstT: AstNode](Stage[AstT, Sequence[OutputArtifact]]):
 # ---------------------------------------------------------------------------
 
 
-class Transpiler[T : RawDocument](ABC):
+class Transpiler[T: RawDocument, O: OutputArtifact](ABC):
     """Type-erased base for a complete single-document transpilation unit.
 
     A `Transpiler` accepts a `RawDocument` and produces zero or more
@@ -245,7 +247,7 @@ class Transpiler[T : RawDocument](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def transpile(self, document: T) -> Result[Sequence[OutputArtifact]]:
+    def transpile(self, document: T) -> Result[Sequence[O]]:
         """Run the full parse → resolve → generate → reify pipeline."""
         raise NotImplementedError
 
@@ -255,7 +257,9 @@ class Transpiler[T : RawDocument](ABC):
         return ()
 
 
-class TypedTranspiler[T : RawDocument, CstT: CstNode, AstT: AstNode](Transpiler):
+class TypedTranspiler[T: RawDocument, O: OutputArtifact, CstT: CstNode, AstT: AstNode](
+    Transpiler[T, O]
+):
     """A fully typed transpiler with individually-overridable stage methods.
 
     Subclasses override `parse`, `resolve`, `generate`, and `reify`; the
@@ -263,7 +267,9 @@ class TypedTranspiler[T : RawDocument, CstT: CstNode, AstT: AstNode](Transpiler)
 
     Example:
         ```python
-        class JsonSchemaToSqlTranspiler(TypedTranspiler[RawJsonSchemaDocument, JsonSchemaDocument, SqlScript]):
+        class JsonSchemaToSqlTranspiler(
+            TypedTranspiler[RawJsonSchemaDocument, JsonSchemaDocument, SqlScript]
+        ):
             def accepts(self, doc):
                 return doc.media_type == MediaType.json()
 
@@ -297,11 +303,11 @@ class TypedTranspiler[T : RawDocument, CstT: CstNode, AstT: AstNode](Transpiler)
         raise NotImplementedError
 
     @abstractmethod
-    def reify(self, ast: AstT) -> Result[Sequence[OutputArtifact]]:
+    def reify(self, ast: AstT) -> Result[Sequence[O]]:
         """Stage 4: serialise the AST to output bytes."""
         raise NotImplementedError
 
-    def transpile(self, document: T) -> Result[Sequence[OutputArtifact]]:
+    def transpile(self, document: T) -> Result[Sequence[O]]:
         """Run all four stages sequentially, short-circuiting on any `Err`."""
         r1 = self.parse(document)
         if isinstance(r1, Err):
@@ -336,7 +342,7 @@ class ProcessSummary:
 
 
 @dataclass
-class Pipeline[T : RawDocument]:
+class Pipeline[T: RawDocument, O: OutputArtifact]:
     """Immutable transpilation pipeline.
 
     A `Pipeline` is configured once — sources, transpilers, and sink — and
@@ -366,8 +372,8 @@ class Pipeline[T : RawDocument]:
     """
 
     sources: Sequence[DataSource[T]]
-    transpilers: Sequence[Transpiler]
-    sink: DataSink
+    transpilers: Sequence[Transpiler[T, O]]
+    sink: DataSink[O]
 
     def process(self) -> Result[ProcessSummary]:
         """Execute the pipeline: read all sources, transpile, write to sink.

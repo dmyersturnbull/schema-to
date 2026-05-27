@@ -22,8 +22,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import referencing
-import referencing.exceptions
 from referencing import Registry, Resource
+from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
 
 from schema_to.cst.json_schema import BooleanSchema, JsonSchema, JsonSchemaDocument, ObjectSchema
@@ -157,8 +157,8 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
 
         try:
             ref_resolver = self._registry.resolver(base_uri=input.source_id)
-        except referencing.exceptions.Unresolvable as exc:
-            return Err((ResolutionError(str(exc), location=_loc(input.source_id, "")),))
+        except Unresolvable as exc:
+            return Err((ResolutionError(str(exc), location=SourceLocation(input.source_id, "")),))
 
         errors: list[TranspilationError] = []
         self._check_refs(
@@ -214,7 +214,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         self,
         schema: JsonSchema,
         *,
-        ref_resolver: referencing.Resolver,
+        ref_resolver: referencing.Resolver,  # TODO: There is no `referencing.Resolver`.
         source_id: str,
         errors: list[TranspilationError],
     ) -> None:
@@ -222,12 +222,12 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
             return
 
         pointer = schema.source_ref.json_pointer if schema.source_ref else ""
-        loc = _loc(source_id, pointer)
+        loc = SourceLocation(source_id, pointer)
 
         if schema.ref:
             try:
                 ref_resolver.lookup(schema.ref)
-            except referencing.exceptions.Unresolvable as exc:
+            except Unresolvable as exc:
                 errors.append(
                     ResolutionError(f"Cannot resolve $ref {schema.ref!r}: {exc}", location=loc)
                 )
@@ -235,7 +235,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         if schema.dynamic_ref:
             try:
                 ref_resolver.lookup(schema.dynamic_ref)
-            except referencing.exceptions.Unresolvable as exc:
+            except Unresolvable as exc:
                 errors.append(
                     ResolutionError(
                         f"Cannot resolve $dynamicRef {schema.dynamic_ref!r}: {exc}", location=loc
@@ -248,8 +248,8 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
             try:
                 resolved = ref_resolver.lookup(schema.id)
                 current_resolver = resolved.resolver
-            except referencing.exceptions.Unresolvable:
-                pass
+            except Unresolvable:
+                pass  # FIXME
 
         for _, sub_schema in _iter_sub_schemas(schema, pointer):
             self._check_refs(
@@ -278,7 +278,3 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         if doc_uri in self._docs:
             return doc_uri
         return self._id_to_source.get(doc_uri)
-
-
-def _loc(source_id: str, pointer: str) -> SourceLocation:
-    return SourceLocation(source_id=source_id, json_pointer=pointer)

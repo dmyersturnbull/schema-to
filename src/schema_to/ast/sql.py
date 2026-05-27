@@ -42,8 +42,8 @@ __all__ = [
 # Enumerations
 # ---------------------------------------------------------------------------
 
-class _SqlEnum(StrEnum):
 
+class _SqlEnum(StrEnum):
     @staticmethod
     @override
     def _generate_next_value_(name: str, start: int, count: int, last_values: list[str]) -> str:
