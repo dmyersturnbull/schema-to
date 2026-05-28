@@ -1,7 +1,7 @@
 """Shared primitives for all CST modules.
 
 Every node in every CST carries a `SourceRef` that links it back to its origin
-in a `RawDocument`, enabling precise error messages and source-map generation.
+in a `RawDoc`, enabling precise error messages and source-map generation.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ class SourceRef:
     """A provenance link from a CST node back to its origin.
 
     Attributes:
-        source_id: Identifier matching `RawDocument.source_id`.
+        source_id: Identifier matching `RawDoc.source_id`.
         json_pointer: [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901) pointer
             locating this node within the parsed document tree.
     """

@@ -9,7 +9,7 @@ from schema_to import MediaType, MediaTypes
 from schema_to.io.core import JsonReader, JsonWriter, YamlReader, YamlWriter
 
 if TYPE_CHECKING:
-    from schema_to.io.source import RawDocument
+    from schema_to.io.source import RawDoc
 
 JSON_YAML_ESSENCES: frozenset[str] = frozenset(
     {"application/json", "application/yaml", "text/yaml"}
@@ -22,7 +22,7 @@ def encode(data: object, *, use_yaml: bool) -> tuple[bytes, MediaType]:
     return JsonWriter(pretty=True).write(data).encode("utf-8"), MediaTypes.json  # type: ignore[arg-type]
 
 
-def peek_is_openapi(document: RawDocument) -> bool:
+def peek_is_openapi(document: RawDoc) -> bool:
     """Return `True` if the document root object has an `openapi` version string."""
     if document.media_type.essence not in JSON_YAML_ESSENCES:
         return False

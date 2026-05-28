@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.os_errors import PathMissingError, TypedNotADirectoryError
-from schema_to.io.sink import DataSink, OutputArtifact
-from schema_to.io.source import DataSource, RawDocument
+from schema_to.io.sink import DataSink, Artifact
+from schema_to.io.source import DataSource, RawDoc
 
 if TYPE_CHECKING:
     from schema_to.io.media_type import MediaType
@@ -39,8 +39,8 @@ class FileDataSource(DataSource):
     def source_id(self) -> str:
         return self.path.as_uri()
 
-    def documents(self) -> Iterator[RawDocument]:
-        yield RawDocument(
+    def documents(self) -> Iterator[RawDoc]:
+        yield RawDoc(
             source_id=self.path.as_uri(),
             content=self.path.read_bytes(),
             media_type=self.media_type,
@@ -50,10 +50,14 @@ class FileDataSource(DataSource):
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class FileDataSourceFactory(Callable[[Sequence[Path]], Iterator[DataSource]]):
+class FileDataSourceFactory[I : RawDoc]:
+
     recursive: bool
 
-    def __call__(self, paths: Sequence[Path]) -> Iterator[DataSource]:
+    def get(self, paths: Sequence[Path]) -> Sequence[DataSource[I]]:
+        return list(self._get(paths))
+
+    def _get(self, paths: Sequence[Path]) -> Iterator[DataSource[I]]:
         for p in paths:
             if p.is_dir():
                 yield DirectoryDataSource(p, recursive=self.recursive)
@@ -101,9 +105,9 @@ class DirectoryDataSource(DataSource):
     def source_id(self) -> str:
         return self.root.as_uri()
 
-    def documents(self) -> Iterator[RawDocument]:
+    def documents(self) -> Iterator[RawDoc]:
         for path in self.paths:
-            yield RawDocument(
+            yield RawDoc(
                 source_id=path.as_uri(),
                 content=path.read_bytes(),
                 media_type=MediaTypes.from_input_suffix(path.suffix),
@@ -113,8 +117,8 @@ class DirectoryDataSource(DataSource):
 
 
 @dataclass(frozen=True, slots=True)
-class FileDataSink(DataSink):
-    """A `DataSink` that writes each `OutputArtifact` as a file under a root directory.
+class FileDataSink[O : Artifact](DataSink[O]):
+    """A `DataSink` that writes each `Artifact` as a file under a root directory.
 
     `artifact.artifact_id` is treated as a relative path from `root`.  Parent
     directories are created automatically when `create_dirs` is `True`.
@@ -129,7 +133,7 @@ class FileDataSink(DataSink):
     def sink_id(self) -> str:
         return self.root.as_uri()
 
-    def write(self, artifact: OutputArtifact) -> None:
+    def write(self, artifact: O) -> None:
         dest = self.root / artifact.artifact_id
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(artifact.content)

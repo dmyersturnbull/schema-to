@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to.generate.pydantic import PydanticGenerator
-from schema_to.io.source import JsonSchemaRawDocument, RawDocument
+from schema_to.generate.pydantic import PydanticTransformer
+from schema_to.io.source import JsonSchemaRawDoc, RawDoc
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.pipeline import Transpiler
 from schema_to.reify.python import PythonReifier
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from schema_to.ast.python import PythonModule
     from schema_to.cst.json_schema import JsonSchemaDocument
     from schema_to.errors import TranspilationWarning
-    from schema_to.io.sink import OutputArtifact
+    from schema_to.io.sink import Artifact
 
 __all__ = ["JsonSchemaToPydanticTranspiler"]
 
@@ -45,7 +45,7 @@ class JsonSchemaToPydanticTranspiler(Transpiler):
 
     parser: JsonSchemaParser = field(default_factory=JsonSchemaParser)
     resolver: JsonSchemaRefResolver = field(default_factory=JsonSchemaRefResolver)
-    generator: PydanticGenerator = field(default_factory=PydanticGenerator)
+    generator: PydanticTransformer = field(default_factory=PydanticTransformer)
     reifier: PythonReifier = field(default_factory=lambda: PythonReifier(artifact_name="models.py"))
     output_name: str = "models.py"
 
@@ -53,12 +53,12 @@ class JsonSchemaToPydanticTranspiler(Transpiler):
     def warnings(self) -> Sequence[TranspilationWarning]:
         return list(self.generator.warnings)
 
-    def accepts(self, document: RawDocument) -> bool:
-        return isinstance(document, JsonSchemaRawDocument)
+    def accepts(self, doc: RawDoc) -> bool:
+        return isinstance(doc, JsonSchemaRawDoc)
 
-    def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
+    def transpile(self, doc: RawDoc) -> Result[Sequence[Artifact]]:
         # Stage 1: parse
-        r1 = self.parser.apply(document)
+        r1 = self.parser.apply(doc)
         if isinstance(r1, Err):
             return r1
         cst: JsonSchemaDocument = r1.value
@@ -69,7 +69,7 @@ class JsonSchemaToPydanticTranspiler(Transpiler):
             return r2
 
         # Stage 3: generate
-        gen = PydanticGenerator(resolver=self.resolver)
+        gen = PydanticTransformer(resolver=self.resolver)
         r3 = gen.apply(r2.value)
         if isinstance(r3, Err):
             return r3

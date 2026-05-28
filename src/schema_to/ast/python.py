@@ -283,7 +283,7 @@ class PythonModule(AstNode):
     Attributes:
         imports: Import statements, emitted before any declarations.
         declarations: Top-level declarations in emission order.
-        source_ids: Source `RawDocument` identifiers that produced this module.
+        source_ids: Source `RawDoc` identifiers that produced this module.
         module_doc: Module-level docstring.
     """
 

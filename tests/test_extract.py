@@ -6,13 +6,13 @@ import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import openapi_doc_st
 
-from schema_to import JsonSchemaParser, MediaTypes, Ok, OpenApiExtractTranspiler, RawDocument
+from schema_to import JsonSchemaParser, MediaTypes, Ok, OpenApiExtractTranspiler, RawDoc
 
 _JS_PARSER = JsonSchemaParser()
 
 
-def _make_json_doc(data: object, source_id: str = "test://doc") -> RawDocument:
-    return RawDocument(
+def _make_json_doc(data: object, source_id: str = "test://doc") -> RawDoc:
+    return RawDoc(
         source_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,

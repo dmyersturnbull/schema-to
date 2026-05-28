@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 from schema_to.cst.base import SourceRef
 from schema_to.cst.json_schema import JsonSchemaDocument
-from schema_to.io.sink import OutputArtifact
-from schema_to.io.source import OpenApiRawDocument, RawDocument
+from schema_to.io.sink import Artifact
+from schema_to.io.source import OpenApiRawDoc, RawDoc
 from schema_to.parse.openapi import OpenApiParser
 from schema_to.pipeline import Transpiler
 from schema_to.result import Err, Ok, Result
@@ -25,7 +25,7 @@ __all__ = ["OpenApiExtractTranspiler"]
 class OpenApiExtractTranspiler(Transpiler):
     """Extract `components/schemas` from an OpenAPI document as standalone JSON Schema files.
 
-    Each named schema in `components/schemas` becomes a separate `OutputArtifact`
+    Each named schema in `components/schemas` becomes a separate `Artifact`
     with `artifact_id` equal to `<schema-name>.schema.json` (or `.yaml`).
 
     Attributes:
@@ -38,32 +38,32 @@ class OpenApiExtractTranspiler(Transpiler):
     js_serializer: JsonSchemaSerializer = field(default_factory=JsonSchemaSerializer)
     use_yaml: bool = False
 
-    def accepts(self, document: RawDocument) -> bool:
-        return isinstance(document, OpenApiRawDocument)
+    def accepts(self, doc: RawDoc) -> bool:
+        return isinstance(doc, OpenApiRawDoc)
 
-    def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
-        result = self.parser.apply(document)
+    def transpile(self, doc: RawDoc) -> Result[Sequence[Artifact]]:
+        result = self.parser.apply(doc)
         if isinstance(result, Err):
             return result
         cst = result.value
-        artifacts: list[OutputArtifact] = []
+        artifacts: list[Artifact] = []
         ext = ".yaml" if self.use_yaml else ".json"
 
         for name, schema in cst.components.schemas.items():
             doc_cst = JsonSchemaDocument(
                 root=schema,
-                source_id=document.source_id,
+                source_id=doc.source_id,
                 display_name=name,
-                source_ref=SourceRef(document.source_id, f"/components/schemas/{name}"),
+                source_ref=SourceRef(doc.source_id, f"/components/schemas/{name}"),
             )
             data = self.js_serializer.serialize_document(doc_cst)
             content, media_type = encode(data, use_yaml=self.use_yaml)
             artifacts.append(
-                OutputArtifact(
+                Artifact(
                     artifact_id=f"{name}.schema{ext}",
                     content=content,
                     media_type=media_type,
-                    source_ids=(document.source_id,),
+                    source_ids=(doc.source_id,),
                 )
             )
 

@@ -1,6 +1,6 @@
 """Abstract data-source types.
 
-A `DataSource` is an abstract, lazily-iterable supplier of `RawDocument`s.
+A `DataSource` is an abstract, lazily-iterable supplier of `RawDoc`s.
 Concrete implementations may represent a single file, a directory tree,
 an HTTP endpoint, an in-memory buffer, or any other origin — the pipeline
 never assumes a filesystem is present.
@@ -12,20 +12,20 @@ from abc import ABC, abstractmethod
 from dataclasses import KW_ONLY, dataclass
 from typing import TYPE_CHECKING
 
-from schema_to.io.media_type import MediaType
-
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-__all__ = ["DataSource", "JsonSchemaRawDocument", "OpenApiRawDocument", "RawDocument"]
+    from schema_to.io.media_type import MediaType
+
+__all__ = ["DataSource", "JsonSchemaRawDoc", "OpenApiRawDoc", "RawDoc"]
 
 
 @dataclass(frozen=True, slots=True)
-class RawDocument:
+class RawDoc:
     """An unparsed document together with its provenance metadata.
 
     The pipeline never reads files directly; every document arrives through
-    a `DataSource` as a `RawDocument`, decoupling I/O from transformation.
+    a `DataSource` as a `RawDoc`, decoupling I/O from transformation.
 
     Attributes:
         source_id: Globally unique, opaque identifier
@@ -49,16 +49,16 @@ class RawDocument:
 
 
 @dataclass(frozen=True, slots=True)
-class JsonSchemaRawDocument(RawDocument):
-    """A `RawDocument` known to contain a JSON Schema 2020-12 document."""
+class JsonSchemaRawDoc(RawDoc):
+    """A `RawDoc` known to contain a JSON Schema 2020-12 document."""
 
 
 @dataclass(frozen=True, slots=True)
-class OpenApiRawDocument(RawDocument):
-    """A `RawDocument` known to contain an OpenAPI 3.1 document."""
+class OpenApiRawDoc(RawDoc):
+    """A `RawDoc` known to contain an OpenAPI 3.1 document."""
 
 
-class DataSource[T: RawDocument](ABC):
+class DataSource[T: RawDoc](ABC):
     """A lazily-iterable supplier of raw documents.
 
     A single `DataSource` may yield any number of documents: zero (empty),

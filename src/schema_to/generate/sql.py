@@ -47,7 +47,7 @@ from schema_to.cst.json_schema import (
 )
 from schema_to.errors import GenerationError, SourceLocation, TranspilationWarning
 from schema_to.generate._names import safe_sql_identifier
-from schema_to.pipeline import Generator
+from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
@@ -56,7 +56,7 @@ if TYPE_CHECKING:
     from schema_to.core import JsonValue
     from schema_to.resolve.json_schema import JsonSchemaRefResolver
 
-__all__ = ["PostgresGenerator"]
+__all__ = ["PostgresTransformer"]
 
 # ---------------------------------------------------------------------------
 # Type dispatch table for simple (non-string, non-array) types
@@ -161,7 +161,7 @@ def _string_type(schema: ObjectSchema) -> DataType:  # noqa: PLR0911
 
 
 @dataclass
-class PostgresGenerator(Generator[JsonSchemaDocument, SqlScript]):
+class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
     """Generates a `SqlScript` with PostgreSQL DDL from a JSON Schema 2020-12 document.
 
     Object-typed root and `$defs` entries each become `CREATE TABLE` statements.

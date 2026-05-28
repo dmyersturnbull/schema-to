@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to.generate.sql import PostgresGenerator
-from schema_to.io.source import JsonSchemaRawDocument, RawDocument
+from schema_to.generate.sql import PostgresTransformer
+from schema_to.io.source import JsonSchemaRawDoc, RawDoc
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.pipeline import Transpiler
 from schema_to.reify.sql import SqlReifier
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from schema_to.ast.sql import SqlScript
     from schema_to.cst.json_schema import JsonSchemaDocument
     from schema_to.errors import TranspilationWarning
-    from schema_to.io.sink import OutputArtifact
+    from schema_to.io.sink import Artifact
 
 __all__ = ["JsonSchemaToPostgresTranspiler"]
 
@@ -44,19 +44,19 @@ class JsonSchemaToPostgresTranspiler(Transpiler):
 
     parser: JsonSchemaParser = field(default_factory=JsonSchemaParser)
     resolver: JsonSchemaRefResolver = field(default_factory=JsonSchemaRefResolver)
-    generator: PostgresGenerator = field(default_factory=PostgresGenerator)
+    generator: PostgresTransformer = field(default_factory=PostgresTransformer)
     output_name: str = "schema.sql"
 
     @property
     def warnings(self) -> Sequence[TranspilationWarning]:
         return list(self.generator.warnings)
 
-    def accepts(self, document: RawDocument) -> bool:
-        return isinstance(document, JsonSchemaRawDocument)
+    def accepts(self, doc: RawDoc) -> bool:
+        return isinstance(doc, JsonSchemaRawDoc)
 
-    def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
+    def transpile(self, doc: RawDoc) -> Result[Sequence[Artifact]]:
         # Stage 1: parse
-        r1 = self.parser.apply(document)
+        r1 = self.parser.apply(doc)
         if isinstance(r1, Err):
             return r1
         cst: JsonSchemaDocument = r1.value

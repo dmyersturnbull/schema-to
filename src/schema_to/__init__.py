@@ -19,7 +19,7 @@ match pipeline.process():
 
 | Module | Purpose |
 |--------|---------|
-| `schema_to.io.source` | `DataSource`, `DataSink`, `RawDocument`, `OutputArtifact` |
+| `schema_to.io.source` | `DataSource`, `DataSink`, `RawDoc`, `Artifact` |
 | `schema_to.cst.json_schema` | JSON Schema CST node types |
 | `schema_to.cst.openapi` | OpenAPI CST node types |
 | `schema_to.ast.python` | Python AST node types |
@@ -52,13 +52,13 @@ from schema_to.errors import (
     TranspilationError,
     TranspilationWarning,
 )
-from schema_to.generate.pydantic import PydanticGenerator
-from schema_to.generate.sql import PostgresGenerator
+from schema_to.generate.pydantic import PydanticTransformer
+from schema_to.generate.sql import PostgresTransformer
 from schema_to.io.file import DirectoryDataSource, FileDataSink, FileDataSource
 from schema_to.io.media_type import MediaType, MediaTypeParam, MediaTypes
 from schema_to.io.memory import InMemoryDataSink, InMemoryDataSource
-from schema_to.io.sink import DataSink, OutputArtifact
-from schema_to.io.source import DataSource, JsonSchemaRawDocument, OpenApiRawDocument, RawDocument
+from schema_to.io.sink import DataSink, Artifact
+from schema_to.io.source import DataSource, JsonSchemaRawDoc, OpenApiRawDoc, RawDoc
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.parse.openapi import OpenApiParser
 from schema_to.pipeline import Pipeline, ProcessSummary, Transpiler, TypedTranspiler
@@ -90,7 +90,7 @@ __all__ = [
     "JsonSchemaParser",
     # Transpilers
     "JsonSchemaPassThruTranspiler",
-    "JsonSchemaRawDocument",
+    "JsonSchemaRawDoc",
     # Resolver
     "JsonSchemaRefResolver",
     # Serializers
@@ -105,19 +105,19 @@ __all__ = [
     "OpenApiExtractTranspiler",
     "OpenApiParser",
     "OpenApiPassThruTranspiler",
-    "OpenApiRawDocument",
+    "OpenApiRawDoc",
     "OpenApiSerializer",
-    "OutputArtifact",
+    "Artifact",
     "ParseError",
     # Pipeline
     "Pipeline",
     # Generators
-    "PostgresGenerator",
+    "PostgresTransformer",
     "ProcessSummary",
-    "PydanticGenerator",
+    "PydanticTransformer",
     # Reifiers
     "PythonReifier",
-    "RawDocument",
+    "RawDoc",
     "ReificationError",
     "ResolutionError",
     "Result",

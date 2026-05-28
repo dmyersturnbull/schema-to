@@ -11,8 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to.io.sink import OutputArtifact
-from schema_to.io.source import JsonSchemaRawDocument, OpenApiRawDocument, RawDocument
+from schema_to.io.sink import Artifact
+from schema_to.io.source import JsonSchemaRawDoc, OpenApiRawDoc, RawDoc
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.parse.openapi import OpenApiParser
 from schema_to.pipeline import Transpiler
@@ -41,24 +41,24 @@ class JsonSchemaPassThruTranspiler(Transpiler):
     serializer: JsonSchemaSerializer = field(default_factory=JsonSchemaSerializer)
     use_yaml: bool = False
 
-    def accepts(self, document: JsonSchemaRawDocument) -> bool:
-        return isinstance(document, JsonSchemaRawDocument)
+    def accepts(self, doc: JsonSchemaRawDoc) -> bool:
+        return isinstance(doc, JsonSchemaRawDoc)
 
-    def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
-        result = self.parser.apply(document)
+    def transpile(self, doc: RawDoc) -> Result[Sequence[Artifact]]:
+        result = self.parser.apply(doc)
         if isinstance(result, Err):
             return result
         data = self.serializer.serialize_document(result.value)
         content, media_type = encode(data, use_yaml=self.use_yaml)
         ext = ".yaml" if self.use_yaml else ".json"
-        stem = document.display_name or "schema"
+        stem = doc.display_name or "schema"
         return Ok(
             [
-                OutputArtifact(
+                Artifact(
                     artifact_id=f"{stem}.schema{ext}",
                     content=content,
                     media_type=media_type,
-                    source_ids=(document.source_id,),
+                    source_ids=(doc.source_id,),
                 )
             ]
         )
@@ -78,24 +78,24 @@ class OpenApiPassThruTranspiler(Transpiler):
     serializer: OpenApiSerializer = field(default_factory=OpenApiSerializer)
     use_yaml: bool = False
 
-    def accepts(self, document: RawDocument) -> bool:
-        return isinstance(document, OpenApiRawDocument)
+    def accepts(self, doc: RawDoc) -> bool:
+        return isinstance(doc, OpenApiRawDoc)
 
-    def transpile(self, document: RawDocument) -> Result[Sequence[OutputArtifact]]:
-        result = self.parser.apply(document)
+    def transpile(self, doc: RawDoc) -> Result[Sequence[Artifact]]:
+        result = self.parser.apply(doc)
         if isinstance(result, Err):
             return result
         data = self.serializer.serialize(result.value)
         content, media_type = encode(data, use_yaml=self.use_yaml)
         ext = ".yaml" if self.use_yaml else ".json"
-        stem = document.display_name or "openapi"
+        stem = doc.display_name or "openapi"
         return Ok(
             [
-                OutputArtifact(
+                Artifact(
                     artifact_id=f"{stem}{ext}",
                     content=content,
                     media_type=media_type,
-                    source_ids=(document.source_id,),
+                    source_ids=(doc.source_id,),
                 )
             ]
         )

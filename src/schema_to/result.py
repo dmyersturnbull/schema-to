@@ -8,23 +8,37 @@ short-circuits on the first failure.
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Self, final
+from typing import TYPE_CHECKING, Self, final, override
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from schema_to.errors import TranspilationError
 
 __all__ = ["Err", "Ok", "Result"]
 
 
+@dataclass(frozen=True, slots=True)
+class _Result(ABC):
+
+    @property
+    @abstractmethod
+    def is_ok(self) -> bool:
+        raise NotImplementedError
+
+
 @final
 @dataclass(frozen=True, slots=True)
-class Ok[T]:
+class Ok[T](_Result):
     """Successful result carrying a value of type `T`."""
 
     value: T
+
+    @classmethod
+    def of(cls, v: T) -> Self:
+        return cls(v)
 
     def map[U](self, f: Callable[[T], U]) -> Ok[U]:
         """Apply `f` to the wrapped value, returning a new `Ok`."""
@@ -35,13 +49,14 @@ class Ok[T]:
         return f(self.value)
 
     @property
+    @override
     def is_ok(self) -> bool:
         return True
 
 
 @final
 @dataclass(frozen=True, slots=True)
-class Err:
+class Err(_Result):
     """Failed result carrying at least one `TranspilationError`.
 
     Multiple errors are accumulated so callers receive a complete diagnostic
@@ -57,15 +72,19 @@ class Err:
     def of(cls, *errors: TranspilationError) -> Self:
         return cls(tuple(errors))
 
-    def map(self, f: object) -> Err:  # FIXME
+    def map[T, U](self, f: Callable[[T], U]) -> Err:
         return self
 
-    def flat_map(self, f: object) -> Err:  # FIXME
+    def flat_map[T, U](self, f: Callable[[T], Ok[U] | Err]) -> Err:
         return self
 
     @property
+    @override
     def is_ok(self) -> bool:
         return False
+
+    def __add__(self, other: Err) -> Err:
+        return self.merge(other)
 
     def merge(self, other: Err) -> Err:
         """Combine two `Err` values, accumulating all errors."""

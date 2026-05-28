@@ -18,7 +18,7 @@ from schema_to import (
     Ok,
     OpenApiParser,
     OpenApiSerializer,
-    RawDocument,
+    RawDoc,
 )
 
 _JS_PARSER = JsonSchemaParser()
@@ -27,8 +27,8 @@ _OA_PARSER = OpenApiParser()
 _OA_SERIALIZER = OpenApiSerializer()
 
 
-def _make_json_doc(data: object, source_id: str = "test://doc") -> RawDocument:
-    return RawDocument(
+def _make_json_doc(data: object, source_id: str = "test://doc") -> RawDoc:
+    return RawDoc(
         source_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,

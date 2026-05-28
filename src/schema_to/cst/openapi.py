@@ -577,7 +577,7 @@ class OpenApiDocument(CstNode):
         external_docs: Additional external documentation.
         webhooks: Map of webhook name to `PathItem` (OAS 3.1 addition).
         extensions: `x-*` extension fields.
-        source_id: Matches `RawDocument.source_id`.
+        source_id: Matches `RawDoc.source_id`.
         source_ref: Points to the document root (`""`).
     """
 

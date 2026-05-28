@@ -269,7 +269,7 @@ class CreateTableStmt(AstNode):
         jsonschema_constraint: When set, emits a `pg_jsonschema` `CHECK` constraint
             validating the table's JSONB column against this JSON Schema string.
         doc: Text for a `COMMENT ON TABLE` statement.
-        source_ids: Source `RawDocument` identifiers that produced this statement.
+        source_ids: Source `RawDoc` identifiers that produced this statement.
     """
 
     table_name: str
@@ -330,7 +330,7 @@ class SqlScript(AstNode):
 
     Attributes:
         statements: SQL statements in execution order.
-        source_ids: Source `RawDocument` identifiers that produced this script.
+        source_ids: Source `RawDoc` identifiers that produced this script.
         preamble: Optional raw SQL prepended before generated statements
             (e.g. `SET search_path = myschema;`).
     """

@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to.io.sink import DataSink, OutputArtifact
-from schema_to.io.source import DataSource, RawDocument
+from schema_to.io.sink import DataSink, Artifact
+from schema_to.io.source import DataSource, RawDoc
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -15,8 +15,8 @@ __all__ = ["InMemoryDataSink", "InMemoryDataSource"]
 
 
 @dataclass
-class InMemoryDataSource[T: RawDocument](DataSource[T]):
-    """A `DataSource` backed by an in-memory list of `RawDocument`s."""
+class InMemoryDataSource[T: RawDoc](DataSource[T]):
+    """A `DataSource` backed by an in-memory list of `RawDoc`s."""
 
     _documents: list[T] = field(default_factory=list)
 
@@ -32,8 +32,8 @@ class InMemoryDataSource[T: RawDocument](DataSource[T]):
 
 
 @dataclass
-class InMemoryDataSink[T: OutputArtifact](DataSink[T]):
-    """A `DataSink` that accumulates `OutputArtifact`s in memory."""
+class InMemoryDataSink[T: Artifact](DataSink[T]):
+    """A `DataSink` that accumulates `Artifact`s in memory."""
 
     _artifacts: list[T] = field(default_factory=list)
 

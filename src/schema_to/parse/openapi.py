@@ -1,6 +1,6 @@
 """OpenAPI 3.1 document parser.
 
-Converts a `RawDocument` (JSON or YAML bytes) into an `OpenApiDocument` CST.
+Converts a `RawDoc` (JSON or YAML bytes) into an `OpenApiDocument` CST.
 Like the JSON Schema parser, this is **non-resolving**: `$ref` values are stored
 as raw strings for a later `RefResolver` stage.
 
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from schema_to import OpenApiRawDocument
+from schema_to import OpenApiRawDoc
 from schema_to.cst.base import SourceRef
 from schema_to.cst.openapi import (
     Components,
@@ -36,7 +36,7 @@ from schema_to.cst.openapi import (
 from schema_to.errors import ParseError, SchemaValidationError, SourceLocation, TranspilationError
 from schema_to.parse._utils import extract, ptr
 from schema_to.parse.json_schema import JsonSchemaParser
-from schema_to.pipeline import DocumentParser
+from schema_to.pipeline import DocParser
 from schema_to.result import Err, Ok, Result
 
 __all__ = ["OpenApiParser"]
@@ -45,7 +45,7 @@ _HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "tr
 loc = SourceLocation
 
 
-class OpenApiParser(DocumentParser[OpenApiRawDocument, OpenApiDocument]):
+class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     """Parses JSON or YAML bytes into an `OpenApiDocument` CST.
 
     Accepts documents whose root object contains an `"openapi"` field starting
@@ -56,10 +56,10 @@ class OpenApiParser(DocumentParser[OpenApiRawDocument, OpenApiDocument]):
     def __init__(self) -> None:
         self.js = JsonSchemaParser()
 
-    def accepts(self, document: OpenApiRawDocument) -> bool:
-        return isinstance(document, OpenApiRawDocument)
+    def accepts(self, doc: OpenApiRawDoc) -> bool:
+        return isinstance(doc, OpenApiRawDoc)
 
-    def apply(self, input: OpenApiRawDocument) -> Result[OpenApiDocument]:
+    def apply(self, input: OpenApiRawDoc) -> Result[OpenApiDocument]:
         try:
             data = self.js._decode(input)
         except TranspilationError as exc:

@@ -24,16 +24,16 @@ from schema_to import (
     JsonSchemaToPydanticTranspiler,
     MediaTypes,
     Ok,
-    PydanticGenerator,
+    PydanticTransformer,
     PythonReifier,
-    RawDocument,
+    RawDoc,
 )
 
 _PARSER = JsonSchemaParser()
 
 
-def _doc(data: object, source_id: str = "test://schema") -> RawDocument:
-    return RawDocument(
+def _doc(data: object, source_id: str = "test://schema") -> RawDoc:
+    return RawDoc(
         source_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,
@@ -58,7 +58,7 @@ def _parse_and_generate(data: object) -> str:
     resolver = JsonSchemaRefResolver()
     res_r = resolver.apply(cst_r.value)
     assert isinstance(res_r, Ok)
-    gen = PydanticGenerator(resolver=resolver)
+    gen = PydanticTransformer(resolver=resolver)
     ast_r = gen.apply(res_r.value)
     assert isinstance(ast_r, Ok), (
         f"Generation failed: {[getattr(e, 'message', str(e)) for e in ast_r.errors]}"
@@ -343,7 +343,7 @@ def test_title_becomes_class_name() -> None:
 
 def test_display_name_fallback() -> None:
     """When there is no title, display_name is used as a fallback."""
-    doc = RawDocument(
+    doc = RawDoc(
         source_id="test://schema",
         content=orjson.dumps({"type": "object"}),
         media_type=MediaTypes.json,
@@ -378,7 +378,7 @@ def test_boolean_true_schema_fails() -> None:
     """`true` as the root schema cannot produce a Pydantic model."""
     cst_r = _PARSER.apply(_doc(True))
     assert isinstance(cst_r, Ok)
-    gen = PydanticGenerator()
+    gen = PydanticTransformer()
     result = gen.apply(cst_r.value)
     assert isinstance(result, Err)
 
@@ -387,7 +387,7 @@ def test_boolean_false_schema_fails() -> None:
     """`false` as the root schema cannot produce a Pydantic model."""
     cst_r = _PARSER.apply(_doc(False))
     assert isinstance(cst_r, Ok)
-    gen = PydanticGenerator()
+    gen = PydanticTransformer()
     result = gen.apply(cst_r.value)
     assert isinstance(result, Err)
 

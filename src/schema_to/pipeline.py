@@ -8,7 +8,7 @@ left-to-right via `then`, short-circuiting on the first `Err`:
 ```python
 parse = JsonSchemaParser()
 resolve = JsonSchemaRefResolver()
-full: Stage[RawDocument, JsonSchemaDocument] = parse.then(resolve)
+full: Stage[RawDoc, JsonSchemaDocument] = parse.then(resolve)
 ```
 
 ## Transpiler contract
@@ -16,11 +16,11 @@ full: Stage[RawDocument, JsonSchemaDocument] = parse.then(resolve)
 A `Transpiler` bundles four ordered stages for a specific `(CstT, AstT)` pair:
 
 ```
-RawDocument
+RawDoc
   →[parse]→   CstT
   →[resolve]→ CstT   (with $ref / $dynamicRef links resolved)
   →[generate]→ AstT
-  →[reify]→   Sequence[OutputArtifact]
+  →[reify]→   Sequence[Artifact]
 ```
 
 The type-erased `accepts(document)` predicate allows a `Pipeline` to dispatch
@@ -30,9 +30,9 @@ each source document to the correct `Transpiler` at runtime.
 
 `Pipeline` is immutable once constructed.  It drives the full process:
 
-1. Iterate each `DataSource` to obtain `RawDocument`s.
+1. Iterate each `DataSource` to obtain `RawDoc`s.
 2. Dispatch each document to the first `Transpiler` that `accepts` it.
-3. Pass all `OutputArtifact`s to the shared `DataSink`.
+3. Pass all `Artifact`s to the shared `DataSink`.
 4. Return a `Result[ProcessSummary]` with counts and accumulated warnings.
 """
 
@@ -45,13 +45,13 @@ from dataclasses import dataclass
 from schema_to.ast.base import AstNode
 from schema_to.cst.base import CstNode
 from schema_to.errors import TranspilationError, TranspilationWarning
-from schema_to.io.sink import DataSink, OutputArtifact
-from schema_to.io.source import DataSource, RawDocument
+from schema_to.io.sink import DataSink, Artifact
+from schema_to.io.source import DataSource, RawDoc
 from schema_to.result import Err, Ok, Result
 
 __all__ = [
-    "DocumentParser",
-    "Generator",
+    "DocParser",
+    "Transformer",
     "Pipeline",
     "ProcessSummary",
     "RefResolver",
@@ -67,7 +67,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-class Stage[A, B](ABC):
+class Stage[X, Y](ABC):
     """A pure, composable transformation `A → Result[B]`.
 
     `Stage` forms a **category** under `then`-composition:
@@ -80,19 +80,19 @@ class Stage[A, B](ABC):
     """
 
     @abstractmethod
-    def apply(self, /, input: A) -> Result[B]:
+    def apply(self, /, input: X) -> Result[Y]:
         """Run this stage, returning `Ok[B]` on success or `Err` on failure."""
         raise NotImplementedError
 
-    def then[C](self, /, other: Stage[B, C]) -> Stage[A, C]:
+    def then[Z](self, /, other: Stage[Y, Z]) -> Stage[X, Z]:
         """Compose `self` with `other`, running `other` only if `self` succeeds."""
         return _ComposedStage(self, other)
 
-    def recover(self, /, f: Callable[[Err], A]) -> Stage[A, B]:
+    def recover(self, /, f: Callable[[Err], Result[Y]]) -> Stage[X, Y]:
         """Attempt to recover an error from `self` using `recover`."""
         return _RecoverStage(self, f)
 
-    def map_errors(self, /, f: Callable[[TranspilationError], TranspilationError]) -> Stage[A, B]:
+    def map_errors(self, /, f: Callable[[TranspilationError], TranspilationError]) -> Stage[X, Y]:
         """Transform every error produced by this stage without changing its type."""
         return _MappedErrorStage(self, f)
 
@@ -102,47 +102,47 @@ class Stage[A, B](ABC):
 # safe to define the helpers here, after `Stage`.
 
 
-class _ComposedStage[A, B, C](Stage):
+class _ComposedStage[X, Y, Z](Stage[X, Z]):
     """Internal: result of `Stage.then()`."""
 
-    def __init__(self, /, first: Stage[A, B], second: Stage[B, C]) -> None:
+    def __init__(self, /, first: Stage[X, Y], second: Stage[Y, Z]) -> None:
         self.first = first
         self.second = second
 
-    def apply(self, /, input: A) -> C:
+    def apply(self, /, input: X) -> Result[Z]:
         r = self.first.apply(input)
         if isinstance(r, Err):
             return r
         return self.second.apply(r.value)
 
 
-class _MappedErrorStage[A, B](Stage):
+class _MappedErrorStage[X, Y](Stage[X, Y]):
     """Internal: result of `Stage.map_error()`."""
 
     def __init__(
-        self, /, first: Stage[A, B], if_error: Callable[[TranspilationError], TranspilationError]
+        self, /, first: Stage[X, Y], if_error: Callable[[TranspilationError], TranspilationError]
     ) -> None:
         self.inner = first
         self.if_error = if_error
 
-    def apply(self, /, input: A) -> B:
+    def apply(self, /, input: X) -> Result[Y]:
         r = self.inner.apply(input)
         if isinstance(r, Err):
             return Err(tuple(self.if_error(e) for e in r.errors))
         return r
 
 
-class _RecoverStage[A, B](Stage):
+class _RecoverStage[X, Y](Stage[X, Y]):
     """Internal: result of `Stage.recover()`."""
 
-    def __init__(self, /, first: Stage[A, B], f: Callable[Err, B]) -> None:
+    def __init__(self, /, first: Stage[X, Y], f: Callable[[Err], Result[Y]]) -> None:
         self.first = first
         self.f = f
 
-    def apply(self, /, input: A) -> B:
+    def apply(self, /, input: X) -> Result[Y]:
         r = self.first.apply(input)
         if isinstance(r, Err):
-            return self.f.apply(r)
+            return self.f(r)
         return r
 
 
@@ -151,27 +151,27 @@ class _RecoverStage[A, B](Stage):
 # ---------------------------------------------------------------------------
 
 
-class DocumentParser[T: RawDocument, CstT: CstNode](Stage[T, CstT]):
-    """Parses a `RawDocument` into a typed `CstT`.
+class DocParser[I: RawDoc, C: CstNode](Stage[I, C]):
+    """Parses a `RawDoc` into a typed `CstT`.
 
     A parser is responsible for:
-    1. Decoding bytes according to `RawDocument.media_type` (JSON or YAML).
+    1. Decoding bytes according to `RawDoc.media_type` (JSON or YAML).
     2. Constructing the full CST, preserving all source positions via `SourceRef`.
 
     Implementations are format-specific (`JsonSchemaParser`, `OpenApiParser`).
     """
 
     @abstractmethod
-    def apply(self, input: T) -> Result[CstT]:
+    def apply(self, input: I) -> Result[C]:
         raise NotImplementedError
 
     @abstractmethod
-    def accepts(self, document: T) -> bool:
+    def accepts(self, doc: I) -> bool:
         """Return `True` if this parser can process the given document."""
         raise NotImplementedError
 
 
-class RefResolver[CstT: CstNode](Stage[CstT, CstT]):
+class RefResolver[C: CstNode](Stage[C, C]):
     """Resolves `$ref` and `$dynamicRef` links within a CST.
 
     Resolution is performed against a registry of all CSTs produced so far in
@@ -181,16 +181,16 @@ class RefResolver[CstT: CstNode](Stage[CstT, CstT]):
     """
 
     @abstractmethod
-    def apply(self, input: CstT) -> Result[CstT]:
+    def apply(self, input: C) -> Result[C]:
         raise NotImplementedError
 
     @abstractmethod
-    def register(self, cst: CstT) -> None:
+    def register(self, cst: C) -> None:
         """Add a parsed CST to the resolution registry."""
         raise NotImplementedError
 
 
-class Generator[CstT: CstNode, AstT: AstNode](Stage[CstT, AstT]):
+class Transformer[C: CstNode, A: AstNode](Stage[C, A]):
     """Transforms a resolved `CstT` into a target-language `AstT`.
 
     The generator is the heart of the transpilation: it maps JSON Schema
@@ -200,7 +200,7 @@ class Generator[CstT: CstNode, AstT: AstNode](Stage[CstT, AstT]):
     """
 
     @abstractmethod
-    def apply(self, input: CstT) -> Result[AstT]:
+    def apply(self, input: C) -> Result[A]:
         raise NotImplementedError
 
     @property
@@ -210,8 +210,8 @@ class Generator[CstT: CstNode, AstT: AstNode](Stage[CstT, AstT]):
         raise NotImplementedError
 
 
-class Reifier[AstT: AstNode, O: OutputArtifact](Stage[AstT, Sequence[O]]):
-    """Serialises an `AstT` into one or more `OutputArtifact`s.
+class Reifier[A: AstNode, O: Artifact](Stage[A, Sequence[O]]):
+    """Serialises an `AstT` into one or more `Artifact`s.
 
     A single AST root (e.g. `PythonModule`) typically produces one artifact,
     but a reifier may split output across multiple files (e.g. one `.py` per
@@ -219,7 +219,7 @@ class Reifier[AstT: AstNode, O: OutputArtifact](Stage[AstT, Sequence[O]]):
     """
 
     @abstractmethod
-    def apply(self, input: AstT) -> Result[Sequence[O]]:
+    def apply(self, input: A) -> Result[Sequence[O]]:
         raise NotImplementedError
 
 
@@ -228,26 +228,25 @@ class Reifier[AstT: AstNode, O: OutputArtifact](Stage[AstT, Sequence[O]]):
 # ---------------------------------------------------------------------------
 
 
-class Transpiler[T: RawDocument, O: OutputArtifact](ABC):
+class Transpiler[I: RawDoc, O: Artifact](ABC):
     """Type-erased base for a complete single-document transpilation unit.
 
-    A `Transpiler` accepts a `RawDocument` and produces zero or more
-    `OutputArtifact`s.  The `Pipeline` holds a heterogeneous list of
-    `Transpiler`s and dispatches each document to the first one that
-    `accepts` it.
+    A `Transpiler` accepts a `RawDoc` and produces zero or more `Artifact`s.
+    The `Pipeline` holds a heterogeneous list of `Transpiler`s
+    and dispatches each document to the first one that `accepts` it.
 
     Prefer subclassing `TypedTranspiler[CstT, AstT]` for new implementations;
-    use `Transpiler` directly only when the CST or AST types are not statically
-    known (e.g. a plugin loaded at runtime).
+    use `Transpiler` directly only when the CST or AST types are not statically known
+    (e.g. a plugin loaded at runtime).
     """
 
     @abstractmethod
-    def accepts(self, document: T) -> bool:
+    def accepts(self, doc: I) -> bool:
         """Return `True` if this transpiler can process `document`."""
         raise NotImplementedError
 
     @abstractmethod
-    def transpile(self, document: T) -> Result[Sequence[O]]:
+    def transpile(self, doc: I) -> Result[Sequence[O]]:
         """Run the full parse → resolve → generate → reify pipeline."""
         raise NotImplementedError
 
@@ -257,8 +256,8 @@ class Transpiler[T: RawDocument, O: OutputArtifact](ABC):
         return ()
 
 
-class TypedTranspiler[T: RawDocument, O: OutputArtifact, CstT: CstNode, AstT: AstNode](
-    Transpiler[T, O]
+class TypedTranspiler[I: RawDoc, O: Artifact, C: CstNode, A: AstNode](
+    Transpiler[I, O]
 ):
     """A fully typed transpiler with individually-overridable stage methods.
 
@@ -288,37 +287,37 @@ class TypedTranspiler[T: RawDocument, O: OutputArtifact, CstT: CstNode, AstT: As
     """
 
     @abstractmethod
-    def parse(self, document: T) -> Result[CstT]:
+    def parse(self, doc: I) -> Result[C]:
         """Stage 1: decode bytes and construct the CST."""
         raise NotImplementedError
 
     @abstractmethod
-    def resolve(self, cst: CstT) -> Result[CstT]:
+    def resolve(self, cst: C) -> Result[C]:
         """Stage 2: resolve `$ref` and validate against the meta-schema."""
         raise NotImplementedError
 
     @abstractmethod
-    def generate(self, cst: CstT) -> Result[AstT]:
+    def generate(self, cst: C) -> Result[A]:
         """Stage 3: transform the CST into a target-language AST."""
         raise NotImplementedError
 
     @abstractmethod
-    def reify(self, ast: AstT) -> Result[Sequence[O]]:
+    def reify(self, ast: A) -> Result[Sequence[O]]:
         """Stage 4: serialise the AST to output bytes."""
         raise NotImplementedError
 
-    def transpile(self, document: T) -> Result[Sequence[O]]:
-        """Run all four stages sequentially, short-circuiting on any `Err`."""
-        r1 = self.parse(document)
-        if isinstance(r1, Err):
-            return r1
-        r2 = self.resolve(r1.value)
-        if isinstance(r2, Err):
-            return r2
-        r3 = self.generate(r2.value)
-        if isinstance(r3, Err):
-            return r3
-        return self.reify(r3.value)
+    def transpile(self, doc: I) -> Result[Sequence[O]]:
+        """Run all four stages sequentially."""
+        doc: Result[C] = self.parse(doc)
+        if isinstance(doc, Err):
+            return doc
+        cst: Result[C] = self.resolve(doc.value)
+        if isinstance(cst, Err):
+            return cst
+        ast: Result[A] = self.generate(cst.value)
+        if isinstance(ast, Err):
+            return ast
+        return self.reify(ast.value)
 
 
 # ---------------------------------------------------------------------------
@@ -331,18 +330,18 @@ class ProcessSummary:
     """Summary of a completed `Pipeline.process()` run.
 
     Attributes:
-        documents_read: Total number of `RawDocument`s consumed across all sources.
-        artifacts_written: Total number of `OutputArtifact`s written to the sink.
+        docs_read: Total number of `RawDoc`s consumed across all sources.
+        artifacts_written: Total number of `Artifact`s written to the sink.
         warnings: Non-fatal diagnostics accumulated during transpilation.
     """
 
-    documents_read: int
+    docs_read: int
     artifacts_written: int
     warnings: tuple[TranspilationWarning, ...] = ()
 
 
 @dataclass
-class Pipeline[T: RawDocument, O: OutputArtifact]:
+class Pipeline[I: RawDoc, O: Artifact]:
     """Immutable transpilation pipeline.
 
     A `Pipeline` is configured once — sources, transpilers, and sink — and
@@ -353,7 +352,7 @@ class Pipeline[T: RawDocument, O: OutputArtifact]:
         sources: Ordered list of `DataSource`s; each is iterated exactly once.
         transpilers: Ordered list of `Transpiler`s; each document is dispatched
             to the first transpiler whose `accepts()` returns `True`.
-        sink: Destination for all `OutputArtifact`s produced during the run.
+        sink: Destination for all `Artifact`s produced during the run.
 
     Example:
         ```python
@@ -371,8 +370,8 @@ class Pipeline[T: RawDocument, O: OutputArtifact]:
         ```
     """
 
-    sources: Sequence[DataSource[T]]
-    transpilers: Sequence[Transpiler[T, O]]
+    sources: Sequence[DataSource[I]]
+    transpilers: Sequence[Transpiler[I, O]]
     sink: DataSink[O]
 
     def process(self) -> Result[ProcessSummary]:
@@ -385,33 +384,32 @@ class Pipeline[T: RawDocument, O: OutputArtifact]:
         artifacts_written = 0
         errors: list[TranspilationError] = []
         warnings: list[TranspilationWarning] = []
-
         for source in self.sources:
             for document in source.documents():
                 documents_read += 1
                 transpiler = next((t for t in self.transpilers if t.accepts(document)), None)
-                if transpiler is None:
+                if transpiler:
+                    result = transpiler.transpile(document)
+                    warnings.extend(transpiler.warnings)
+                    match result:
+                        case Err(errs):
+                            errors += errs
+                        case Ok(val):
+                            for artifact in val:
+                                self.sink.write(artifact)
+                                artifacts_written += 1
+                else:
                     warnings.append(
                         TranspilationWarning(
                             f"No transpiler accepts {document.source_id!r}; skipping.",
                             code="no-transpiler",
                         )
                     )
-                    continue
-                result = transpiler.transpile(document)
-                warnings.extend(transpiler.warnings)
-                if isinstance(result, Err):
-                    errors.extend(result.errors)
-                    continue
-                for artifact in result.value:
-                    self.sink.write(artifact)
-                    artifacts_written += 1
-
         if errors:
             return Err(tuple(errors))
         return Ok(
             ProcessSummary(
-                documents_read=documents_read,
+                docs_read=documents_read,
                 artifacts_written=artifacts_written,
                 warnings=tuple(warnings),
             )

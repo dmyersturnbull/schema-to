@@ -27,7 +27,7 @@ from schema_to.ast.sql import (
     SqlScript,
     TableConstraint,
 )
-from schema_to.io.sink import OutputArtifact, SqlOutputArtifact
+from schema_to.io.sink import Artifact, SqlArtifact
 from schema_to.pipeline import Reifier
 from schema_to.result import Ok, Result
 
@@ -40,8 +40,8 @@ _INDENT = "    "
 
 
 @dataclass(frozen=True)
-class SqlReifier(Reifier[SqlScript, SqlOutputArtifact]):
-    """Serialise a `SqlScript` AST to a single `.sql` `OutputArtifact`.
+class SqlReifier(Reifier[SqlScript, SqlArtifact]):
+    """Serialise a `SqlScript` AST to a single `.sql` `Artifact`.
 
     Attributes:
         artifact_name: Base file name for the output artifact (e.g. `"schema.sql"`).
@@ -49,12 +49,12 @@ class SqlReifier(Reifier[SqlScript, SqlOutputArtifact]):
 
     artifact_name: str
 
-    def apply(self, input: SqlScript) -> Result[Sequence[SqlOutputArtifact]]:
+    def apply(self, input: SqlScript) -> Result[Sequence[SqlArtifact]]:
         return Ok([self._apply(input)])
 
-    def _apply(self, input: SqlScript) -> SqlOutputArtifact:
+    def _apply(self, input: SqlScript) -> SqlArtifact:
         sql = "\n\n".join(self._emit_script(input)) + "\n"
-        return SqlOutputArtifact(
+        return SqlArtifact(
             artifact_id=self.artifact_name, content=sql.encode("utf-8"), source_ids=input.source_ids
         )
 

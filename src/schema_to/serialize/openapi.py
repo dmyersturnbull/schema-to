@@ -39,7 +39,7 @@ _HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "tr
 
 def _set(out: JsonObject, key: str, value: object) -> None:
     if value is not None:
-        out[key] = value  # type: ignore[assignment]
+        out[key] = value
 
 
 @dataclass(frozen=True)

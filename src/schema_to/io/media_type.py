@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections.abc import Mapping
 
 from dataclasses import dataclass
 from typing import NamedTuple, AbstractSet
@@ -38,11 +39,11 @@ class MediaTypes:
     sql = MediaType("application", "sql")
     typescript = MediaType("application", "typescript")
 
-    _input_suffixes: dict[str, MediaType] = {".json": json, ".yaml": yaml, ".yml": yaml}.items()
+    _input_suffixes: Mapping[str, MediaType] = {".json": json, ".yaml": yaml, ".yml": yaml}
     input_suffixes: AbstractSet[str] = _input_suffixes.keys()
 
     @classmethod
-    def from_input_suffix(cls, suffix: str) -> MediaType | None:
+    def from_input_suffix(cls, suffix: str) -> MediaType:
         """Infer a media type from a file extension such as `".json"` or `".yaml"`."""
         if found := cls._input_suffixes.get(suffix.lower()):
             return found

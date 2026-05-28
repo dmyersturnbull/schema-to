@@ -1,6 +1,6 @@
 """Abstract data-sink types.
 
-A `DataSink` is the write-side dual of `DataSource`: it accepts `OutputArtifact`s
+A `DataSink` is the write-side dual of `DataSource`: it accepts `Artifact`s
 produced by the pipeline without exposing how or where they are stored.  Concrete
 implementations may write to a directory, accumulate in memory, upload to an
 object store, etc.
@@ -12,16 +12,18 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
+from schema_to import MediaTypes
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from schema_to import MediaType, MediaTypes
+    from schema_to import MediaType
 
-__all__ = ["DataSink", "OutputArtifact"]
+__all__ = ["Artifact", "DataSink"]
 
 
 @dataclass(frozen=True, slots=True)
-class OutputArtifact(ABC):
+class Artifact(ABC):
     """A single output document ready to be written to a sink.
 
     Attributes:
@@ -29,7 +31,7 @@ class OutputArtifact(ABC):
             typically a relative path such as `"migrations/001_users.sql"`.
         content: Serialised output bytes.
         media_type: Content type of the output.
-        source_ids: `source_id`s of the `RawDocument`s that contributed to this artifact, for traceability.
+        source_ids: `source_id`s of the `RawDoc`s that contributed to this artifact, for traceability.
     """
 
     artifact_id: str
@@ -43,27 +45,27 @@ class OutputArtifact(ABC):
 
 # TODO: What about YAML?
 @dataclass(frozen=True, slots=True)
-class JsonOutputArtifact(OutputArtifact):
+class JsonArtifact(Artifact):
     """A `.json` file."""
 
     media_type: ClassVar[MediaType] = MediaTypes.json
 
 
 @dataclass(frozen=True, slots=True)
-class PythonOutputArtifact(OutputArtifact):
+class PythonArtifact(Artifact):
     """A `.py` file."""
 
     media_type: ClassVar[MediaType] = MediaTypes.python
 
 
 @dataclass(frozen=True, slots=True)
-class SqlOutputArtifact(OutputArtifact):
+class SqlArtifact(Artifact):
     """A `.sql` file."""
 
     media_type: ClassVar[MediaType] = MediaTypes.sql
 
 
-class DataSink[T: OutputArtifact](ABC):
+class DataSink[O: Artifact](ABC):
     """An abstract destination for output artifacts produced by the pipeline."""
 
     @property
@@ -73,11 +75,11 @@ class DataSink[T: OutputArtifact](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def write(self, artifact: T) -> None:
+    def write(self, artifact: O) -> None:
         """Persist or collect a single output artifact."""
         raise NotImplementedError
 
-    def write_all(self, artifacts: Iterable[T]) -> None:
+    def write_all(self, artifacts: Iterable[O]) -> None:
         """Write every artifact from an iterable by delegating to `write`."""
         for artifact in artifacts:
             self.write(artifact)

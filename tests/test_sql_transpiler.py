@@ -23,20 +23,20 @@ from tests.strategies import object_schema_st, sql_object_schema_st
 from schema_to import (
     Err,
     JsonSchemaParser,
-    JsonSchemaRawDocument,
+    JsonSchemaRawDoc,
     JsonSchemaToPostgresTranspiler,
     MediaTypes,
     Ok,
-    OpenApiRawDocument,
-    PostgresGenerator,
-    RawDocument,
+    OpenApiRawDoc,
+    PostgresTransformer,
+    RawDoc,
 )
 
 _PARSER = JsonSchemaParser()
 
 
-def _doc(data: object, source_id: str = "test://schema") -> JsonSchemaRawDocument:
-    return JsonSchemaRawDocument(
+def _doc(data: object, source_id: str = "test://schema") -> JsonSchemaRawDoc:
+    return JsonSchemaRawDoc(
         source_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,
@@ -564,7 +564,7 @@ def test_table_name_from_title() -> None:
 
 def test_table_name_from_source_id() -> None:
     """When there is no title, source_id determines the table name."""
-    doc = JsonSchemaRawDocument(
+    doc = JsonSchemaRawDoc(
         source_id="https://example.com/product.json",
         content=orjson.dumps({"type": "object"}),
         media_type=MediaTypes.json,
@@ -661,12 +661,12 @@ def test_accepts_json_schema_document() -> None:
 
 
 def test_rejects_openapi_document() -> None:
-    doc = OpenApiRawDocument(source_id="test://s", content=b"{}", media_type=MediaTypes.json)
+    doc = OpenApiRawDoc(source_id="test://s", content=b"{}", media_type=MediaTypes.json)
     assert not JsonSchemaToPostgresTranspiler().accepts(doc)
 
 
 def test_rejects_raw_document() -> None:
-    doc = RawDocument(source_id="test://s", content=b"{}", media_type=MediaTypes.json)
+    doc = RawDoc(source_id="test://s", content=b"{}", media_type=MediaTypes.json)
     assert not JsonSchemaToPostgresTranspiler().accepts(doc)
 
 
@@ -678,7 +678,7 @@ def test_rejects_raw_document() -> None:
 def test_boolean_true_root_fails() -> None:
     cst_r = _PARSER.apply(_doc(True))
     assert isinstance(cst_r, Ok)
-    result = PostgresGenerator().apply(cst_r.value)
+    result = PostgresTransformer().apply(cst_r.value)
     assert isinstance(result, Err)
     assert any("boolean" in e.message.lower() for e in result.errors)
 
@@ -686,13 +686,13 @@ def test_boolean_true_root_fails() -> None:
 def test_boolean_false_root_fails() -> None:
     cst_r = _PARSER.apply(_doc(False))
     assert isinstance(cst_r, Ok)
-    assert isinstance(PostgresGenerator().apply(cst_r.value), Err)
+    assert isinstance(PostgresTransformer().apply(cst_r.value), Err)
 
 
 def test_string_root_fails() -> None:
     cst_r = _PARSER.apply(_doc({"type": "string"}))
     assert isinstance(cst_r, Ok)
-    result = PostgresGenerator().apply(cst_r.value)
+    result = PostgresTransformer().apply(cst_r.value)
     assert isinstance(result, Err)
     assert any("object" in e.message.lower() for e in result.errors)
 
@@ -700,7 +700,7 @@ def test_string_root_fails() -> None:
 def test_integer_root_fails() -> None:
     cst_r = _PARSER.apply(_doc({"type": "integer"}))
     assert isinstance(cst_r, Ok)
-    assert isinstance(PostgresGenerator().apply(cst_r.value), Err)
+    assert isinstance(PostgresTransformer().apply(cst_r.value), Err)
 
 
 # ---------------------------------------------------------------------------

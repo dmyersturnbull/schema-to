@@ -214,7 +214,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         self,
         schema: JsonSchema,
         *,
-        ref_resolver: referencing.Resolver,  # TODO: There is no `referencing.Resolver`.
+        ref_resolver: referencing.Resolver,  # FIXME: There is no `referencing.Resolver`.
         source_id: str,
         errors: list[TranspilationError],
     ) -> None:

@@ -42,7 +42,7 @@ from schema_to.errors import (
     TranspilationWarning,
 )
 from schema_to.generate._names import safe_python_class_name, safe_python_field_name
-from schema_to.pipeline import Generator
+from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 
     from schema_to.resolve.json_schema import JsonSchemaRefResolver
 
-__all__ = ["PydanticGenerator"]
+__all__ = ["PydanticTransformer"]
 
 # ---------------------------------------------------------------------------
 # Type annotation helpers
@@ -94,7 +94,7 @@ def _ref_to_class_name(ref: str) -> str:
 
 
 @dataclass
-class PydanticGenerator(Generator[JsonSchemaDocument, PythonModule]):
+class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
     """Generates a `PythonModule` with Pydantic v2 `BaseModel` classes.
 
     Attributes:

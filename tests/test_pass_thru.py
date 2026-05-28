@@ -14,12 +14,12 @@ from schema_to import (
     MediaTypes,
     Ok,
     OpenApiPassThruTranspiler,
-    RawDocument,
+    RawDoc,
 )
 
 
-def _make_json_doc(data: object, source_id: str = "test://doc") -> RawDocument:
-    return RawDocument(
+def _make_json_doc(data: object, source_id: str = "test://doc") -> RawDoc:
+    return RawDoc(
         source_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,
@@ -43,7 +43,7 @@ def test_json_schema_pass_thru_invertible(schema: object) -> None:
     assert isinstance(r1, Ok), f"First transpile failed: {r1}"
     artifact1 = r1.value[0]
 
-    doc2 = RawDocument(
+    doc2 = RawDoc(
         source_id="test://doc2",
         content=artifact1.content,
         media_type=artifact1.media_type,
@@ -71,7 +71,7 @@ def test_openapi_pass_thru_invertible(openapi: dict) -> None:
     assert isinstance(r1, Ok), f"First transpile failed: {r1}"
     artifact1 = r1.value[0]
 
-    doc2 = RawDocument(
+    doc2 = RawDoc(
         source_id="test://doc2",
         content=artifact1.content,
         media_type=artifact1.media_type,

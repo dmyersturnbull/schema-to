@@ -1,6 +1,6 @@
 """JSON Schema 2020-12 document parser.
 
-Converts a `RawDocument` (JSON or YAML bytes) into a `JsonSchemaDocument` CST.
+Converts a `RawDoc` (JSON or YAML bytes) into a `JsonSchemaDocument` CST.
 The parser is **non-resolving**: `$ref` and `$dynamicRef` values are stored as
 raw URI strings.  Pass the result to a `RefResolver` stage to inline them.
 
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from schema_to import JsonSchemaRawDocument
+from schema_to import JsonSchemaRawDoc
 from schema_to.cst.base import SourceRef
 from schema_to.cst.json_schema import (
     BooleanSchema,
@@ -27,35 +27,35 @@ from schema_to.cst.json_schema import (
 from schema_to.errors import ParseError, SchemaValidationError, SourceLocation, TranspilationError
 from schema_to.io.core import JsonLikeReader, ReadError
 from schema_to.parse._utils import ptr
-from schema_to.pipeline import DocumentParser
+from schema_to.pipeline import DocParser
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
     from schema_to.core import JsonValue
-    from schema_to.io.source import RawDocument
+    from schema_to.io.source import RawDoc
 
 __all__ = ["JsonSchemaParser"]
 
 loc = SourceLocation
 
 
-class JsonSchemaParser(DocumentParser[JsonSchemaRawDocument, JsonSchemaDocument]):
+class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
     """Parses JSON or YAML bytes into a `JsonSchemaDocument` CST.
 
     The parser is stateless: a single instance may be reused across documents.
     """
 
-    def accepts(self, document: JsonSchemaRawDocument) -> bool:
-        return isinstance(document, JsonSchemaRawDocument)
+    def accepts(self, doc: JsonSchemaRawDoc) -> bool:
+        return isinstance(doc, JsonSchemaRawDoc)
 
-    def apply(self, input: JsonSchemaRawDocument) -> Result[JsonSchemaDocument]:
+    def apply(self, input: JsonSchemaRawDoc) -> Result[JsonSchemaDocument]:
         try:
             raw = self._decode(input)
         except TranspilationError as exc:
             return Err((exc,))
         return self._build_document(raw, document=input)
 
-    def _decode(self, document: JsonSchemaRawDocument) -> JsonValue:
+    def _decode(self, document: JsonSchemaRawDoc) -> JsonValue:
         try:
             return JsonLikeReader().read(document.content, document.media_type)
         except ReadError as e:
@@ -64,7 +64,7 @@ class JsonSchemaParser(DocumentParser[JsonSchemaRawDocument, JsonSchemaDocument]
             ) from e
 
     def _build_document(
-        self, data: JsonValue, *, document: RawDocument
+        self, data: JsonValue, *, document: RawDoc
     ) -> Result[JsonSchemaDocument]:
         root_r = self._build_schema(data, source_id=document.source_id, pointer="")
         if isinstance(root_r, Err):

@@ -29,7 +29,7 @@ from schema_to.ast.python import (
     TypeAliasDef,
 )
 from schema_to.errors import ReificationError
-from schema_to.io.sink import OutputArtifact, PythonOutputArtifact
+from schema_to.io.sink import Artifact, PythonArtifact
 from schema_to.pipeline import Reifier
 from schema_to.result import Err, Ok, Result
 
@@ -42,8 +42,8 @@ _INDENT = "    "
 
 
 @dataclass(frozen=True)
-class PythonReifier(Reifier[PythonModule, PythonOutputArtifact]):
-    """Serialise a `PythonModule` AST to a single `.py` `OutputArtifact`.
+class PythonReifier(Reifier[PythonModule, PythonArtifact]):
+    """Serialise a `PythonModule` AST to a single `.py` `Artifact`.
 
     Attributes:
         artifact_name: Base file name for the output artifact (e.g. `"models.py"`).
@@ -51,14 +51,14 @@ class PythonReifier(Reifier[PythonModule, PythonOutputArtifact]):
 
     artifact_name: str
 
-    def apply(self, input: PythonModule) -> Result[Sequence[PythonOutputArtifact]]:
+    def apply(self, input: PythonModule) -> Result[Sequence[PythonArtifact]]:
         try:
             source = self._emit_module(input)
         except (TypeError, ValueError, AttributeError) as exc:
             return Err((ReificationError(str(exc)),))
         return Ok(
             [
-                PythonOutputArtifact(
+                PythonArtifact(
                     artifact_id=self.artifact_name,
                     content=source.encode("utf-8"),
                     source_ids=input.source_ids,

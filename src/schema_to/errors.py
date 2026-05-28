@@ -10,7 +10,7 @@ class SourceLocation:
     """A position within a source document.
 
     Attributes:
-        source_id: Opaque identifier matching `RawDocument.source_id`.
+        source_id: Opaque identifier matching `RawDoc.source_id`.
         json_pointer: [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)
             pointer to the offending node within the parsed document.
         line: 1-based line number in the raw text, if available.

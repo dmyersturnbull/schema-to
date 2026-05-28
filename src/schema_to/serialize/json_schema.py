@@ -144,4 +144,4 @@ class JsonSchemaSerializer:
                     return {k: sorted(v) for k, v in mapping.items()}
                 return dict(mapping)
             case _:
-                return value
+                return value  # FIXME: This can't be right, can it?

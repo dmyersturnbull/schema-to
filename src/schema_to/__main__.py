@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Final, Literal, override
+from typing import TYPE_CHECKING, Annotated, Final, Literal, override, Sequence
 
 from typer import Argument, Exit, Option, Typer, echo
 
@@ -23,7 +23,7 @@ from schema_to.result import Err, Ok
 from schema_to.transpile.pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
 
 if TYPE_CHECKING:
-    from schema_to import DataSource
+    from schema_to import DataSource, Pipeline, RawDoc
 
 
 class CliEnum(StrEnum):
@@ -67,23 +67,17 @@ def transpile(
         Option("-t", "--to", help="Target format."),
     ] = "pass-thru",
     yaml: Annotated[
-        bool, Option("--yaml/--json", help="Emit YAML instead of pretty JSON.")
+        bool, Option("--yaml/--json", help="Emit YAML instead of JSON.")
     ] = False,
 ) -> None:
     """Transpile one or more schema sources into the requested target formats."""
-    sources = FileDataSourceFactory(recursive=recursive)(paths)
-    # FIXME: Choose the correct target.
-    transpilers = [
-        OpenApiPassThruTranspiler(use_yaml=yaml),
-        JsonSchemaPassThruTranspiler(use_yaml=yaml),
-    ]
-    sink = FileDataSink(output)
-    pipeline = Pipeline(sources=sources, transpilers=transpilers, sink=sink)
+    sources = FileDataSourceFactory(recursive=recursive).get(paths)
+    pipeline = _build_pipeline(output, sources, yaml=yaml)
     match pipeline.process():
         case Ok(summary):
             echo(
                 f"Wrote {summary.artifacts_written} artifact(s) from "
-                f"{summary.documents_read} document(s)."
+                f"{summary.docs_read} document(s)."
             )
             for w in summary.warnings:
                 echo(f"warning: {w.message}", err=True)
@@ -91,6 +85,16 @@ def transpile(
             for e in errors:
                 echo(f"error: {e.message}", err=True)
             raise Exit(1)
+
+
+def _build_pipeline(output: Path, sources: Sequence[DataSource[RawDoc]], *, yaml: bool) -> Pipeline:
+    # FIXME: Choose the correct target. Build a factory for `Pipeline`, and put it in an appropriate package.
+    transpilers = [
+        OpenApiPassThruTranspiler(use_yaml=yaml),
+        JsonSchemaPassThruTranspiler(use_yaml=yaml),
+    ]
+    sink = FileDataSink(output)
+    return Pipeline(sources=sources, transpilers=transpilers, sink=sink)
 
 
 def cli() -> None:
