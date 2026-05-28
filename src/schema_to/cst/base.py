@@ -9,9 +9,11 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass
 
-__all__ = ["CstNode", "JsonValue", "SourceRef"]
+from schema_to.core import (
+    JsonValue as JsonValue,  # noqa: PLC0414  # explicit re-export; `as Name` signals that callers may import from here
+)
 
-type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
+__all__ = ["CstNode", "JsonValue", "SourceRef"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,7 +30,7 @@ class SourceRef:
     json_pointer: str
 
 
-class CstNode(ABC):
+class CstNode(ABC):  # noqa: B024  # sealed marker; abstract identity is enforced by the type system, not abstract methods
     """Sealed marker base for every CST node.
 
     Concrete nodes are immutable `@dataclass(frozen=True, slots=True)` subclasses.  The

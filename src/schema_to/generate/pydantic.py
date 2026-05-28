@@ -139,7 +139,7 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
         if errors:
             return Err(tuple(errors))
 
-        imports = _build_imports(declarations, ctx)
+        imports = _build_imports(declarations)
         return Ok(
             PythonModule(imports=imports, declarations=declarations, source_ids=(input.source_id,))
         )
@@ -194,7 +194,7 @@ class _GenCtx:
         # Schemas with properties but no explicit type are treated as objects.
         return schema.type is None and schema.properties is not None
 
-    def _make_class(self, schema: ObjectSchema, name: str) -> ClassDef:
+    def _make_class(self, schema: ObjectSchema, name: str) -> ClassDef:  # noqa: C901, PLR0912
         class_name = safe_python_class_name(name)
         required_set = set(schema.required or frozenset())
         fields: list[FieldDef] = []
@@ -258,7 +258,7 @@ class _GenCtx:
             ann = _nullable(ann)
         return ann
 
-    def _annotation_inner(self, schema: JsonSchema) -> PythonTypeAnnotation:
+    def _annotation_inner(self, schema: JsonSchema) -> PythonTypeAnnotation:  # noqa: C901, PLR0911
         if isinstance(schema, BooleanSchema):
             return _ANY if schema.value else PythonTypeAnnotation("Never", module="typing")
 
@@ -370,7 +370,7 @@ class _GenCtx:
 # ---------------------------------------------------------------------------
 
 
-def _build_imports(declarations: list[TypeAliasDef | ClassDef], ctx: _GenCtx) -> list[FromImport]:
+def _build_imports(declarations: list[TypeAliasDef | ClassDef]) -> list[FromImport]:  # noqa: C901
     """Collect all needed imports from the declaration tree."""
     needed: dict[str, set[str]] = {}  # module -> names
 

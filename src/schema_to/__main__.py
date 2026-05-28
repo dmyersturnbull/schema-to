@@ -5,25 +5,21 @@ Invoked as `schema-to <command> [options]` or `python -m schema_to`.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Final, Literal, override, Sequence
+from typing import TYPE_CHECKING, Annotated, Final, override
 
 from typer import Argument, Exit, Option, Typer, echo
 
-from schema_to.io.file import (
-    DirectoryDataSource,
-    FileDataSink,
-    FileDataSource,
-    FileDataSourceFactory,
-)
+from schema_to.io.file import FileDataSink, FileDataSourceFactory
 from schema_to.pipeline import Pipeline
 from schema_to.result import Err, Ok
 from schema_to.transpile.pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
 
 if TYPE_CHECKING:
-    from schema_to import DataSource, Pipeline, RawDoc
+    from collections.abc import Sequence
+
+    from schema_to import DataSource, RawDoc
 
 
 class CliEnum(StrEnum):
@@ -60,17 +56,17 @@ def transpile(
     *,
     recursive: Annotated[
         bool, Option("-r", "--recursive", help="Search for input files in subdirectories")
-    ],
+    ] = False,
     output: Annotated[Path, Option("-o", "--output", help="Output directory.")] = CWD,
     to: Annotated[
-        JsonschemaTarget | OpenapiTarget | Literal["pass-thru"],
-        Option("-t", "--to", help="Target format."),
+        str, Option("-t", "--to", help="Target format (currently only 'pass-thru' is supported).")
     ] = "pass-thru",
-    yaml: Annotated[
-        bool, Option("--yaml/--json", help="Emit YAML instead of JSON.")
-    ] = False,
+    yaml: Annotated[bool, Option("--yaml/--json", help="Emit YAML instead of JSON.")] = False,
 ) -> None:
     """Transpile one or more schema sources into the requested target formats."""
+    if to != "pass-thru":
+        echo(f"error: target {to!r} is not yet supported; only 'pass-thru' is available.", err=True)
+        raise Exit(1)
     sources = FileDataSourceFactory(recursive=recursive).get(paths)
     pipeline = _build_pipeline(output, sources, yaml=yaml)
     match pipeline.process():
@@ -88,7 +84,6 @@ def transpile(
 
 
 def _build_pipeline(output: Path, sources: Sequence[DataSource[RawDoc]], *, yaml: bool) -> Pipeline:
-    # FIXME: Choose the correct target. Build a factory for `Pipeline`, and put it in an appropriate package.
     transpilers = [
         OpenApiPassThruTranspiler(use_yaml=yaml),
         JsonSchemaPassThruTranspiler(use_yaml=yaml),

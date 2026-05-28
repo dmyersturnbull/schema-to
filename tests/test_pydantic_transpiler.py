@@ -20,20 +20,21 @@ from tests.strategies import json_schema_with_defs_st, object_schema_st
 from schema_to import (
     Err,
     JsonSchemaParser,
+    JsonSchemaRawDoc,
     JsonSchemaRefResolver,
     JsonSchemaToPydanticTranspiler,
     MediaTypes,
     Ok,
+    OpenApiRawDoc,
     PydanticTransformer,
     PythonReifier,
-    RawDoc,
 )
 
 _PARSER = JsonSchemaParser()
 
 
-def _doc(data: object, source_id: str = "test://schema") -> RawDoc:
-    return RawDoc(
+def _doc(data: object, source_id: str = "test://schema") -> JsonSchemaRawDoc:
+    return JsonSchemaRawDoc(
         source_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,
@@ -343,7 +344,7 @@ def test_title_becomes_class_name() -> None:
 
 def test_display_name_fallback() -> None:
     """When there is no title, display_name is used as a fallback."""
-    doc = RawDoc(
+    doc = JsonSchemaRawDoc(
         source_id="test://schema",
         content=orjson.dumps({"type": "object"}),
         media_type=MediaTypes.json,
@@ -376,7 +377,7 @@ def test_empty_object_produces_valid_class() -> None:
 
 def test_boolean_true_schema_fails() -> None:
     """`true` as the root schema cannot produce a Pydantic model."""
-    cst_r = _PARSER.apply(_doc(True))
+    cst_r = _PARSER.apply(_doc(data=True))
     assert isinstance(cst_r, Ok)
     gen = PydanticTransformer()
     result = gen.apply(cst_r.value)
@@ -385,7 +386,7 @@ def test_boolean_true_schema_fails() -> None:
 
 def test_boolean_false_schema_fails() -> None:
     """`false` as the root schema cannot produce a Pydantic model."""
-    cst_r = _PARSER.apply(_doc(False))
+    cst_r = _PARSER.apply(_doc(data=False))
     assert isinstance(cst_r, Ok)
     gen = PydanticTransformer()
     result = gen.apply(cst_r.value)
@@ -400,7 +401,9 @@ def test_boolean_false_schema_fails() -> None:
 def test_transpiler_rejects_openapi() -> None:
     openapi = {"openapi": "3.1.0", "info": {"title": "T", "version": "1"}}
     transpiler = JsonSchemaToPydanticTranspiler()
-    doc = _doc(openapi)
+    doc = OpenApiRawDoc(
+        source_id="test://schema", content=orjson.dumps(openapi), media_type=MediaTypes.json
+    )
     assert not transpiler.accepts(doc)
 
 

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from schema_to.cst.base import SourceRef
 from schema_to.cst.json_schema import JsonSchemaDocument
-from schema_to.io.sink import Artifact
+from schema_to.io.sink import Artifact, JsonArtifact, YamlArtifact
 from schema_to.io.source import OpenApiRawDoc, RawDoc
 from schema_to.parse.openapi import OpenApiParser
 from schema_to.pipeline import Transpiler
@@ -22,7 +22,7 @@ __all__ = ["OpenApiExtractTranspiler"]
 
 
 @dataclass(frozen=True)
-class OpenApiExtractTranspiler(Transpiler):
+class OpenApiExtractTranspiler(Transpiler[RawDoc, Artifact]):
     """Extract `components/schemas` from an OpenAPI document as standalone JSON Schema files.
 
     Each named schema in `components/schemas` becomes a separate `Artifact`
@@ -42,6 +42,7 @@ class OpenApiExtractTranspiler(Transpiler):
         return isinstance(doc, OpenApiRawDoc)
 
     def transpile(self, doc: RawDoc) -> Result[Sequence[Artifact]]:
+        assert isinstance(doc, OpenApiRawDoc)  # noqa: S101  # guaranteed by accepts()
         result = self.parser.apply(doc)
         if isinstance(result, Err):
             return result
@@ -49,6 +50,7 @@ class OpenApiExtractTranspiler(Transpiler):
         artifacts: list[Artifact] = []
         ext = ".yaml" if self.use_yaml else ".json"
 
+        artifact_cls = YamlArtifact if self.use_yaml else JsonArtifact
         for name, schema in cst.components.schemas.items():
             doc_cst = JsonSchemaDocument(
                 root=schema,
@@ -57,13 +59,10 @@ class OpenApiExtractTranspiler(Transpiler):
                 source_ref=SourceRef(doc.source_id, f"/components/schemas/{name}"),
             )
             data = self.js_serializer.serialize_document(doc_cst)
-            content, media_type = encode(data, use_yaml=self.use_yaml)
+            content, _ = encode(data, use_yaml=self.use_yaml)
             artifacts.append(
-                Artifact(
-                    artifact_id=f"{name}.schema{ext}",
-                    content=content,
-                    media_type=media_type,
-                    source_ids=(doc.source_id,),
+                artifact_cls(
+                    artifact_id=f"{name}.schema{ext}", content=content, source_ids=(doc.source_id,)
                 )
             )
 

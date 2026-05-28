@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from schema_to import MediaType, MediaTypes
 from schema_to.io.core import JsonReader, JsonWriter, YamlReader, YamlWriter
 
 if TYPE_CHECKING:
+    from schema_to.core import JsonValue
     from schema_to.io.source import RawDoc
 
 JSON_YAML_ESSENCES: frozenset[str] = frozenset(
@@ -16,10 +17,10 @@ JSON_YAML_ESSENCES: frozenset[str] = frozenset(
 )
 
 
-def encode(data: object, *, use_yaml: bool) -> tuple[bytes, MediaType]:
+def encode(data: JsonValue, *, use_yaml: bool) -> tuple[bytes, MediaType]:
     if use_yaml:
-        return YamlWriter().write(data).encode("utf-8"), MediaTypes.yaml  # type: ignore[arg-type]
-    return JsonWriter(pretty=True).write(data).encode("utf-8"), MediaTypes.json  # type: ignore[arg-type]
+        return YamlWriter().write(data).encode("utf-8"), MediaTypes.yaml
+    return JsonWriter(pretty=True).write(data).encode("utf-8"), MediaTypes.json
 
 
 def peek_is_openapi(document: RawDoc) -> bool:
@@ -31,6 +32,8 @@ def peek_is_openapi(document: RawDoc) -> bool:
             data = JsonReader().read(document.content.decode("utf-8"))
         else:
             data = YamlReader().read(document.content.decode("utf-8"))
-        return isinstance(data, dict) and isinstance(data.get("openapi"), str)
+        return isinstance(data, dict) and isinstance(
+            cast("dict[str, object]", data).get("openapi"), str
+        )
     except json.JSONDecodeError, ValueError, UnicodeDecodeError:
         return False

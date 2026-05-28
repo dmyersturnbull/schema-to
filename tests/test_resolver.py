@@ -17,7 +17,7 @@ from tests.strategies import json_schema_st, json_schema_with_defs_st
 from schema_to.cst.json_schema import JsonSchemaDocument, JsonSchemaType, ObjectSchema
 from schema_to.errors import ResolutionError
 from schema_to.io.media_type import MediaTypes
-from schema_to.io.source import RawDoc
+from schema_to.io.source import JsonSchemaRawDoc
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.pipeline import Err, Ok
 from schema_to.resolve.json_schema import JsonSchemaRefResolver
@@ -25,8 +25,10 @@ from schema_to.resolve.json_schema import JsonSchemaRefResolver
 _PARSER = JsonSchemaParser()
 
 
-def _doc(data: object, source_id: str = "test://doc") -> RawDoc:
-    return RawDoc(source_id=source_id, content=orjson.dumps(data), media_type=MediaTypes.json)
+def _doc(data: object, source_id: str = "test://doc") -> JsonSchemaRawDoc:
+    return JsonSchemaRawDoc(
+        source_id=source_id, content=orjson.dumps(data), media_type=MediaTypes.json
+    )
 
 
 def _parse(data: object, source_id: str = "test://doc") -> JsonSchemaDocument:

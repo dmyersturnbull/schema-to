@@ -45,7 +45,7 @@ _SERIALIZER = JsonSchemaSerializer()
 # ---------------------------------------------------------------------------
 
 
-def _iter_sub_schemas(schema: ObjectSchema, pointer: str) -> Iterator[tuple[str, JsonSchema]]:
+def _iter_sub_schemas(schema: ObjectSchema, pointer: str) -> Iterator[tuple[str, JsonSchema]]:  # noqa: C901, PLR0912
     """Yield `(child_pointer, child_schema)` for every direct sub-schema."""
 
     def _single(key: str, sub: JsonSchema) -> tuple[str, JsonSchema]:
@@ -214,7 +214,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         self,
         schema: JsonSchema,
         *,
-        ref_resolver: referencing.Resolver,  # FIXME: There is no `referencing.Resolver`.
+        ref_resolver: referencing._core.Resolver,  # referencing does not export a public Resolver type
         source_id: str,
         errors: list[TranspilationError],
     ) -> None:
@@ -248,8 +248,8 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
             try:
                 resolved = ref_resolver.lookup(schema.id)
                 current_resolver = resolved.resolver
-            except Unresolvable:
-                pass  # FIXME
+            except Unresolvable:  # noqa: S110  # $id not in registry; continue with current resolver
+                pass
 
         for _, sub_schema in _iter_sub_schemas(schema, pointer):
             self._check_refs(

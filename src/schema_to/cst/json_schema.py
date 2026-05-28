@@ -90,11 +90,13 @@ class _JsonSchema(CstNode):
         """Return the schema's types as a frozenset, or empty frozenset if unset."""
         match self:
             case BooleanSchema():
-                return frozenset({bool})
+                return frozenset()
             case ObjectSchema(type=None):
                 return frozenset()
-            case ObjectSchema(type=frozenset()) as types_:
-                return types_
+            case ObjectSchema(type=frozenset() as types):
+                return types
+            case ObjectSchema(type=JsonSchemaType() as t):
+                return frozenset({t})
         msg = f"Unsupported JSON Schema node: {type(self).__name__}"
         raise AssertionError(msg)
 

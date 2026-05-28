@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from schema_to.cst.json_schema import (
     BooleanSchema,
@@ -117,7 +117,7 @@ class JsonSchemaSerializer:
         out.update(s.extensions)
         return out
 
-    def _val(self, value: object) -> JsonValue:
+    def _val(self, value: JsonValue) -> JsonValue:  # noqa: C901, PLR0911
         match value:
             case BooleanSchema() | ObjectSchema():
                 return self.serialize(value)
@@ -126,7 +126,7 @@ class JsonSchemaSerializer:
             case JsonSchemaType() as t:
                 return str(t)
             case frozenset(types_):
-                return sorted(str(t) for t in types_)
+                return cast("JsonValue", sorted(str(t) for t in types_))
             case str():
                 return value
             case Sequence() as seq:
@@ -144,4 +144,4 @@ class JsonSchemaSerializer:
                     return {k: sorted(v) for k, v in mapping.items()}
                 return dict(mapping)
             case _:
-                return value  # FIXME: This can't be right, can it?
+                return value  # int, float, bool, None — all valid JSON scalars

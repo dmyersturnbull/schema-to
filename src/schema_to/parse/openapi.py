@@ -10,7 +10,7 @@ the complete diagnostic set.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from schema_to import OpenApiRawDoc
 from schema_to.cst.base import SourceRef
@@ -61,7 +61,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
 
     def apply(self, input: OpenApiRawDoc) -> Result[OpenApiDocument]:
         try:
-            data = self.js._decode(input)
+            data = self.js._decode(input)  # noqa: SLF001  # _decode is intentionally shared between parsers
         except TranspilationError as exc:
             return Err((exc,))
         if not isinstance(data, dict):
@@ -71,13 +71,19 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 )
             )
         return self._build_document(
-            data, source_id=input.source_id, display_name=input.display_name
+            cast("dict[str, Any]", data),  # ty can't see through isinstance narrowing here
+            source_id=input.source_id,
+            display_name=input.display_name,
         )
 
     # -- Document root -------------------------------------------------------
 
-    def _build_document(
-        self, data: dict[str, Any], *, source_id: str, display_name: str | None
+    def _build_document(  # noqa: C901, PLR0912
+        self,
+        data: dict[str, Any],
+        *,
+        source_id: str,
+        display_name: str | None,  # noqa: ARG002
     ) -> Result[OpenApiDocument]:
         errors: list[TranspilationError] = []
 
@@ -142,11 +148,11 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
 
         security: list[dict] = []
         if isinstance(data.get("security"), list):
-            for item in data["security"]:
-                if isinstance(item, dict):
-                    security.append(
-                        {k: list(v) if isinstance(v, list) else v for k, v in item.items()}
-                    )
+            security.extend(
+                {k: list(v) if isinstance(v, list) else v for k, v in item.items()}
+                for item in data["security"]
+                if isinstance(item, dict)
+            )
 
         external_docs: ExternalDocumentation | None = None
         if isinstance(data.get("externalDocs"), dict):
@@ -164,8 +170,10 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
 
         return Ok(
             OpenApiDocument(
-                openapi=openapi_ver,  # type: ignore[arg-type]
-                info=info,  # type: ignore[arg-type]
+                openapi=cast(
+                    "str", openapi_ver
+                ),  # validated str above; errors guard prevents reaching here with None
+                info=cast("Info", info),  # validated non-None above via extract()
                 paths=paths,
                 components=components or Components(),
                 servers=servers,
@@ -226,8 +234,10 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
 
         return Ok(
             Info(
-                title=title,  # type: ignore[arg-type]
-                version=version,  # type: ignore[arg-type]
+                title=cast(
+                    "str", title
+                ),  # validated str above; errors guard prevents reaching here with None
+                version=cast("str", version),  # same
                 summary=data.get("summary") if isinstance(data.get("summary"), str) else None,
                 description=data.get("description")
                 if isinstance(data.get("description"), str)
@@ -247,9 +257,9 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         self,
         data: dict[str, Any],
         *,
-        source_id: str,
-        pointer: str,
-        errors: list[TranspilationError],
+        source_id: str,  # noqa: ARG002
+        pointer: str,  # noqa: ARG002
+        errors: list[TranspilationError],  # noqa: ARG002
     ) -> list[Server]:
         raw = data.get("servers")
         if not isinstance(raw, list):
@@ -258,21 +268,20 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
 
     def _extract_server(self, s: dict) -> Server:
         url = s.get("url", "")
-        if not isinstance(s.get("variables"), dict):
-            return {}
         variables: dict[str, ServerVariable] = {}
-        for vname, vdata in s["variables"].items():
-            if isinstance(vdata, dict):
-                variables[vname] = ServerVariable(
-                    default=vdata.get("default", "")
-                    if isinstance(vdata.get("default"), str)
-                    else "",
-                    enum=list(vdata["enum"]) if isinstance(vdata.get("enum"), list) else None,
-                    description=vdata.get("description")
-                    if isinstance(vdata.get("description"), str)
-                    else None,
-                    extensions={k: v for k, v in vdata.items() if k.startswith("x-")},
-                )
+        if isinstance(s.get("variables"), dict):
+            for vname, vdata in s["variables"].items():
+                if isinstance(vdata, dict):
+                    variables[vname] = ServerVariable(
+                        default=vdata.get("default", "")
+                        if isinstance(vdata.get("default"), str)
+                        else "",
+                        enum=list(vdata["enum"]) if isinstance(vdata.get("enum"), list) else None,
+                        description=vdata.get("description")
+                        if isinstance(vdata.get("description"), str)
+                        else None,
+                        extensions={k: v for k, v in vdata.items() if k.startswith("x-")},
+                    )
         return Server(
             url=url,
             description=s.get("description") if isinstance(s.get("description"), str) else None,
@@ -284,9 +293,9 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         self,
         data: dict[str, Any],
         *,
-        source_id: str,
-        pointer: str,
-        errors: list[TranspilationError],
+        source_id: str,  # noqa: ARG002
+        pointer: str,  # noqa: ARG002
+        errors: list[TranspilationError],  # noqa: ARG002
     ) -> list[Tag]:
         tags: list[Tag] = []
         raw = data.get("tags")
@@ -487,7 +496,12 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
             if not isinstance(p_data, dict):
                 continue
             pptr = ptr(pointer, "parameters", i)
-            p = extract(self._build_parameter(p_data, source_id=source_id, pointer=pptr), errors)
+            p = extract(
+                self._build_parameter(
+                    cast("dict[str, Any]", p_data), source_id=source_id, pointer=pptr
+                ),
+                errors,
+            )
             if p is not None:
                 parameters.append(p)
         return parameters
@@ -522,7 +536,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         schema = None
         if isinstance(data.get("schema"), dict):
             schema = extract(
-                self.js._build_schema(
+                self.js._build_schema(  # noqa: SLF001  # _build_schema is intentionally shared between parsers
                     data["schema"], source_id=source_id, pointer=ptr(pointer, "schema")
                 ),
                 errors,
@@ -530,8 +544,8 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
 
         return Ok(
             Parameter(
-                name=name,  # type: ignore[arg-type]
-                in_=in_loc,  # type: ignore[arg-type]
+                name=cast("str", name),  # validated str above
+                in_=cast("ParameterLocation", in_loc),  # validated non-None above
                 schema=schema,
                 description=data.get("description")
                 if isinstance(data.get("description"), str)
@@ -579,7 +593,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
             )
         )
 
-    def _build_response(
+    def _build_response(  # noqa: C901
         self, data: dict[str, Any], *, source_id: str, pointer: str
     ) -> Result[Response]:
         errors: list[TranspilationError] = []
@@ -634,7 +648,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         schema = None
         if isinstance(data.get("schema"), dict):
             schema = extract(
-                self.js._build_schema(
+                self.js._build_schema(  # noqa: SLF001  # _build_schema is intentionally shared between parsers
                     data["schema"], source_id=source_id, pointer=ptr(pointer, "schema")
                 ),
                 errors,
@@ -660,7 +674,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         schema = None
         if isinstance(data.get("schema"), dict):
             schema = extract(
-                self.js._build_schema(
+                self.js._build_schema(  # noqa: SLF001  # _build_schema is intentionally shared between parsers
                     data["schema"], source_id=source_id, pointer=ptr(pointer, "schema")
                 ),
                 errors,
@@ -679,7 +693,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
 
     # -- Components ----------------------------------------------------------
 
-    def _build_components(
+    def _build_components(  # noqa: C901, PLR0912
         self, data: dict[str, Any], *, source_id: str, pointer: str
     ) -> Result[Components]:
         if not isinstance(data, dict):
@@ -691,7 +705,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         if isinstance(data.get("schemas"), dict):
             for name, s_data in data["schemas"].items():
                 s = extract(
-                    self.js._build_schema(
+                    self.js._build_schema(  # noqa: SLF001  # _build_schema is intentionally shared between parsers
                         s_data, source_id=source_id, pointer=ptr(pointer, "schemas", name)
                     ),
                     errors,

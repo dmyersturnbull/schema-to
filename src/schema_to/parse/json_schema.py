@@ -10,7 +10,7 @@ diagnostics rather than stopping at the first fault.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from schema_to import JsonSchemaRawDoc
 from schema_to.cst.base import SourceRef
@@ -55,7 +55,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             return Err((exc,))
         return self._build_document(raw, document=input)
 
-    def _decode(self, document: JsonSchemaRawDoc) -> JsonValue:
+    def _decode(self, document: RawDoc) -> JsonValue:
         try:
             return JsonLikeReader().read(document.content, document.media_type)
         except ReadError as e:
@@ -63,9 +63,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                 str(e), location=SourceLocation(document.source_id, line=e.line, column=e.column)
             ) from e
 
-    def _build_document(
-        self, data: JsonValue, *, document: RawDoc
-    ) -> Result[JsonSchemaDocument]:
+    def _build_document(self, data: JsonValue, *, document: RawDoc) -> Result[JsonSchemaDocument]:
         root_r = self._build_schema(data, source_id=document.source_id, pointer="")
         if isinstance(root_r, Err):
             return root_r
@@ -82,7 +80,12 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         if isinstance(data, bool):
             return Ok(BooleanSchema(value=data, source_ref=SourceRef(source_id, pointer)))
         if isinstance(data, dict):
-            return self._build_object_schema(data, source_id=source_id, pointer=pointer)
+            return cast(  # Ok[ObjectSchema] is safe as Result[JsonSchema]; ty can't see covariance
+                "Result[JsonSchema]",
+                self._build_object_schema(
+                    cast("dict[str, Any]", data), source_id=source_id, pointer=pointer
+                ),
+            )
         return Err(
             (
                 ParseError(
@@ -92,7 +95,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             )
         )
 
-    def _build_object_schema(
+    def _build_object_schema(  # noqa: C901, PLR0912, PLR0914, PLR0915
         self, data: dict[str, Any], *, source_id: str, pointer: str
     ) -> Result[ObjectSchema]:
         errors: list[TranspilationError] = []
@@ -219,7 +222,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                     )
                 )
             else:
-                required = frozenset(raw_req)
+                required = frozenset(x for x in raw_req if isinstance(x, str))
 
         dependent_required: dict[str, frozenset[str]] | None = None
         if "dependentRequired" in data:
@@ -242,7 +245,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                             )
                         )
                     else:
-                        dependent_required[prop] = frozenset(deps)
+                        dependent_required[prop] = frozenset(x for x in deps if isinstance(x, str))
 
         # -- Applicator vocabulary -----------------------------------------
         all_of = self._build_schema_list(
@@ -361,7 +364,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     # -- Reusable sub-builders ------------------------------------------------
 
-    def _parse_schema_type(self, value: Any, *, location: SourceLocation) -> Result[SchemaType]:
+    def _parse_schema_type(self, value: Any, *, location: SourceLocation) -> Result[SchemaType]:  # noqa: ANN401
         if isinstance(value, str):
             try:
                 return Ok(JsonSchemaType(value))
@@ -442,7 +445,9 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             return None
         result: list[JsonSchema] = []
         for i, item in enumerate(raw):
-            r = self._build_schema(item, source_id=source_id, pointer=ptr(pointer, key, i))
+            r = self._build_schema(
+                cast("JsonValue", item), source_id=source_id, pointer=ptr(pointer, key, i)
+            )
             if isinstance(r, Err):
                 errors.extend(r.errors)
             else:

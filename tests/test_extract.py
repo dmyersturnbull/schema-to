@@ -6,13 +6,29 @@ import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import openapi_doc_st
 
-from schema_to import JsonSchemaParser, MediaTypes, Ok, OpenApiExtractTranspiler, RawDoc
+from schema_to import (
+    JsonSchemaParser,
+    JsonSchemaRawDoc,
+    MediaTypes,
+    Ok,
+    OpenApiExtractTranspiler,
+    OpenApiRawDoc,
+)
 
 _JS_PARSER = JsonSchemaParser()
 
 
-def _make_json_doc(data: object, source_id: str = "test://doc") -> RawDoc:
-    return RawDoc(
+def _make_openapi_doc(data: object, source_id: str = "test://doc") -> OpenApiRawDoc:
+    return OpenApiRawDoc(
+        source_id=source_id,
+        content=orjson.dumps(data),
+        media_type=MediaTypes.json,
+        display_name="test",
+    )
+
+
+def _make_json_schema_doc(data: object, source_id: str = "test://doc") -> JsonSchemaRawDoc:
+    return JsonSchemaRawDoc(
         source_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,
@@ -24,7 +40,7 @@ def _make_json_doc(data: object, source_id: str = "test://doc") -> RawDoc:
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_openapi_extract_schemas(openapi: dict) -> None:
     """Extracted artifact count matches component schema count, IDs match names, and each extracted schema re-parses successfully."""
-    doc = _make_json_doc(openapi)
+    doc = _make_openapi_doc(openapi)
     transpiler = OpenApiExtractTranspiler()
 
     result = transpiler.transpile(doc)
@@ -38,7 +54,7 @@ def test_openapi_extract_schemas(openapi: dict) -> None:
 
     for artifact in result.value:
         assert artifact.artifact_id.endswith(".schema.json")
-        doc2 = _make_json_doc(orjson.loads(artifact.content))
+        doc2 = _make_json_schema_doc(orjson.loads(artifact.content))
         r = _JS_PARSER.apply(doc2)
         assert isinstance(r, Ok), (
             f"Extracted schema {artifact.artifact_id!r} failed to re-parse: "
@@ -53,7 +69,7 @@ def test_openapi_extract_yaml_output() -> None:
         "components": {"schemas": {"Foo": {"type": "object"}}},
     }
     transpiler = OpenApiExtractTranspiler(use_yaml=True)
-    result = transpiler.transpile(_make_json_doc(openapi))
+    result = transpiler.transpile(_make_openapi_doc(openapi))
     assert isinstance(result, Ok)
     artifact = result.value[0]
     assert artifact.artifact_id.endswith(".schema.yaml")

@@ -12,25 +12,23 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
-from schema_to import MediaTypes
+from schema_to.io.media_type import MediaType, MediaTypes
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from schema_to import MediaType
-
-__all__ = ["Artifact", "DataSink"]
+__all__ = ["Artifact", "DataSink", "JsonArtifact", "PythonArtifact", "SqlArtifact", "YamlArtifact"]
 
 
 @dataclass(frozen=True, slots=True)
-class Artifact(ABC):
+class Artifact(ABC):  # ClassVar[media_type] acts as an abstract class attribute
     """A single output document ready to be written to a sink.
 
     Attributes:
         artifact_id: Suggested name for the artifact within the sink,
             typically a relative path such as `"migrations/001_users.sql"`.
         content: Serialised output bytes.
-        media_type: Content type of the output.
+        media_type: Content type of the output; defined as a class variable on each subclass.
         source_ids: `source_id`s of the `RawDoc`s that contributed to this artifact, for traceability.
     """
 
@@ -40,15 +38,18 @@ class Artifact(ABC):
     media_type: ClassVar[MediaType]
 
 
-# TODO: Where should we put these concrete types?
-
-
-# TODO: What about YAML?
 @dataclass(frozen=True, slots=True)
 class JsonArtifact(Artifact):
     """A `.json` file."""
 
     media_type: ClassVar[MediaType] = MediaTypes.json
+
+
+@dataclass(frozen=True, slots=True)
+class YamlArtifact(Artifact):
+    """A `.yaml` file."""
+
+    media_type: ClassVar[MediaType] = MediaTypes.yaml
 
 
 @dataclass(frozen=True, slots=True)
