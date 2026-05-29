@@ -4,12 +4,17 @@
 - `OpenApiPassThruTranspiler` — OpenAPI 3.1 → OpenAPI 3.1 (identity round-trip).
 
 Both accept a `use_yaml` flag (emit YAML instead of JSON, default `False`).
+
+Documents arrive as `JsonSchemaRawDoc` or `OpenApiRawDoc` because
+`FileDataSource` uses `peek_is_openapi` to select the correct subclass at
+source-collection time.  Transpiler `accepts()` methods are therefore a simple
+`isinstance` check with no additional I/O.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from schema_to.io.sink import Artifact, JsonArtifact, YamlArtifact
 from schema_to.io.source import JsonSchemaRawDoc, OpenApiRawDoc, RawDoc
@@ -19,7 +24,7 @@ from schema_to.pipeline import Transpiler
 from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 from schema_to.serialize.openapi import OpenApiSerializer
-from schema_to.transpile._utils import encode, peek_is_openapi
+from schema_to.transpile._utils import encode
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -28,7 +33,7 @@ __all__ = ["JsonSchemaPassThruTranspiler", "OpenApiPassThruTranspiler"]
 
 
 @dataclass(frozen=True)
-class JsonSchemaPassThruTranspiler(Transpiler[RawDoc, Artifact]):
+class JsonSchemaPassThruTranspiler(Transpiler[JsonSchemaRawDoc, Artifact]):
     """Parse a JSON Schema document and emit it back as normalised JSON or YAML.
 
     Attributes:
@@ -42,14 +47,10 @@ class JsonSchemaPassThruTranspiler(Transpiler[RawDoc, Artifact]):
     use_yaml: bool = False
 
     def accepts(self, doc: RawDoc) -> bool:
-        if isinstance(doc, OpenApiRawDoc):
-            return False
-        if isinstance(doc, JsonSchemaRawDoc):
-            return True
-        return not peek_is_openapi(doc)
+        return isinstance(doc, JsonSchemaRawDoc)
 
-    def transpile(self, doc: RawDoc) -> Result[Sequence[Artifact]]:
-        result = self.parser.apply(cast("JsonSchemaRawDoc", doc))  # accepts() guarantees the type
+    def transpile(self, doc: JsonSchemaRawDoc) -> Result[Sequence[Artifact]]:
+        result = self.parser.apply(doc)
         if isinstance(result, Err):
             return result
         data = self.serializer.serialize_document(result.value)
@@ -67,7 +68,7 @@ class JsonSchemaPassThruTranspiler(Transpiler[RawDoc, Artifact]):
 
 
 @dataclass(frozen=True)
-class OpenApiPassThruTranspiler(Transpiler[RawDoc, Artifact]):
+class OpenApiPassThruTranspiler(Transpiler[OpenApiRawDoc, Artifact]):
     """Parse an OpenAPI 3.1 document and emit it back as normalised JSON or YAML.
 
     Attributes:
@@ -81,10 +82,10 @@ class OpenApiPassThruTranspiler(Transpiler[RawDoc, Artifact]):
     use_yaml: bool = False
 
     def accepts(self, doc: RawDoc) -> bool:
-        return isinstance(doc, OpenApiRawDoc) or peek_is_openapi(doc)
+        return isinstance(doc, OpenApiRawDoc)
 
-    def transpile(self, doc: RawDoc) -> Result[Sequence[Artifact]]:
-        result = self.parser.apply(cast("OpenApiRawDoc", doc))  # accepts() guarantees the type
+    def transpile(self, doc: OpenApiRawDoc) -> Result[Sequence[Artifact]]:
+        result = self.parser.apply(doc)
         if isinstance(result, Err):
             return result
         data = self.serializer.serialize(result.value)

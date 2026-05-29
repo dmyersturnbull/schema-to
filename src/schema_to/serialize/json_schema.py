@@ -126,6 +126,8 @@ class JsonSchemaSerializer:
             case JsonSchemaType() as t:
                 return str(t)
             case frozenset(types_):
+                # sorted() returns list[str]; list[str] ≤ list[JsonValue] ≤ JsonValue,
+                # but ty can't see that subtype relationship, so we assert it with cast.
                 return cast("JsonValue", sorted(str(t) for t in types_))
             case str():
                 return value

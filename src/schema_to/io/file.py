@@ -9,8 +9,9 @@ from typing import TYPE_CHECKING
 
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.os_errors import PathMissingError, TypedNotADirectoryError
+from schema_to.io.routing import peek_is_openapi
 from schema_to.io.sink import Artifact, DataSink
-from schema_to.io.source import DataSource, RawDoc
+from schema_to.io.source import DataSource, JsonSchemaRawDoc, OpenApiRawDoc, RawDoc
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -41,9 +42,13 @@ class FileDataSource(DataSource):
         return self.path.as_uri()
 
     def documents(self) -> Iterator[RawDoc]:
-        yield RawDoc(
+        content = self.path.read_bytes()
+        doc_cls: type[RawDoc] = (
+            OpenApiRawDoc if peek_is_openapi(content, self.media_type) else JsonSchemaRawDoc
+        )
+        yield doc_cls(
             source_id=self.path.as_uri(),
-            content=self.path.read_bytes(),
+            content=content,
             media_type=self.media_type,
             display_name=self.path.stem,
             base_uri=self.path.as_uri(),
@@ -107,10 +112,15 @@ class DirectoryDataSource(DataSource):
 
     def documents(self) -> Iterator[RawDoc]:
         for path in self.paths:
-            yield RawDoc(
+            media_type = MediaTypes.from_input_suffix(path.suffix)
+            content = path.read_bytes()
+            doc_cls: type[RawDoc] = (
+                OpenApiRawDoc if peek_is_openapi(content, media_type) else JsonSchemaRawDoc
+            )
+            yield doc_cls(
                 source_id=path.as_uri(),
-                content=path.read_bytes(),
-                media_type=MediaTypes.from_input_suffix(path.suffix),
+                content=content,
+                media_type=media_type,
                 display_name=path.stem,
                 base_uri=path.as_uri(),
             )

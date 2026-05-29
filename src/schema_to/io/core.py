@@ -7,7 +7,7 @@ import orjson
 from orjson import JSONDecodeError, JSONEncodeError
 from yaml12 import format_yaml, parse_yaml
 
-from schema_to import MediaType, MediaTypes
+from schema_to.io.media_type import MediaType, MediaTypes
 
 if TYPE_CHECKING:
     from schema_to.core import JsonValue

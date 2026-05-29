@@ -5,42 +5,15 @@ Invoked as `schema-to <command> [options]` or `python -m schema_to`.
 
 from __future__ import annotations
 
-from enum import StrEnum, auto
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Final, override
+from typing import Annotated, Final
 
 from typer import Argument, Exit, Option, Typer, echo
 
 from schema_to.io.file import FileDataSink, FileDataSourceFactory
 from schema_to.pipeline import Pipeline
 from schema_to.result import Err, Ok
-from schema_to.transpile.pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-
-    from schema_to import DataSource, RawDoc
-
-
-class CliEnum(StrEnum):
-    @staticmethod
-    @override
-    def _generate_next_value_(name: str, start: int, count: int, last_values: list[str]) -> str:
-        return name.lower().replace("_", "-")
-
-
-class JsonschemaTarget(CliEnum):
-    POSTGRES = auto()
-    TYPESCRIPT = auto()
-    DATACLASS = auto()
-    PYDANTIC = auto()
-    COMMONMARK = auto()
-
-
-class OpenapiTarget(CliEnum):
-    FASTAPI = auto()
-    COMMONMARK = auto()
-
+from schema_to.transpile.factory import SUPPORTED_TARGETS, build_transpilers
 
 CWD: Final = Path.cwd()
 app = Typer(
@@ -59,16 +32,22 @@ def transpile(
     ] = False,
     output: Annotated[Path, Option("-o", "--output", help="Output directory.")] = CWD,
     to: Annotated[
-        str, Option("-t", "--to", help="Target format (currently only 'pass-thru' is supported).")
+        str,
+        Option(
+            "-t", "--to", help=f"Target format. Supported: {', '.join(sorted(SUPPORTED_TARGETS))}."
+        ),
     ] = "pass-thru",
     yaml: Annotated[bool, Option("--yaml/--json", help="Emit YAML instead of JSON.")] = False,
 ) -> None:
     """Transpile one or more schema sources into the requested target formats."""
-    if to != "pass-thru":
-        echo(f"error: target {to!r} is not yet supported; only 'pass-thru' is available.", err=True)
-        raise Exit(1)
+    try:
+        transpilers = build_transpilers(to, use_yaml=yaml)
+    except ValueError as exc:
+        echo(f"error: {exc}", err=True)
+        raise Exit(1) from exc
+
     sources = FileDataSourceFactory(recursive=recursive).get(paths)
-    pipeline = _build_pipeline(output, sources, yaml=yaml)
+    pipeline = Pipeline(sources=sources, transpilers=transpilers, sink=FileDataSink(output))
     match pipeline.process():
         case Ok(summary):
             echo(
@@ -81,15 +60,6 @@ def transpile(
             for e in errors:
                 echo(f"error: {e.message}", err=True)
             raise Exit(1)
-
-
-def _build_pipeline(output: Path, sources: Sequence[DataSource[RawDoc]], *, yaml: bool) -> Pipeline:
-    transpilers = [
-        OpenApiPassThruTranspiler(use_yaml=yaml),
-        JsonSchemaPassThruTranspiler(use_yaml=yaml),
-    ]
-    sink = FileDataSink(output)
-    return Pipeline(sources=sources, transpilers=transpilers, sink=sink)
 
 
 def cli() -> None:

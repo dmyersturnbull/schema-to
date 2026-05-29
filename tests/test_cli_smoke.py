@@ -76,7 +76,7 @@ def test_cli_unsupported_target_exits_nonzero(tmp_path: Path) -> None:
     input_file = tmp_path / "schema.json"
     input_file.write_text(json.dumps(schema))
 
-    result = _run(str(input_file), "--to", "pydantic")
+    result = _run(str(input_file), "--to", "typescript")
     assert result.returncode != 0
     assert "not yet supported" in result.stderr
 

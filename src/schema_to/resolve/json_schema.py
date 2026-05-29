@@ -21,7 +21,7 @@ import urllib.parse
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-import referencing
+import referencing._core
 from referencing import Registry, Resource
 from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
@@ -38,6 +38,37 @@ if TYPE_CHECKING:
 __all__ = ["JsonSchemaRefResolver"]
 
 _SERIALIZER = JsonSchemaSerializer()
+
+
+# ---------------------------------------------------------------------------
+# Facade for the referencing library's internal Resolver type
+# ---------------------------------------------------------------------------
+
+# `referencing._core.Resolver` is an implementation detail of the `referencing`
+# library — it is not part of the public API.  We wrap it in a thin facade so
+# that the internal type is referenced only here; future library upgrades require
+# a single change rather than updates at every call site.
+
+
+class _Resolved:
+    """Wraps `referencing._core.Resolved` to expose a typed `.resolver`."""
+
+    def __init__(self, inner: referencing._core.Resolved) -> None:
+        self._inner = inner
+
+    @property
+    def resolver(self) -> _RefResolver:
+        return _RefResolver(self._inner.resolver)
+
+
+class _RefResolver:
+    """Thin facade over `referencing._core.Resolver` for type-safe ref lookups."""
+
+    def __init__(self, inner: referencing._core.Resolver) -> None:
+        self._inner = inner
+
+    def lookup(self, ref: str) -> _Resolved:
+        return _Resolved(self._inner.lookup(ref))
 
 
 # ---------------------------------------------------------------------------
@@ -156,7 +187,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
             self.register(input)
 
         try:
-            ref_resolver = self._registry.resolver(base_uri=input.source_id)
+            ref_resolver = _RefResolver(self._registry.resolver(base_uri=input.source_id))
         except Unresolvable as exc:
             return Err((ResolutionError(str(exc), location=SourceLocation(input.source_id, "")),))
 
@@ -214,7 +245,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         self,
         schema: JsonSchema,
         *,
-        ref_resolver: referencing._core.Resolver,  # referencing does not export a public Resolver type
+        ref_resolver: _RefResolver,
         source_id: str,
         errors: list[TranspilationError],
     ) -> None:
@@ -248,7 +279,9 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
             try:
                 resolved = ref_resolver.lookup(schema.id)
                 current_resolver = resolved.resolver
-            except Unresolvable:  # noqa: S110  # $id not in registry; continue with current resolver
+            except Unresolvable:  # noqa: S110  # Not a schema error: $id may reference an
+                # unregistered canonical URI.  The current resolver stays valid for nested schemas;
+                # any real ref failures are already caught by the $ref/$dynamicRef checks above.
                 pass
 
         for _, sub_schema in _iter_sub_schemas(schema, pointer):

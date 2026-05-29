@@ -10,7 +10,7 @@ diagnostics rather than stopping at the first fault.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 from schema_to import JsonSchemaRawDoc
 from schema_to.cst.base import SourceRef
@@ -25,14 +25,20 @@ from schema_to.cst.json_schema import (
     SchemaType,
 )
 from schema_to.errors import ParseError, SchemaValidationError, SourceLocation, TranspilationError
-from schema_to.io.core import JsonLikeReader, ReadError
-from schema_to.parse._utils import ptr
+from schema_to.parse._utils import (
+    as_json_dict,
+    as_json_list,
+    decode_raw_doc,
+    int_field,
+    num_field,
+    ptr,
+    str_field,
+)
 from schema_to.pipeline import DocParser
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
     from schema_to.core import JsonValue
-    from schema_to.io.source import RawDoc
 
 __all__ = ["JsonSchemaParser"]
 
@@ -50,20 +56,14 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     def apply(self, input: JsonSchemaRawDoc) -> Result[JsonSchemaDocument]:
         try:
-            raw = self._decode(input)
+            raw = decode_raw_doc(input)
         except TranspilationError as exc:
             return Err((exc,))
         return self._build_document(raw, document=input)
 
-    def _decode(self, document: RawDoc) -> JsonValue:
-        try:
-            return JsonLikeReader().read(document.content, document.media_type)
-        except ReadError as e:
-            raise ParseError(
-                str(e), location=SourceLocation(document.source_id, line=e.line, column=e.column)
-            ) from e
-
-    def _build_document(self, data: JsonValue, *, document: RawDoc) -> Result[JsonSchemaDocument]:
+    def _build_document(
+        self, data: JsonValue, *, document: JsonSchemaRawDoc
+    ) -> Result[JsonSchemaDocument]:
         root_r = self._build_schema(data, source_id=document.source_id, pointer="")
         if isinstance(root_r, Err):
             return root_r
@@ -80,10 +80,12 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         if isinstance(data, bool):
             return Ok(BooleanSchema(value=data, source_ref=SourceRef(source_id, pointer)))
         if isinstance(data, dict):
-            return cast(  # Ok[ObjectSchema] is safe as Result[JsonSchema]; ty can't see covariance
+            # ty treats Ok[T] as invariant; cast asserts the safe covariant narrowing:
+            # Ok[ObjectSchema] is structurally ≤ Result[JsonSchema] at runtime.
+            return cast(
                 "Result[JsonSchema]",
                 self._build_object_schema(
-                    cast("dict[str, Any]", data), source_id=source_id, pointer=pointer
+                    cast("dict[str, JsonValue]", data), source_id=source_id, pointer=pointer
                 ),
             )
         return Err(
@@ -95,8 +97,8 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             )
         )
 
-    def _build_object_schema(  # noqa: C901, PLR0912, PLR0914, PLR0915
-        self, data: dict[str, Any], *, source_id: str, pointer: str
+    def _build_object_schema(  # noqa: PLR0914  # ObjectSchema has 30+ fields; sub-builders already extracted
+        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
     ) -> Result[ObjectSchema]:
         errors: list[TranspilationError] = []
 
@@ -104,42 +106,12 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         defs = self._build_schema_map(
             data, "$defs", source_id=source_id, pointer=pointer, errors=errors
         )
-        vocabulary: dict[str, bool] | None = None
-        if "$vocabulary" in data:
-            raw_vocab = data["$vocabulary"]
-            if not isinstance(raw_vocab, dict):
-                errors.append(
-                    SchemaValidationError(
-                        "$vocabulary must be an object.",
-                        location=loc(source_id, ptr(pointer, "$vocabulary")),
-                    )
-                )
-            else:
-                vocabulary = {}
-                for uri, required in raw_vocab.items():
-                    if not isinstance(required, bool):
-                        errors.append(
-                            SchemaValidationError(
-                                f"$vocabulary value for {uri!r} must be a boolean.",
-                                location=loc(source_id, ptr(pointer, "$vocabulary", uri)),
-                            )
-                        )
-                    else:
-                        vocabulary[uri] = required
+        vocabulary = self._parse_vocabulary(
+            data, source_id=source_id, pointer=pointer, errors=errors
+        )
 
         # -- Metadata vocabulary -------------------------------------------
-        examples: list[Any] | None = None
-        if "examples" in data:
-            raw_ex = data["examples"]
-            if not isinstance(raw_ex, list):
-                errors.append(
-                    SchemaValidationError(
-                        "examples must be an array.",
-                        location=loc(source_id, ptr(pointer, "examples")),
-                    )
-                )
-            else:
-                examples = list(raw_ex)
+        examples = self._parse_examples(data, source_id=source_id, pointer=pointer, errors=errors)
 
         # -- Validation vocabulary -----------------------------------------
         schema_type: SchemaType | None = None
@@ -150,38 +122,13 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             else:
                 schema_type = r.value
 
-        enum_val: list[Any] | None = None
-        if "enum" in data:
-            raw_enum = data["enum"]
-            if not isinstance(raw_enum, list):
-                errors.append(
-                    SchemaValidationError(
-                        "enum must be an array.", location=loc(source_id, ptr(pointer, "enum"))
-                    )
-                )
-            else:
-                enum_val = list(raw_enum)
+        enum_val = self._parse_enum(data, source_id=source_id, pointer=pointer, errors=errors)
 
-        # -- Numeric validation --------------------------------------------
-        for key in ("multipleOf", "maximum", "exclusiveMaximum", "minimum", "exclusiveMinimum"):
-            val = data.get(key)
-            if val is not None and not isinstance(val, (int, float)):
-                errors.append(
-                    SchemaValidationError(
-                        f"{key} must be a number.", location=loc(source_id, ptr(pointer, key))
-                    )
-                )
-
-        # -- String validation ---------------------------------------------
-        for key in ("maxLength", "minLength"):
-            val = data.get(key)
-            if val is not None and (not isinstance(val, int) or val < 0):
-                errors.append(
-                    SchemaValidationError(
-                        f"{key} must be a non-negative integer.",
-                        location=loc(source_id, ptr(pointer, key)),
-                    )
-                )
+        # -- Numeric / string constraint validation ------------------------
+        self._validate_numeric_constraints(
+            data, source_id=source_id, pointer=pointer, errors=errors
+        )
+        self._validate_string_constraints(data, source_id=source_id, pointer=pointer, errors=errors)
 
         # -- Array keywords ------------------------------------------------
         prefix_items = self._build_schema_list(
@@ -210,42 +157,10 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         dependent_schemas = self._build_schema_map(
             data, "dependentSchemas", source_id=source_id, pointer=pointer, errors=errors
         )
-
-        required: frozenset[str] | None = None
-        if "required" in data:
-            raw_req = data["required"]
-            if not isinstance(raw_req, list) or not all(isinstance(s, str) for s in raw_req):
-                errors.append(
-                    SchemaValidationError(
-                        "required must be an array of strings.",
-                        location=loc(source_id, ptr(pointer, "required")),
-                    )
-                )
-            else:
-                required = frozenset(x for x in raw_req if isinstance(x, str))
-
-        dependent_required: dict[str, frozenset[str]] | None = None
-        if "dependentRequired" in data:
-            raw_dr = data["dependentRequired"]
-            if not isinstance(raw_dr, dict):
-                errors.append(
-                    SchemaValidationError(
-                        "dependentRequired must be an object.",
-                        location=loc(source_id, ptr(pointer, "dependentRequired")),
-                    )
-                )
-            else:
-                dependent_required = {}
-                for prop, deps in raw_dr.items():
-                    if not isinstance(deps, list) or not all(isinstance(s, str) for s in deps):
-                        errors.append(
-                            SchemaValidationError(
-                                f"dependentRequired[{prop!r}] must be an array of strings.",
-                                location=loc(source_id, ptr(pointer, "dependentRequired", prop)),
-                            )
-                        )
-                    else:
-                        dependent_required[prop] = frozenset(x for x in deps if isinstance(x, str))
+        required = self._parse_required(data, source_id=source_id, pointer=pointer, errors=errors)
+        dependent_required = self._parse_dependent_required(
+            data, source_id=source_id, pointer=pointer, errors=errors
+        )
 
         # -- Applicator vocabulary -----------------------------------------
         all_of = self._build_schema_list(
@@ -289,18 +204,18 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         return Ok(
             ObjectSchema(
                 # Core
-                id=data.get("$id"),
-                schema=data.get("$schema"),
-                anchor=data.get("$anchor"),
-                dynamic_anchor=data.get("$dynamicAnchor"),
-                ref=data.get("$ref"),
-                dynamic_ref=data.get("$dynamicRef"),
+                id=str_field(data, "$id"),
+                schema=str_field(data, "$schema"),
+                anchor=str_field(data, "$anchor"),
+                dynamic_anchor=str_field(data, "$dynamicAnchor"),
+                ref=str_field(data, "$ref"),
+                dynamic_ref=str_field(data, "$dynamicRef"),
                 defs=defs,
-                comment=data.get("$comment"),
+                comment=str_field(data, "$comment"),
                 vocabulary=vocabulary,
                 # Metadata
-                title=data.get("title"),
-                description=data.get("description"),
+                title=str_field(data, "title"),
+                description=str_field(data, "description"),
                 default=DefaultValue(data["default"]) if "default" in data else None,
                 deprecated=bool(data.get("deprecated")),
                 read_only=bool(data.get("readOnly")),
@@ -311,23 +226,23 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                 enum=enum_val,
                 const=ConstValue(data["const"]) if "const" in data else None,
                 # Numeric
-                multiple_of=data.get("multipleOf"),
-                maximum=data.get("maximum"),
-                exclusive_maximum=data.get("exclusiveMaximum"),
-                minimum=data.get("minimum"),
-                exclusive_minimum=data.get("exclusiveMinimum"),
+                multiple_of=num_field(data, "multipleOf"),
+                maximum=num_field(data, "maximum"),
+                exclusive_maximum=num_field(data, "exclusiveMaximum"),
+                minimum=num_field(data, "minimum"),
+                exclusive_minimum=num_field(data, "exclusiveMinimum"),
                 # String
-                max_length=data.get("maxLength"),
-                min_length=data.get("minLength"),
-                pattern=data.get("pattern"),
+                max_length=int_field(data, "maxLength"),
+                min_length=int_field(data, "minLength"),
+                pattern=str_field(data, "pattern"),
                 # Array
                 prefix_items=prefix_items,
                 items=items,
                 contains=contains,
-                min_contains=data.get("minContains"),
-                max_contains=data.get("maxContains"),
-                min_items=data.get("minItems"),
-                max_items=data.get("maxItems"),
+                min_contains=int_field(data, "minContains"),
+                max_contains=int_field(data, "maxContains"),
+                min_items=int_field(data, "minItems"),
+                max_items=int_field(data, "maxItems"),
                 unique_items=bool(data.get("uniqueItems")),
                 # Object
                 properties=properties,
@@ -337,8 +252,8 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                 required=required,
                 dependent_required=dependent_required,
                 dependent_schemas=dependent_schemas,
-                min_properties=data.get("minProperties"),
-                max_properties=data.get("maxProperties"),
+                min_properties=int_field(data, "minProperties"),
+                max_properties=int_field(data, "maxProperties"),
                 # Applicator
                 all_of=all_of,
                 any_of=any_of,
@@ -351,20 +266,190 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                 unevaluated_items=unevaluated_items,
                 unevaluated_properties=unevaluated_properties,
                 # Content
-                content_encoding=data.get("contentEncoding"),
-                content_media_type=data.get("contentMediaType"),
+                content_encoding=str_field(data, "contentEncoding"),
+                content_media_type=str_field(data, "contentMediaType"),
                 content_schema=content_schema,
                 # Format
-                format=data.get("format"),
+                format=str_field(data, "format"),
                 # Extensions and provenance
                 extensions={k: v for k, v in data.items() if k.startswith("x-")},
                 source_ref=SourceRef(source_id, pointer),
             )
         )
 
+    # -- Vocabulary sub-parsers -----------------------------------------------
+
+    def _parse_vocabulary(
+        self,
+        data: dict[str, JsonValue],
+        *,
+        source_id: str,
+        pointer: str,
+        errors: list[TranspilationError],
+    ) -> dict[str, bool] | None:
+        if "$vocabulary" not in data:
+            return None
+        raw_vocab = data["$vocabulary"]
+        if not isinstance(raw_vocab, dict):
+            errors.append(
+                SchemaValidationError(
+                    "$vocabulary must be an object.",
+                    location=loc(source_id, ptr(pointer, "$vocabulary")),
+                )
+            )
+            return None
+        vocab_d = as_json_dict(raw_vocab)
+        vocabulary: dict[str, bool] = {}
+        for uri, required in vocab_d.items():
+            if not isinstance(required, bool):
+                errors.append(
+                    SchemaValidationError(
+                        f"$vocabulary value for {uri!r} must be a boolean.",
+                        location=loc(source_id, ptr(pointer, "$vocabulary", uri)),
+                    )
+                )
+            else:
+                vocabulary[uri] = required
+        return vocabulary
+
+    def _parse_examples(
+        self,
+        data: dict[str, JsonValue],
+        *,
+        source_id: str,
+        pointer: str,
+        errors: list[TranspilationError],
+    ) -> list[JsonValue] | None:
+        if "examples" not in data:
+            return None
+        raw_ex = data["examples"]
+        if not isinstance(raw_ex, list):
+            errors.append(
+                SchemaValidationError(
+                    "examples must be an array.", location=loc(source_id, ptr(pointer, "examples"))
+                )
+            )
+            return None
+        return as_json_list(raw_ex)
+
+    def _parse_enum(
+        self,
+        data: dict[str, JsonValue],
+        *,
+        source_id: str,
+        pointer: str,
+        errors: list[TranspilationError],
+    ) -> list[JsonValue] | None:
+        if "enum" not in data:
+            return None
+        raw_enum = data["enum"]
+        if not isinstance(raw_enum, list):
+            errors.append(
+                SchemaValidationError(
+                    "enum must be an array.", location=loc(source_id, ptr(pointer, "enum"))
+                )
+            )
+            return None
+        return as_json_list(raw_enum)
+
+    def _validate_numeric_constraints(
+        self,
+        data: dict[str, JsonValue],
+        *,
+        source_id: str,
+        pointer: str,
+        errors: list[TranspilationError],
+    ) -> None:
+        for key in ("multipleOf", "maximum", "exclusiveMaximum", "minimum", "exclusiveMinimum"):
+            val = data.get(key)
+            if val is not None and not isinstance(val, (int, float)):
+                errors.append(
+                    SchemaValidationError(
+                        f"{key} must be a number.", location=loc(source_id, ptr(pointer, key))
+                    )
+                )
+
+    def _validate_string_constraints(
+        self,
+        data: dict[str, JsonValue],
+        *,
+        source_id: str,
+        pointer: str,
+        errors: list[TranspilationError],
+    ) -> None:
+        for key in ("maxLength", "minLength"):
+            val = data.get(key)
+            if val is not None and (not isinstance(val, int) or val < 0):
+                errors.append(
+                    SchemaValidationError(
+                        f"{key} must be a non-negative integer.",
+                        location=loc(source_id, ptr(pointer, key)),
+                    )
+                )
+
+    def _parse_required(
+        self,
+        data: dict[str, JsonValue],
+        *,
+        source_id: str,
+        pointer: str,
+        errors: list[TranspilationError],
+    ) -> frozenset[str] | None:
+        if "required" not in data:
+            return None
+        raw_req = data["required"]
+        if not isinstance(raw_req, list) or not all(isinstance(s, str) for s in raw_req):
+            errors.append(
+                SchemaValidationError(
+                    "required must be an array of strings.",
+                    location=loc(source_id, ptr(pointer, "required")),
+                )
+            )
+            return None
+        # The `all(isinstance(s, str) for s in raw_req)` guard above ensures every element
+        # is a str; the isinstance filter below is redundant but satisfies the type checker.
+        return frozenset(x for x in raw_req if isinstance(x, str))
+
+    def _parse_dependent_required(
+        self,
+        data: dict[str, JsonValue],
+        *,
+        source_id: str,
+        pointer: str,
+        errors: list[TranspilationError],
+    ) -> dict[str, frozenset[str]] | None:
+        if "dependentRequired" not in data:
+            return None
+        raw_dr = data["dependentRequired"]
+        if not isinstance(raw_dr, dict):
+            errors.append(
+                SchemaValidationError(
+                    "dependentRequired must be an object.",
+                    location=loc(source_id, ptr(pointer, "dependentRequired")),
+                )
+            )
+            return None
+        dr_d = as_json_dict(raw_dr)
+        dependent_required: dict[str, frozenset[str]] = {}
+        for prop, deps in dr_d.items():
+            if not isinstance(deps, list) or not all(isinstance(s, str) for s in deps):
+                errors.append(
+                    SchemaValidationError(
+                        f"dependentRequired[{prop!r}] must be an array of strings.",
+                        location=loc(source_id, ptr(pointer, "dependentRequired", prop)),
+                    )
+                )
+            else:
+                # The `all(isinstance(s, str) for s in deps)` guard above ensures every element
+                # is a str; the isinstance filter below is redundant but satisfies the type checker.
+                dependent_required[prop] = frozenset(x for x in deps if isinstance(x, str))
+        return dependent_required
+
     # -- Reusable sub-builders ------------------------------------------------
 
-    def _parse_schema_type(self, value: Any, *, location: SourceLocation) -> Result[SchemaType]:  # noqa: ANN401
+    def _parse_schema_type(
+        self, value: JsonValue, *, location: SourceLocation
+    ) -> Result[SchemaType]:
         if isinstance(value, str):
             try:
                 return Ok(JsonSchemaType(value))
@@ -379,7 +464,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         if isinstance(value, list):
             types: list[JsonSchemaType] = []
             errs: list[TranspilationError] = []
-            for item in value:
+            for item in as_json_list(value):
                 if not isinstance(item, str):
                     errs.append(
                         SchemaValidationError(
@@ -409,7 +494,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     def _build_optional_schema(
         self,
-        data: dict[str, Any],
+        data: dict[str, JsonValue],
         key: str,
         *,
         source_id: str,
@@ -426,7 +511,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     def _build_schema_list(
         self,
-        data: dict[str, Any],
+        data: dict[str, JsonValue],
         key: str,
         *,
         source_id: str,
@@ -444,10 +529,8 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             )
             return None
         result: list[JsonSchema] = []
-        for i, item in enumerate(raw):
-            r = self._build_schema(
-                cast("JsonValue", item), source_id=source_id, pointer=ptr(pointer, key, i)
-            )
+        for i, item in enumerate(as_json_list(raw)):
+            r = self._build_schema(item, source_id=source_id, pointer=ptr(pointer, key, i))
             if isinstance(r, Err):
                 errors.extend(r.errors)
             else:
@@ -456,7 +539,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     def _build_schema_map(
         self,
-        data: dict[str, Any],
+        data: dict[str, JsonValue],
         key: str,
         *,
         source_id: str,
@@ -474,7 +557,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             )
             return None
         result: dict[str, JsonSchema] = {}
-        for name, value in raw.items():
+        for name, value in as_json_dict(raw).items():
             r = self._build_schema(value, source_id=source_id, pointer=ptr(pointer, key, name))
             if isinstance(r, Err):
                 errors.extend(r.errors)
