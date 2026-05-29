@@ -1,8 +1,11 @@
 from __future__ import annotations
-from collections.abc import Mapping
 
 from dataclasses import dataclass
-from typing import NamedTuple, AbstractSet
+from typing import TYPE_CHECKING, NamedTuple
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+    from collections.abc import Set as AbstractSet
 
 __all__ = ["MediaType", "MediaTypes"]
 

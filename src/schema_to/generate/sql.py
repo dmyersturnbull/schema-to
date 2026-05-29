@@ -188,12 +188,16 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
     def _apply(self, input: JsonSchemaDocument) -> SqlScript:
         root = input.root
         if not _is_object_schema(input.root):
-            msg = (
-                f"Root schema types are {input.root.get_types()!r}, not 'object'; "
-                "cannot generate a PostgreSQL DDL."
-            )
+            if isinstance(input.root, BooleanSchema):
+                msg = "Root schema is a boolean schema; cannot generate a PostgreSQL DDL."
+            else:
+                msg = (
+                    f"Root schema types are {input.root.get_types()!r}, not 'object'; "
+                    "cannot generate a PostgreSQL DDL."
+                )
             raise GenerationError(msg)
 
+        assert isinstance(root, ObjectSchema)  # noqa: S101  # narrowed: _is_object_schema guards above
         sid = input.source_id
         def_stmts = [
             self._schema_to_table(
@@ -253,7 +257,7 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
             doc=doc,
         )
 
-    def _schema_to_data_type(self, schema: JsonSchema, col_name: str) -> DataType:
+    def _schema_to_data_type(self, schema: JsonSchema, col_name: str) -> DataType:  # noqa: PLR0911
         if isinstance(schema, BooleanSchema):
             return DataType.jsonb()
 
@@ -324,7 +328,7 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
         )
         return DataType.jsonb()
 
-    def _check_exprs(
+    def _check_exprs(  # noqa: C901
         self, schema: ObjectSchema, col_name: str, data_type: DataType
     ) -> ColumnConstraint:
         exprs: list[str] = []

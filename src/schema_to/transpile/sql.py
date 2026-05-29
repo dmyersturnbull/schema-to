@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from schema_to.generate.sql import PostgresTransformer
 from schema_to.io.source import JsonSchemaRawDoc, RawDoc
@@ -55,6 +55,7 @@ class JsonSchemaToPostgresTranspiler(Transpiler):
         return isinstance(doc, JsonSchemaRawDoc)
 
     def transpile(self, doc: RawDoc) -> Result[Sequence[Artifact]]:
+        assert isinstance(doc, JsonSchemaRawDoc)  # noqa: S101  # guaranteed by accepts()
         # Stage 1: parse
         r1 = self.parser.apply(doc)
         if isinstance(r1, Err):
@@ -73,4 +74,6 @@ class JsonSchemaToPostgresTranspiler(Transpiler):
         script: SqlScript = r3.value
 
         # Stage 4: reify
-        return SqlReifier(artifact_name=self.output_name).apply(script)
+        return cast(
+            "Result[Sequence[Artifact]]", SqlReifier(artifact_name=self.output_name).apply(script)
+        )  # SqlArtifact IS Artifact; Ok[T] is invariant

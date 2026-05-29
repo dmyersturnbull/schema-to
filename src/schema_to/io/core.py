@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import orjson
 from orjson import JSONDecodeError, JSONEncodeError
 from yaml12 import format_yaml, parse_yaml
 
-from schema_to import MediaType, MediaTypes
+from schema_to.io.media_type import MediaType, MediaTypes
 
 if TYPE_CHECKING:
     from schema_to.core import JsonValue
@@ -42,16 +42,16 @@ class YamlReader:
         if isinstance(text, bytes):
             text = text.decode("utf-8")
         try:
-            return parse_yaml(text)
+            return cast("JsonValue", parse_yaml(text))  # yaml12.Yaml is structurally compatible
         except (OSError, TypeError, ValueError) as e:
             raise ReadError(str(e)) from e
 
 
 @dataclass(frozen=True, slots=True)
 class YamlWriter:
-    def write(self, data: JsonValue) -> JsonValue:
+    def write(self, data: JsonValue) -> str:
         try:
-            return format_yaml(data)
+            return format_yaml(data)  # type: ignore[return-value]  # yaml12 lacks precise stubs
         except (OSError, TypeError, ValueError) as e:
             raise WriteError(str(e)) from e
 
@@ -69,9 +69,9 @@ class JsonReader:
 class JsonWriter:
     pretty: bool = False
 
-    def write(self, data: JsonValue) -> JsonValue:
+    def write(self, data: JsonValue) -> str:
         option = orjson.OPT_APPEND_NEWLINE | orjson.OPT_INDENT_2 if self.pretty else 0
         try:
-            return orjson.dumps(data, option=option).decode("utf-8")
+            return orjson.dumps(data, option=option).decode("utf-8")  # type: ignore[return-value]  # orjson lacks precise stubs
         except JSONEncodeError as e:
             raise ReadError(str(e), line=None, column=None) from e

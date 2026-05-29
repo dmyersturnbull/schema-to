@@ -139,7 +139,7 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
         if errors:
             return Err(tuple(errors))
 
-        imports = _build_imports(declarations, ctx)
+        imports = _build_imports(declarations)
         return Ok(
             PythonModule(imports=imports, declarations=declarations, source_ids=(input.source_id,))
         )
@@ -197,59 +197,60 @@ class _GenCtx:
     def _make_class(self, schema: ObjectSchema, name: str) -> ClassDef:
         class_name = safe_python_class_name(name)
         required_set = set(schema.required or frozenset())
-        fields: list[FieldDef] = []
-
-        for prop_name, prop_schema in (schema.properties or {}).items():
-            is_required = prop_name in required_set
-            ann = self.schema_to_annotation(prop_schema, required=is_required)
-            py_name = safe_python_field_name(prop_name)
-
-            alias_kwargs = ""
-            if py_name != prop_name:
-                alias_kwargs = f'alias="{prop_name}"'
-
-            default_: str | None = None
-            if not is_required:
-                default_ = "None"
-            elif isinstance(prop_schema, ObjectSchema) and prop_schema.default is not None:
-                default_ = repr(prop_schema.default.value)
-
-            doc: str | None = None
-            if isinstance(prop_schema, ObjectSchema):
-                doc = prop_schema.description or prop_schema.title
-
-            field_kw: list[str] = []
-            if alias_kwargs:
-                field_kw.append(alias_kwargs)
-            if isinstance(prop_schema, ObjectSchema):
-                if prop_schema.min_length is not None:
-                    field_kw.append(f"min_length={prop_schema.min_length}")
-                if prop_schema.max_length is not None:
-                    field_kw.append(f"max_length={prop_schema.max_length}")
-                if prop_schema.minimum is not None:
-                    field_kw.append(f"ge={prop_schema.minimum}")
-                if prop_schema.maximum is not None:
-                    field_kw.append(f"le={prop_schema.maximum}")
-                if prop_schema.pattern is not None:
-                    field_kw.append(f"pattern={prop_schema.pattern!r}")
-
-            if field_kw:
-                default_ = (
-                    f"Field({', '.join(field_kw)})"
-                    if default_ is None
-                    else f"Field({default_}, {', '.join(field_kw)})"
-                )
-
-            fields.append(FieldDef(name=py_name, annotation=ann, default=default_, doc=doc))
-
+        fields = [
+            self._build_field_def(prop_name, prop_schema, is_required=(prop_name in required_set))
+            for prop_name, prop_schema in (schema.properties or {}).items()
+        ]
         doc_node: PythonDocString | None = None
         if schema.title or schema.description:
             doc_node = PythonDocString(
                 summary=schema.title or schema.description or "",
                 description=schema.description if schema.title else None,
             )
-
         return ClassDef(name=class_name, style=ClassStyle.PYDANTIC, fields=fields, doc=doc_node)
+
+    def _build_field_def(
+        self, prop_name: str, prop_schema: JsonSchema, *, is_required: bool
+    ) -> FieldDef:
+        ann = self.schema_to_annotation(prop_schema, required=is_required)
+        py_name = safe_python_field_name(prop_name)
+        alias = f'alias="{prop_name}"' if py_name != prop_name else ""
+        default_ = self._build_field_default(prop_schema, is_required=is_required)
+        doc: str | None = None
+        if isinstance(prop_schema, ObjectSchema):
+            doc = prop_schema.description or prop_schema.title
+        field_kw = self._build_field_kwargs(prop_schema, alias=alias)
+        if field_kw:
+            default_ = (
+                f"Field({', '.join(field_kw)})"
+                if default_ is None
+                else f"Field({default_}, {', '.join(field_kw)})"
+            )
+        return FieldDef(name=py_name, annotation=ann, default=default_, doc=doc)
+
+    def _build_field_default(self, prop_schema: JsonSchema, *, is_required: bool) -> str | None:
+        if not is_required:
+            return "None"
+        if isinstance(prop_schema, ObjectSchema) and prop_schema.default is not None:
+            return repr(prop_schema.default.value)
+        return None
+
+    def _build_field_kwargs(self, prop_schema: JsonSchema, *, alias: str) -> list[str]:
+        field_kw: list[str] = []
+        if alias:
+            field_kw.append(alias)
+        if isinstance(prop_schema, ObjectSchema):
+            if prop_schema.min_length is not None:
+                field_kw.append(f"min_length={prop_schema.min_length}")
+            if prop_schema.max_length is not None:
+                field_kw.append(f"max_length={prop_schema.max_length}")
+            if prop_schema.minimum is not None:
+                field_kw.append(f"ge={prop_schema.minimum}")
+            if prop_schema.maximum is not None:
+                field_kw.append(f"le={prop_schema.maximum}")
+            if prop_schema.pattern is not None:
+                field_kw.append(f"pattern={prop_schema.pattern!r}")
+        return field_kw
 
     def schema_to_annotation(self, schema: JsonSchema, *, required: bool) -> PythonTypeAnnotation:
         """Return the Python type annotation for a field's schema."""
@@ -261,20 +262,18 @@ class _GenCtx:
     def _annotation_inner(self, schema: JsonSchema) -> PythonTypeAnnotation:
         if isinstance(schema, BooleanSchema):
             return _ANY if schema.value else PythonTypeAnnotation("Never", module="typing")
-
-        # $ref → forward reference class name
         if schema.ref:
             return PythonTypeAnnotation(_ref_to_class_name(schema.ref))
-
-        # enum → Literal[...]
         if schema.enum is not None:
             return _literal(*schema.enum)
-
-        # const → Literal[value]
         if schema.const is not None:
             return _literal(schema.const.value)
+        ann = self._annotation_from_applicators(schema)
+        if ann is not None:
+            return ann
+        return self._annotation_from_type(schema)
 
-        # anyOf / oneOf: collapse [T, null] → T | None, else Any
+    def _annotation_from_applicators(self, schema: ObjectSchema) -> PythonTypeAnnotation | None:
         for applicator in (schema.any_of, schema.one_of):
             if applicator is not None:
                 result = self._nullable_union(list(applicator))
@@ -287,8 +286,6 @@ class _GenCtx:
                     schema=schema,
                 )
                 return _ANY
-
-        # allOf: warn + Any (complex merge not supported)
         if schema.all_of is not None:
             if len(schema.all_of) == 1:
                 return self._annotation_inner(schema.all_of[0])
@@ -296,16 +293,13 @@ class _GenCtx:
                 "allOf with multiple branches uses Any.", code="allof-fallback", schema=schema
             )
             return _ANY
+        return None
 
-        # Union type array, e.g. type: [string, null]
+    def _annotation_from_type(self, schema: ObjectSchema) -> PythonTypeAnnotation:
         if isinstance(schema.type, frozenset):
             return self._type_set_annotation(schema.type, schema)
-
-        # Single primitive type
         if schema.type is not None:
             return self._single_type_annotation(schema.type, schema)
-
-        # No type specified — Any
         return _ANY
 
     def _single_type_annotation(
@@ -370,38 +364,29 @@ class _GenCtx:
 # ---------------------------------------------------------------------------
 
 
-def _build_imports(declarations: list[TypeAliasDef | ClassDef], ctx: _GenCtx) -> list[FromImport]:
+def _scan_annotation(ann: PythonTypeAnnotation, needed: dict[str, set[str]]) -> None:
+    if ann.module:
+        needed.setdefault(ann.module, set()).add(ann.name)
+    for arg in ann.args:
+        _scan_annotation(arg, needed)
+
+
+def _build_imports(declarations: list[TypeAliasDef | ClassDef]) -> list[FromImport]:
     """Collect all needed imports from the declaration tree."""
-    needed: dict[str, set[str]] = {}  # module -> names
-
-    def _add(module_: str, name: str) -> None:
-        needed.setdefault(module_, set()).add(name)
-
-    def _scan_ann(ann: PythonTypeAnnotation) -> None:
-        if ann.module:
-            _add(ann.module, ann.name)
-        for arg in ann.args:
-            _scan_ann(arg)
-
-    def _scan_field(f: FieldDef) -> None:
-        _scan_ann(f.annotation)
-        if f.default and "Field(" in (f.default or ""):
-            _add("pydantic", "Field")
-
+    needed: dict[str, set[str]] = {}
     has_class = False
     for decl in declarations:
         if isinstance(decl, ClassDef):
             has_class = True
             for f in decl.fields:
-                _scan_field(f)
+                _scan_annotation(f.annotation, needed)
+                if f.default and "Field(" in f.default:
+                    needed.setdefault("pydantic", set()).add("Field")
         elif isinstance(decl, TypeAliasDef):
-            _scan_ann(decl.annotation)
-
+            _scan_annotation(decl.annotation, needed)
     if has_class:
-        _add("pydantic", "BaseModel")
-
-    result: list[FromImport] = []
-    for module in sorted(needed):
-        names = sorted(needed[module])
-        result.append(FromImport(module=module, names=[(n, None) for n in names]))
-    return result
+        needed.setdefault("pydantic", set()).add("BaseModel")
+    return [
+        FromImport(module=module, names=[(n, None) for n in sorted(needed[module])])
+        for module in sorted(needed)
+    ]

@@ -11,15 +11,25 @@ from tests.strategies import json_schema_st, openapi_doc_st
 
 from schema_to import (
     JsonSchemaPassThruTranspiler,
+    JsonSchemaRawDoc,
     MediaTypes,
     Ok,
     OpenApiPassThruTranspiler,
-    RawDoc,
+    OpenApiRawDoc,
 )
 
 
-def _make_json_doc(data: object, source_id: str = "test://doc") -> RawDoc:
-    return RawDoc(
+def _make_json_schema_doc(data: object, source_id: str = "test://doc") -> JsonSchemaRawDoc:
+    return JsonSchemaRawDoc(
+        source_id=source_id,
+        content=orjson.dumps(data),
+        media_type=MediaTypes.json,
+        display_name="test",
+    )
+
+
+def _make_openapi_doc(data: object, source_id: str = "test://doc") -> OpenApiRawDoc:
+    return OpenApiRawDoc(
         source_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,
@@ -36,14 +46,14 @@ def _make_json_doc(data: object, source_id: str = "test://doc") -> RawDoc:
 @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
 def test_json_schema_pass_thru_invertible(schema: object) -> None:
     """transpile(doc) and transpile(transpile(doc)) must produce identical output."""
-    doc = _make_json_doc(schema)
+    doc = _make_json_schema_doc(schema)
     transpiler = JsonSchemaPassThruTranspiler()
 
     r1 = transpiler.transpile(doc)
     assert isinstance(r1, Ok), f"First transpile failed: {r1}"
     artifact1 = r1.value[0]
 
-    doc2 = RawDoc(
+    doc2 = JsonSchemaRawDoc(
         source_id="test://doc2",
         content=artifact1.content,
         media_type=artifact1.media_type,
@@ -64,14 +74,14 @@ def test_json_schema_pass_thru_invertible(schema: object) -> None:
 @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
 def test_openapi_pass_thru_invertible(openapi: dict) -> None:
     """transpile(doc) and transpile(transpile(doc)) must produce identical output."""
-    doc = _make_json_doc(openapi)
+    doc = _make_openapi_doc(openapi)
     transpiler = OpenApiPassThruTranspiler()
 
     r1 = transpiler.transpile(doc)
     assert isinstance(r1, Ok), f"First transpile failed: {r1}"
     artifact1 = r1.value[0]
 
-    doc2 = RawDoc(
+    doc2 = OpenApiRawDoc(
         source_id="test://doc2",
         content=artifact1.content,
         media_type=artifact1.media_type,
@@ -89,15 +99,15 @@ def test_openapi_pass_thru_invertible(openapi: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Discriminator: accepts() must agree with document content
+# Discriminator: accepts() must agree with document type
 # ---------------------------------------------------------------------------
 
 
 @given(schema=json_schema_st())
 @settings(max_examples=50)
 def test_json_schema_not_accepted_as_openapi(schema: object) -> None:
-    """A plain JSON Schema document must not be claimed by the OpenAPI transpiler."""
-    doc = _make_json_doc(schema)
+    """A `JsonSchemaRawDoc` must not be claimed by the OpenAPI transpiler."""
+    doc = _make_json_schema_doc(schema)
     assert not OpenApiPassThruTranspiler().accepts(doc)
     assert JsonSchemaPassThruTranspiler().accepts(doc)
 
@@ -105,8 +115,8 @@ def test_json_schema_not_accepted_as_openapi(schema: object) -> None:
 @given(openapi=openapi_doc_st())
 @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
 def test_openapi_not_accepted_as_json_schema(openapi: dict) -> None:
-    """An OpenAPI document must not be claimed by the JSON Schema transpiler."""
-    doc = _make_json_doc(openapi)
+    """An `OpenApiRawDoc` must not be claimed by the JSON Schema transpiler."""
+    doc = _make_openapi_doc(openapi)
     assert OpenApiPassThruTranspiler().accepts(doc)
     assert not JsonSchemaPassThruTranspiler().accepts(doc)
 
@@ -118,7 +128,7 @@ def test_openapi_not_accepted_as_json_schema(openapi: dict) -> None:
 
 def test_json_schema_yaml_output() -> None:
     schema = {"type": "object", "properties": {"id": {"type": "integer"}}}
-    doc = _make_json_doc(schema)
+    doc = _make_json_schema_doc(schema)
     transpiler = JsonSchemaPassThruTranspiler(use_yaml=True)
     result = transpiler.transpile(doc)
     assert isinstance(result, Ok)
@@ -130,7 +140,7 @@ def test_json_schema_yaml_output() -> None:
 
 def test_openapi_yaml_output() -> None:
     openapi = {"openapi": "3.1.0", "info": {"title": "Test", "version": "1.0"}}
-    doc = _make_json_doc(openapi)
+    doc = _make_openapi_doc(openapi)
     transpiler = OpenApiPassThruTranspiler(use_yaml=True)
     result = transpiler.transpile(doc)
     assert isinstance(result, Ok)

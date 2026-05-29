@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 
 if TYPE_CHECKING:
-    from schema_to.core import JsonObject
+    from schema_to.core import JsonObject, JsonValue
     from schema_to.cst.openapi import (
         Components,
         Contact,
@@ -37,7 +37,7 @@ __all__ = ["OpenApiSerializer"]
 _HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
 
 
-def _set(out: JsonObject, key: str, value: object) -> None:
+def _set(out: JsonObject, key: str, value: JsonValue) -> None:
     if value is not None:
         out[key] = value
 

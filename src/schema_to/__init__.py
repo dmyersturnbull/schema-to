@@ -57,7 +57,7 @@ from schema_to.generate.sql import PostgresTransformer
 from schema_to.io.file import DirectoryDataSource, FileDataSink, FileDataSource
 from schema_to.io.media_type import MediaType, MediaTypeParam, MediaTypes
 from schema_to.io.memory import InMemoryDataSink, InMemoryDataSource
-from schema_to.io.sink import DataSink, Artifact
+from schema_to.io.sink import Artifact, DataSink
 from schema_to.io.source import DataSource, JsonSchemaRawDoc, OpenApiRawDoc, RawDoc
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.parse.openapi import OpenApiParser
@@ -74,6 +74,7 @@ from schema_to.transpile.pydantic import JsonSchemaToPydanticTranspiler
 from schema_to.transpile.sql import JsonSchemaToPostgresTranspiler
 
 __all__ = [
+    "Artifact",
     # I/O
     "DataSink",
     "DataSource",
@@ -107,7 +108,6 @@ __all__ = [
     "OpenApiPassThruTranspiler",
     "OpenApiRawDoc",
     "OpenApiSerializer",
-    "Artifact",
     "ParseError",
     # Pipeline
     "Pipeline",

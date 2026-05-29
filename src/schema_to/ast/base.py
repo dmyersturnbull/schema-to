@@ -26,7 +26,7 @@ class Visibility(StrEnum):
     INTERNAL = auto()
 
 
-class AstNode(ABC):
+class AstNode(ABC):  # noqa: B024  # sealed marker; abstract identity is enforced by the type system, not abstract methods
     """Sealed marker base for every target-language AST node.
 
     Concrete nodes are immutable `@dataclass(frozen=True, slots=True)` subclasses organised

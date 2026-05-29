@@ -3,17 +3,19 @@
 from __future__ import annotations
 
 import glob
-from collections.abc import Callable, Iterator, Sequence
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.os_errors import PathMissingError, TypedNotADirectoryError
-from schema_to.io.sink import DataSink, Artifact
-from schema_to.io.source import DataSource, RawDoc
+from schema_to.io.routing import peek_is_openapi
+from schema_to.io.sink import Artifact, DataSink
+from schema_to.io.source import DataSource, JsonSchemaRawDoc, OpenApiRawDoc, RawDoc
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator, Sequence
+
     from schema_to.io.media_type import MediaType
 
 __all__ = ["DirectoryDataSource", "FileDataSink", "FileDataSource", "FileDataSourceFactory"]
@@ -33,16 +35,20 @@ class FileDataSource(DataSource):
     def __post_init__(self) -> None:
         if not self.path.is_file():
             raise PathMissingError(filename=self.path)
-        setattr(self, "media_type", MediaTypes.from_input_suffix(self.path.suffix))  # noqa: B010
+        object.__setattr__(self, "media_type", MediaTypes.from_input_suffix(self.path.suffix))
 
     @property
     def source_id(self) -> str:
         return self.path.as_uri()
 
     def documents(self) -> Iterator[RawDoc]:
-        yield RawDoc(
+        content = self.path.read_bytes()
+        doc_cls: type[RawDoc] = (
+            OpenApiRawDoc if peek_is_openapi(content, self.media_type) else JsonSchemaRawDoc
+        )
+        yield doc_cls(
             source_id=self.path.as_uri(),
-            content=self.path.read_bytes(),
+            content=content,
             media_type=self.media_type,
             display_name=self.path.stem,
             base_uri=self.path.as_uri(),
@@ -50,8 +56,7 @@ class FileDataSource(DataSource):
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class FileDataSourceFactory[I : RawDoc]:
-
+class FileDataSourceFactory[I: RawDoc]:
     recursive: bool
 
     def get(self, paths: Sequence[Path]) -> Sequence[DataSource[I]]:
@@ -107,17 +112,22 @@ class DirectoryDataSource(DataSource):
 
     def documents(self) -> Iterator[RawDoc]:
         for path in self.paths:
-            yield RawDoc(
+            media_type = MediaTypes.from_input_suffix(path.suffix)
+            content = path.read_bytes()
+            doc_cls: type[RawDoc] = (
+                OpenApiRawDoc if peek_is_openapi(content, media_type) else JsonSchemaRawDoc
+            )
+            yield doc_cls(
                 source_id=path.as_uri(),
-                content=path.read_bytes(),
-                media_type=MediaTypes.from_input_suffix(path.suffix),
+                content=content,
+                media_type=media_type,
                 display_name=path.stem,
                 base_uri=path.as_uri(),
             )
 
 
 @dataclass(frozen=True, slots=True)
-class FileDataSink[O : Artifact](DataSink[O]):
+class FileDataSink[O: Artifact](DataSink[O]):
     """A `DataSink` that writes each `Artifact` as a file under a root directory.
 
     `artifact.artifact_id` is treated as a relative path from `root`.  Parent

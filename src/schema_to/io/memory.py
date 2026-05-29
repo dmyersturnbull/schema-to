@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to.io.sink import DataSink, Artifact
+from schema_to.io.sink import Artifact, DataSink
 from schema_to.io.source import DataSource, RawDoc
 
 if TYPE_CHECKING:

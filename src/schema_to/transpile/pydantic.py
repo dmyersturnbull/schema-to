@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from schema_to.generate.pydantic import PydanticTransformer
 from schema_to.io.source import JsonSchemaRawDoc, RawDoc
@@ -57,6 +57,7 @@ class JsonSchemaToPydanticTranspiler(Transpiler):
         return isinstance(doc, JsonSchemaRawDoc)
 
     def transpile(self, doc: RawDoc) -> Result[Sequence[Artifact]]:
+        assert isinstance(doc, JsonSchemaRawDoc)  # noqa: S101  # guaranteed by accepts()
         # Stage 1: parse
         r1 = self.parser.apply(doc)
         if isinstance(r1, Err):
@@ -77,4 +78,6 @@ class JsonSchemaToPydanticTranspiler(Transpiler):
 
         # Stage 4: reify
         reifier = PythonReifier(artifact_name=self.output_name)
-        return reifier.apply(module)
+        return cast(
+            "Result[Sequence[Artifact]]", reifier.apply(module)
+        )  # PythonArtifact IS Artifact; Ok[T] is invariant

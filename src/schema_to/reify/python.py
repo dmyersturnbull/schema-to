@@ -16,12 +16,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from schema_to import MediaTypes
 from schema_to.ast.python import (
     ClassDef,
     ClassStyle,
     FieldDef,
     FromImport,
+    FunctionDef,
     PythonDocString,
     PythonModule,
     PythonTypeAnnotation,
@@ -29,7 +29,7 @@ from schema_to.ast.python import (
     TypeAliasDef,
 )
 from schema_to.errors import ReificationError
-from schema_to.io.sink import Artifact, PythonArtifact
+from schema_to.io.sink import PythonArtifact
 from schema_to.pipeline import Reifier
 from schema_to.result import Err, Ok, Result
 
@@ -83,7 +83,8 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
         if module.imports:
             lines.append("")
 
-        for i, decl in enumerate(module.declarations):
+        visible = [d for d in module.declarations if not isinstance(d, FunctionDef)]
+        for i, decl in enumerate(visible):
             if i:
                 lines.append("")
             lines += self._emit_decl(decl)
@@ -135,8 +136,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
 
         # Style-specific config (Pydantic frozen)
         if decl.style == ClassStyle.PYDANTIC_FROZEN:
-            body.append(f"{_INDENT}model_config = ConfigDict(frozen=True)")
-            body.append("")
+            body.extend([f"{_INDENT}model_config = ConfigDict(frozen=True)", ""])
 
         if decl.doc:
             body += self._emit_docstring(decl.doc, indent=_INDENT)
@@ -206,8 +206,9 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
             text += "\n\n" + doc.description
         if "\n" in text:
             lines.append(f'{indent}"""')
-            for ln in text.splitlines():
-                lines.append(f"{indent}{ln}" if ln.strip() else indent.rstrip())
+            lines.extend(
+                f"{indent}{ln}" if ln.strip() else indent.rstrip() for ln in text.splitlines()
+            )
             lines.append(f'{indent}"""')
         else:
             lines.append(f'{indent}"""{text}"""')
@@ -217,5 +218,5 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     # Method stubs (for abstract methods etc.)
     # ------------------------------------------------------------------
 
-    def _emit_method_stub(self, m: object) -> list[str]:
+    def _emit_method_stub(self, m: object) -> list[str]:  # noqa: ARG002
         return ["pass"]

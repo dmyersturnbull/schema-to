@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Self, final, override
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable
 
     from schema_to.errors import TranspilationError
 
@@ -22,7 +22,6 @@ __all__ = ["Err", "Ok", "Result"]
 
 @dataclass(frozen=True, slots=True)
 class _Result(ABC):
-
     @property
     @abstractmethod
     def is_ok(self) -> bool:
@@ -72,10 +71,10 @@ class Err(_Result):
     def of(cls, *errors: TranspilationError) -> Self:
         return cls(tuple(errors))
 
-    def map[T, U](self, f: Callable[[T], U]) -> Err:
+    def map[T, U](self, f: Callable[[T], U]) -> Err:  # noqa: ARG002  # Err propagates unchanged; f is part of the Result[T] interface
         return self
 
-    def flat_map[T, U](self, f: Callable[[T], Ok[U] | Err]) -> Err:
+    def flat_map[T, U](self, f: Callable[[T], Ok[U] | Err]) -> Err:  # noqa: ARG002  # same — Err short-circuits
         return self
 
     @property

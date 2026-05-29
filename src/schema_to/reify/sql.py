@@ -15,7 +15,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from schema_to import MediaTypes
 from schema_to.ast.sql import (
     ColumnConstraint,
     CommentOnStmt,
@@ -27,7 +26,7 @@ from schema_to.ast.sql import (
     SqlScript,
     TableConstraint,
 )
-from schema_to.io.sink import Artifact, SqlArtifact
+from schema_to.io.sink import SqlArtifact
 from schema_to.pipeline import Reifier
 from schema_to.result import Ok, Result
 

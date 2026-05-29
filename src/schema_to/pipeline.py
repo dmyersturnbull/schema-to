@@ -45,18 +45,18 @@ from dataclasses import dataclass
 from schema_to.ast.base import AstNode
 from schema_to.cst.base import CstNode
 from schema_to.errors import TranspilationError, TranspilationWarning
-from schema_to.io.sink import DataSink, Artifact
+from schema_to.io.sink import Artifact, DataSink
 from schema_to.io.source import DataSource, RawDoc
 from schema_to.result import Err, Ok, Result
 
 __all__ = [
     "DocParser",
-    "Transformer",
     "Pipeline",
     "ProcessSummary",
     "RefResolver",
     "Reifier",
     "Stage",
+    "Transformer",
     "Transpiler",
     "TypedTranspiler",
 ]
@@ -256,9 +256,7 @@ class Transpiler[I: RawDoc, O: Artifact](ABC):
         return ()
 
 
-class TypedTranspiler[I: RawDoc, O: Artifact, C: CstNode, A: AstNode](
-    Transpiler[I, O]
-):
+class TypedTranspiler[I: RawDoc, O: Artifact, C: CstNode, A: AstNode](Transpiler[I, O]):
     """A fully typed transpiler with individually-overridable stage methods.
 
     Subclasses override `parse`, `resolve`, `generate`, and `reify`; the

@@ -676,7 +676,7 @@ def test_rejects_raw_document() -> None:
 
 
 def test_boolean_true_root_fails() -> None:
-    cst_r = _PARSER.apply(_doc(True))
+    cst_r = _PARSER.apply(_doc(data=True))
     assert isinstance(cst_r, Ok)
     result = PostgresTransformer().apply(cst_r.value)
     assert isinstance(result, Err)
@@ -684,7 +684,7 @@ def test_boolean_true_root_fails() -> None:
 
 
 def test_boolean_false_root_fails() -> None:
-    cst_r = _PARSER.apply(_doc(False))
+    cst_r = _PARSER.apply(_doc(data=False))
     assert isinstance(cst_r, Ok)
     assert isinstance(PostgresTransformer().apply(cst_r.value), Err)
 
