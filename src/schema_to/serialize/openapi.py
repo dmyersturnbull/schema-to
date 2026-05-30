@@ -42,7 +42,7 @@ def _set(out: JsonObject, key: str, value: JsonValue) -> None:
         out[key] = value
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class OpenApiSerializer:
     """Convert an `OpenApiDocument` CST node to a JSON-serializable `JsonObject`.
 

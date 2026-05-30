@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 __all__ = ["JsonSchemaPassThruTranspiler", "OpenApiPassThruTranspiler"]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class JsonSchemaPassThruTranspiler(Transpiler[JsonSchemaRawDoc, Artifact]):
     """Parse a JSON Schema document and emit it back as normalised JSON or YAML.
 
@@ -67,7 +67,7 @@ class JsonSchemaPassThruTranspiler(Transpiler[JsonSchemaRawDoc, Artifact]):
         )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class OpenApiPassThruTranspiler(Transpiler[OpenApiRawDoc, Artifact]):
     """Parse an OpenAPI 3.1 document and emit it back as normalised JSON or YAML.
 

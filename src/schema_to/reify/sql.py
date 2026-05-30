@@ -38,7 +38,7 @@ __all__ = ["SqlReifier"]
 _INDENT = "    "
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SqlReifier(Reifier[SqlScript, SqlArtifact]):
     """Serialise a `SqlScript` AST to a single `.sql` `Artifact`.
 

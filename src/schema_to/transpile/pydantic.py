@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 __all__ = ["JsonSchemaToPydanticTranspiler"]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class JsonSchemaToPydanticTranspiler(Transpiler):
     """End-to-end transpiler: JSON Schema 2020-12 → Pydantic v2 `BaseModel` classes.
 

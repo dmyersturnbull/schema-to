@@ -41,7 +41,7 @@ __all__ = ["PythonReifier"]
 _INDENT = "    "
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     """Serialise a `PythonModule` AST to a single `.py` `Artifact`.
 

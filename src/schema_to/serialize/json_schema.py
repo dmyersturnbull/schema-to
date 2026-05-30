@@ -85,7 +85,7 @@ _SCHEMA_KEYS: dict[str, str] = {
 }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class JsonSchemaSerializer:
     """Convert a `JsonSchema` or `JsonSchemaDocument` CST node to a `JsonValue`.
 

@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 __all__ = ["JsonSchemaToPostgresTranspiler"]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class JsonSchemaToPostgresTranspiler(Transpiler):
     """End-to-end transpiler: JSON Schema 2020-12 → PostgreSQL DDL.
 

@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 __all__ = ["OpenApiExtractTranspiler"]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class OpenApiExtractTranspiler(Transpiler[RawDoc, Artifact]):
     """Extract `components/schemas` from an OpenAPI document as standalone JSON Schema files.
 
