@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-from schema_to.io.core import JsonReader, ReadError, YamlReader
+from schema_to.io.core import JsonLikeReader, ReadError
 
 if TYPE_CHECKING:
     from schema_to.core import JsonValue
@@ -20,17 +20,6 @@ __all__ = ["peek_is_openapi"]
 _JSON_YAML_ESSENCES: frozenset[str] = frozenset(
     {"application/json", "application/yaml", "text/yaml"}
 )
-
-
-def _parse_bytes(content: bytes, media_type: MediaType) -> JsonValue:
-    """Parse bytes as JSON or YAML.
-
-    Raises:
-        ReadError: On malformed input.
-    """
-    if media_type.essence == "application/json":
-        return JsonReader().read(content)
-    return YamlReader().read(content)
 
 
 def peek_is_openapi(content: bytes, media_type: MediaType) -> bool:
@@ -45,7 +34,7 @@ def peek_is_openapi(content: bytes, media_type: MediaType) -> bool:
     if media_type.essence not in _JSON_YAML_ESSENCES:
         return False
     try:
-        data = _parse_bytes(content, media_type)
+        data = JsonLikeReader().read(content, media_type)
     except ReadError:
         return False
     if not isinstance(data, dict):

@@ -13,7 +13,7 @@ from typer import Argument, Exit, Option, Typer, echo
 from schema_to.io.file import FileDataSink, FileDataSourceFactory
 from schema_to.pipeline import Pipeline
 from schema_to.result import Err, Ok
-from schema_to.transpile.factory import SUPPORTED_TARGETS, build_transpilers
+from schema_to.transpile.factory import TranspilerRouter, RoutingError
 
 CWD: Final = Path.cwd()
 app = Typer(
@@ -34,15 +34,15 @@ def transpile(
     to: Annotated[
         str,
         Option(
-            "-t", "--to", help=f"Target format. Supported: {', '.join(sorted(SUPPORTED_TARGETS))}."
+            "-t", "--to", help=f"Target format. Supported: {', '.join(sorted(TranspilerRouter.SUPPORTED_TARGETS))}."
         ),
     ] = "pass-thru",
     yaml: Annotated[bool, Option("--yaml/--json", help="Emit YAML instead of JSON.")] = False,
 ) -> None:
     """Transpile one or more schema sources into the requested target formats."""
     try:
-        transpilers = build_transpilers(to, use_yaml=yaml)
-    except ValueError as exc:
+        transpilers = TranspilerRouter().route(to, use_yaml=yaml)
+    except RoutingError as exc:
         echo(f"error: {exc}", err=True)
         raise Exit(1) from exc
 
