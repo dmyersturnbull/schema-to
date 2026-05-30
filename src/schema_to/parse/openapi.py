@@ -10,6 +10,7 @@ the complete diagnostic set.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, cast
 
 from schema_to import OpenApiRawDoc
@@ -58,6 +59,7 @@ _HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "tr
 loc = SourceLocation
 
 
+@dataclass(frozen=True, slots=True)
 class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     """Parses JSON or YAML bytes into an `OpenApiDocument` CST.
 
@@ -66,8 +68,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     same logic used by `JsonSchemaParser`.
     """
 
-    def __init__(self) -> None:
-        self.js = JsonSchemaParser()
+    js: JsonSchemaParser = field(default_factory=JsonSchemaParser)
 
     def accepts(self, doc: OpenApiRawDoc) -> bool:
         return isinstance(doc, OpenApiRawDoc)
