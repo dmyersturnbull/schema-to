@@ -10,16 +10,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, assert_type
 
 from schema_to.cst.base import CstNode, SourceRef
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+    from collections.abc import Set as AbstractSet
 
     from schema_to.core import JsonValue
 
 __all__ = [
+    "BooleanApplicatorKeyword",
     "BooleanSchema",
     "ConstValue",
     "DefaultValue",
@@ -102,6 +104,14 @@ class _JsonSchema(CstNode):
 
 
 type JsonSchema = BooleanSchema | ObjectSchema
+type BooleanApplicatorLiteral = Literal["not", "anyOf", "oneOf", "allOf"]
+
+
+class BooleanApplicatorKeyword(StrEnum):
+    NOT = "not"
+    ANY_OF = "anyOf"
+    ONE_OF = "oneOf"
+    ALL_OF = "allOf"
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,9 +217,72 @@ class ObjectSchema(_JsonSchema):
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
     source_ref: SourceRef | None = None
 
+    def get_boolean_applicator(
+        self,
+        *,
+        only: AbstractSet[BooleanApplicatorKeyword | BooleanApplicatorLiteral] | None = None,
+    ) -> tuple[BooleanApplicatorKeyword | None, Sequence[JsonSchema]]:
+        """Return the type and value of `not`/`anyOf`/`oneOf`/`allOf` defined on this schema.
+
+        Arguments:
+            only: If not `None`, only consider these keywords.
+
+        Returns:
+            The (mutually exclusive) keyword and its value, or `(None, [])` if none exists.
+        """
+        rev_map = {member.value: member for member in BooleanApplicatorKeyword.__members__.values()}
+        if only is None:
+            only = set(BooleanApplicatorKeyword.__members__.values())
+        only = {rev_map[v] if isinstance(v, str) else v for v in only}
+        assert_type(only, set[BooleanApplicatorKeyword])
+        for app, values in {
+            BooleanApplicatorKeyword.NOT: self.not_,
+            BooleanApplicatorKeyword.ANY_OF: self.any_of,
+            BooleanApplicatorKeyword.ONE_OF: self.one_of,
+            BooleanApplicatorKeyword.ALL_OF: self.all_of,
+        }.items():
+            if app in only:
+                if isinstance(values, list):
+                    return app, values
+                if isinstance(values, (BooleanSchema, ObjectSchema)):
+                    return app, [values]
+        return None, []
+
+    def get_defs(self) -> Mapping[str, JsonSchema]:
+        """Return `defs`, or empty if unset."""
+        return self.defs or {}
+
+    def get_vocabulary(self) -> Mapping[str, bool]:
+        """Return `vocabulary`, or empty if unset."""
+        return self.vocabulary or {}
+
+    def get_examples(self) -> Sequence[JsonValue]:
+        """Return `examples`, or empty if unset."""
+        return self.examples or []
+
+    def get_prefix_items(self) -> Sequence[JsonSchema]:
+        """Return `prefix_items`, or empty if unset."""
+        return self.prefix_items or []
+
+    def get_pattern_properties(self) -> Mapping[str, JsonSchema]:
+        """Return `pattern_properties`, or empty if unset."""
+        return self.pattern_properties or {}
+
     def get_required(self) -> frozenset[str]:
-        """Return required property names, or empty frozenset if unset."""
+        """Return `required`, or empty if unset."""
         return self.required or frozenset()
+
+    def get_dependent_required(self) -> Mapping[str, frozenset[str]]:
+        """Return `dependent_required`, or empty if unset."""
+        return self.dependent_required or {}
+
+    def get_dependent_schemas(self) -> Mapping[str, JsonSchema]:
+        """Return `dependent_schemas`, or empty if unset."""
+        return self.dependent_schemas or {}
+
+    def get_extensions(self) -> Mapping[str, JsonValue]:
+        """Return `extensions`, or empty if unset."""
+        return self.extensions or {}
 
 
 @dataclass(frozen=True, slots=True)

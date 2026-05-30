@@ -92,10 +92,10 @@ class DirectoryDataSource(DataSource):
     def __post_init__(self) -> None:
         if not self.root.is_dir():
             raise TypedNotADirectoryError(filename=self.root)
-        setattr(self, "paths", frozenset(sorted(self.__expand_sources())))  # noqa: B010
+        setattr(self, "paths", frozenset(sorted(self.__expand_sources())))  # noqa: B010 # workaround to allow `slos=True`
 
     def __expand_sources(self) -> Iterator[Path]:
-        # ruff: noqa: PTH207 -- `glob.glob` skips hidden dirs (including `.git/`).
+        # ruff: noqa: PTH207 # `glob.glob` skips hidden dirs (including `.git/`).
         for suffix in MediaTypes.input_suffixes:
             for path in glob.glob(
                 f"**/*{suffix}" if self.recursive else f"*{suffix}",

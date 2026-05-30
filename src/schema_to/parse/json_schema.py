@@ -97,7 +97,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             )
         )
 
-    def _build_object_schema(  # noqa: PLR0914  # ObjectSchema has 30+ fields; sub-builders already extracted
+    def _build_object_schema(  # noqa: PLR0914 # ObjectSchema has 30+ fields; sub-builders already extracted
         self, data: dict[str, JsonValue], *, source_id: str, pointer: str
     ) -> Result[ObjectSchema]:
         errors: list[TranspilationError] = []

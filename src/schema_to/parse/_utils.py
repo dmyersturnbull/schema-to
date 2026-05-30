@@ -71,6 +71,7 @@ def extract[T](result: Result[T], errors: list[TranspilationError]) -> T | None:
 # ---------------------------------------------------------------------------
 
 
+# TODO: Why does this exist?
 def as_json_dict(v: object) -> dict[str, JsonValue]:
     """Reinterpret an already-checked dict as `dict[str, JsonValue]`.
 
@@ -79,6 +80,7 @@ def as_json_dict(v: object) -> dict[str, JsonValue]:
     return cast("dict[str, JsonValue]", v)
 
 
+# TODO: Why does this exist?
 def as_json_list(v: object) -> list[JsonValue]:
     """Reinterpret an already-checked list as `list[JsonValue]`.
 

@@ -15,9 +15,10 @@ from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from typing import TYPE_CHECKING
 
-from schema_to.cst.base import CstNode, JsonValue, SourceRef
+from schema_to.cst.base import CstNode, SourceRef
 
 if TYPE_CHECKING:
+    from schema_to.core import JsonValue
     from schema_to.cst.json_schema import JsonSchema
 
 __all__ = [

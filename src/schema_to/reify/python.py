@@ -218,5 +218,5 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     # Method stubs (for abstract methods etc.)
     # ------------------------------------------------------------------
 
-    def _emit_method_stub(self, m: object) -> list[str]:  # noqa: ARG002
+    def _emit_method_stub(self, m: object) -> list[str]:
         return ["pass"]

@@ -96,7 +96,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         data: dict[str, JsonValue],
         *,
         source_id: str,
-        display_name: str | None,  # noqa: ARG002  # OpenApiDocument derives its name from info.title, not the source; kept for interface symmetry with other parsers
+        display_name: str | None,  # noqa: ARG002  # OpenApiDocument derives its name from `info.title`; kept for symmetry with other parsers
     ) -> Result[OpenApiDocument]:
         errors: list[TranspilationError] = []
 
@@ -142,7 +142,10 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         raw_security = data.get("security")
         if isinstance(raw_security, list):
             security.extend(
-                {k: list(cast("list[JsonValue]", v)) if isinstance(v, list) else v for k, v in item.items()}
+                {
+                    k: list(cast("list[JsonValue]", v)) if isinstance(v, list) else v
+                    for k, v in item.items()
+                }
                 for item in as_json_list(raw_security)
                 if isinstance(item, dict)
             )
@@ -556,7 +559,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         schema_data = data.get("schema")
         if isinstance(schema_data, dict):
             schema = extract(
-                self.js._build_schema(  # noqa: SLF001  # _build_schema is intentionally shared between parsers
+                self.js._build_schema(
                     schema_data, source_id=source_id, pointer=ptr(pointer, "schema")
                 ),
                 errors,
@@ -612,7 +615,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
             )
         )
 
-    def _build_response(  # noqa: C901
+    def _build_response(
         self, data: dict[str, JsonValue], *, source_id: str, pointer: str
     ) -> Result[Response]:
         errors: list[TranspilationError] = []
@@ -670,7 +673,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         schema_data = data.get("schema")
         if isinstance(schema_data, dict):
             schema = extract(
-                self.js._build_schema(  # noqa: SLF001  # _build_schema is intentionally shared between parsers
+                self.js._build_schema(
                     schema_data, source_id=source_id, pointer=ptr(pointer, "schema")
                 ),
                 errors,
@@ -695,7 +698,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         schema_data = data.get("schema")
         if isinstance(schema_data, dict):
             schema = extract(
-                self.js._build_schema(  # noqa: SLF001  # _build_schema is intentionally shared between parsers
+                self.js._build_schema(
                     schema_data, source_id=source_id, pointer=ptr(pointer, "schema")
                 ),
                 errors,
@@ -714,7 +717,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
 
     # -- Components ----------------------------------------------------------
 
-    def _build_components(  # noqa: C901, PLR0912
+    def _build_components(
         self, data: dict[str, JsonValue], *, source_id: str, pointer: str
     ) -> Result[Components]:
         if not isinstance(data, dict):
@@ -726,7 +729,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         if isinstance(data.get("schemas"), dict):
             for name, s_data in cast("dict[str, JsonValue]", data["schemas"]).items():
                 s = extract(
-                    self.js._build_schema(  # noqa: SLF001  # _build_schema is intentionally shared between parsers
+                    self.js._build_schema(
                         s_data, source_id=source_id, pointer=ptr(pointer, "schemas", name)
                     ),
                     errors,

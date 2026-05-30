@@ -9,11 +9,7 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass
 
-from schema_to.core import (
-    JsonValue as JsonValue,  # noqa: PLC0414  # explicit re-export; `as Name` signals that callers may import from here
-)
-
-__all__ = ["CstNode", "JsonValue", "SourceRef"]
+__all__ = ["CstNode", "SourceRef"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,7 +26,7 @@ class SourceRef:
     json_pointer: str
 
 
-class CstNode(ABC):  # noqa: B024  # sealed marker; abstract identity is enforced by the type system, not abstract methods
+class CstNode(ABC):  # noqa: B024  # sealed marker; abstract identity is enforced by the type system
     """Sealed marker base for every CST node.
 
     Concrete nodes are immutable `@dataclass(frozen=True, slots=True)` subclasses.  The

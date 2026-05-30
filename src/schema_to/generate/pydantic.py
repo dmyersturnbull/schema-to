@@ -280,8 +280,7 @@ class _GenCtx:
                 if result is not None:
                     return result
                 self._warn(
-                    f"anyOf/oneOf with {len(applicator)} branches cannot be "
-                    "expressed precisely; using Any.",
+                    f"anyOf/oneOf with {len(applicator)} branches cannot be expressed precisely; using Any.",
                     code="anyof-fallback",
                     schema=schema,
                 )

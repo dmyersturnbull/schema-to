@@ -117,7 +117,7 @@ class JsonSchemaSerializer:
         out.update(s.extensions)
         return out
 
-    def _val(self, value: JsonValue) -> JsonValue:  # noqa: C901, PLR0911
+    def _val(self, value: JsonValue) -> JsonValue:  # noqa: PLR0911 # all returns are in the match
         match value:
             case BooleanSchema() | ObjectSchema():
                 return self.serialize(value)

@@ -28,7 +28,7 @@ Mapping rules
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeIs
 
 from schema_to.ast.sql import (
     ColumnConstraint,
@@ -39,6 +39,7 @@ from schema_to.ast.sql import (
     SqlScript,
 )
 from schema_to.cst.json_schema import (
+    BooleanApplicatorKeyword,
     BooleanSchema,
     JsonSchema,
     JsonSchemaDocument,
@@ -98,7 +99,7 @@ def _num_literal(v: float) -> str:
     return str(v).removesuffix(".0")
 
 
-def _is_object_schema(schema: JsonSchema) -> bool:
+def _is_object_schema(schema: JsonSchema) -> TypeIs[ObjectSchema]:
     """Return `True` if the schema should map to a `CREATE TABLE` statement."""
     if not isinstance(schema, ObjectSchema):
         return False
@@ -136,7 +137,7 @@ def _join_checks(exprs: list[str]) -> str | None:
     return " AND ".join(f"({e})" for e in exprs)
 
 
-def _string_type(schema: ObjectSchema) -> DataType:  # noqa: PLR0911
+def _string_type(schema: ObjectSchema) -> DataType:  # noqa: PLR0911 # all `return`s are in the `match`
     """Map a `type: string` schema (with format / maxLength) to a `DataType`."""
     match schema.format:
         case "date-time":
@@ -186,28 +187,25 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
             return Err((exc,))
 
     def _apply(self, input: JsonSchemaDocument) -> SqlScript:
-        root = input.root
-        if not _is_object_schema(input.root):
-            if isinstance(input.root, BooleanSchema):
-                msg = "Root schema is a boolean schema; cannot generate a PostgreSQL DDL."
-            else:
-                msg = (
-                    f"Root schema types are {input.root.get_types()!r}, not 'object'; "
-                    "cannot generate a PostgreSQL DDL."
-                )
-            raise GenerationError(msg)
-
-        assert isinstance(root, ObjectSchema)  # noqa: S101  # narrowed: _is_object_schema guards above
+        root: ObjectSchema = self._get_as_object_schema(input)
         sid = input.source_id
         def_stmts = [
             self._schema_to_table(
                 def_schema, safe_sql_identifier(def_schema.title or def_name), sid
             )
-            for def_name, def_schema in (root.defs or {}).items()
-            if isinstance(def_schema, ObjectSchema) and _is_object_schema(def_schema)
+            for def_name, def_schema in (root.get_defs()).items()
+            if _is_object_schema(def_schema)
         ]
         root_stmt = self._schema_to_table(root, safe_sql_identifier(root.title or sid), sid)
         return SqlScript(statements=(*def_stmts, root_stmt), source_ids=(sid,))
+
+    def _get_as_object_schema(self, input: JsonSchemaDocument) -> ObjectSchema:
+        root = input.root
+        if not _is_object_schema(root):
+            # It must be a boolean schema.
+            msg = "Root schema is a boolean schema; cannot generate a PostgreSQL DDL."
+            raise GenerationError(msg)
+        return root
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -257,12 +255,13 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
             doc=doc,
         )
 
-    def _schema_to_data_type(self, schema: JsonSchema, col_name: str) -> DataType:  # noqa: PLR0911
+    def _schema_to_data_type(self, schema: JsonSchema, col_name: str) -> DataType:  # noqa: PLR0911 # No helpful way to consolidate return statements
+        # Boolean schema.
         if isinstance(schema, BooleanSchema):
             return DataType.jsonb()
 
         # x-pg-type extension override.
-        pg_type_ext = (schema.extensions or {}).get("x-pg-type")
+        pg_type_ext = (schema.get_extensions()).get("x-pg-type")
         if isinstance(pg_type_ext, str):
             return DataType(base=PgDataType.CUSTOM, custom=pg_type_ext)
 
@@ -271,21 +270,19 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
             return DataType.jsonb()
 
         # anyOf / oneOf: collapse [T, null] → T; otherwise JSONB.
-        for applicator in (schema.any_of, schema.one_of):
-            if applicator is not None:
-                non_null = [
-                    s
-                    for s in applicator
-                    if not (isinstance(s, ObjectSchema) and s.get_types() == {JsonSchemaType.NULL})
-                ]
-                if len(non_null) == 1:
-                    return self._schema_to_data_type(non_null[0], col_name)
-                self._warn(
-                    f"anyOf/oneOf with {len(applicator)} branches; using JSONB for {col_name!r}.",
-                    code="anyof-fallback",
-                    schema=schema,
-                )
-                return DataType.jsonb()
+        applicator_name, applicator = schema.get_boolean_applicator(
+            only={BooleanApplicatorKeyword.ANY_OF, BooleanApplicatorKeyword.ONE_OF}
+        )
+        if applicator_name is not None:
+            non_null = [s for s in applicator if s.get_types() != {JsonSchemaType.NULL}]
+            if len(non_null) == 1:
+                return self._schema_to_data_type(non_null[0], col_name)
+            self._warn(
+                f"anyOf/oneOf with {len(applicator)} branches; using JSONB for {col_name!r}.",
+                code="anyof-fallback",
+                schema=schema,
+            )
+            return DataType.jsonb()
 
         # Type-based dispatch using get_types().
         types = schema.get_types()
