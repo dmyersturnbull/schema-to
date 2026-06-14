@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
@@ -25,14 +26,24 @@ class WriteError(Exception):
         super().__init__(msg)
 
 
+class JsonLikeReader(ABC):
+    """Abstract reader that decodes JSON-compatible bytes given a media type."""
+
+    @abstractmethod
+    def read(self, text: str | bytes, media_type: MediaType) -> JsonValue: ...
+
+
 @dataclass(frozen=True, slots=True)
-class JsonLikeReader:
+class DefaultJsonLikeReader(JsonLikeReader):
+    """Concrete reader supporting `application/json`, `application/yaml`, and `+json`/`+yaml` subtypes."""
+
     def read(self, text: str | bytes, media_type: MediaType) -> JsonValue:
-        if media_type == MediaTypes.yaml:
-            return YamlReader().read(text)
-        if media_type == MediaTypes.json:
+        subtype = media_type.subtype
+        if subtype.endswith("+json") or media_type == MediaTypes.json:
             return JsonReader().read(text)
-        msg = f"Unsupported media type for JSON Schema: {media_type}"
+        if subtype.endswith("+yaml") or media_type in (MediaTypes.yaml, MediaType("text", "yaml")):
+            return YamlReader().read(text)
+        msg = f"Unsupported media type for JSON-like parsing: {media_type}"
         raise ReadError(msg)
 
 

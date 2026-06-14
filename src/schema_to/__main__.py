@@ -46,7 +46,11 @@ def transpile(
         echo(f"error: {exc}", err=True)
         raise Exit(1) from exc
 
-    sources = FileDataSourceFactory(recursive=recursive).get(paths)
+    try:
+        sources = FileDataSourceFactory(recursive=recursive).get(paths)
+    except ValueError as exc:
+        echo(f"error: {exc}", err=True)
+        raise Exit(1) from exc
     pipeline = Pipeline(sources=sources, transpilers=transpilers, sink=FileDataSink(output))
     match pipeline.process():
         case Ok(summary):

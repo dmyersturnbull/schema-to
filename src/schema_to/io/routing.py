@@ -1,44 +1,57 @@
 """Routing utility: peek at document bytes to determine the schema format.
 
-Called by `FileDataSource` at document-creation time so that plain file bytes
-can be promoted to the correct typed `RawDoc` subclass
-(`OpenApiRawDoc` vs `JsonSchemaRawDoc`) before transpiler dispatch.
+Called by `PeekingDirectorySource` as a secondary content guard so that files
+matched by compound extensions can be further validated before being promoted
+to typed `RawDoc` subclasses.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from enum import Enum, auto
+from typing import cast
 
-from schema_to.io.core import JsonLikeReader, ReadError
+from schema_to.io.core import JsonReader, ReadError, YamlReader
 
-if TYPE_CHECKING:
-    from schema_to.core import JsonValue
-    from schema_to.io.media_type import MediaType
+__all__ = ["DocType", "peek_doc_type"]
 
-__all__ = ["peek_is_openapi"]
-
-_JSON_YAML_ESSENCES: frozenset[str] = frozenset(
-    {"application/json", "application/yaml", "text/yaml"}
+_JSON_SCHEMA_KEYWORDS: frozenset[str] = frozenset(
+    {"$schema", "$defs", "definitions", "type", "properties", "allOf", "anyOf", "oneOf", "items"}
 )
 
 
-def peek_is_openapi(content: bytes, media_type: MediaType) -> bool:
-    """Return `True` if the raw bytes represent an OpenAPI 3.x document.
+class DocType(Enum):
+    JSON_SCHEMA = auto()
+    OPENAPI = auto()
 
-    Both JSON Schema and OpenAPI share the same `.json` / `.yaml` file
-    extensions, so the only way to distinguish them is to parse the content
-    and check for the `"openapi"` version field.  This peek is performed
-    once at source-creation time so that transpiler `accepts()` methods can
-    use simple `isinstance` checks rather than re-parsing on every dispatch.
+
+def peek_doc_type(content: bytes) -> DocType | None:
+    """Peek at raw bytes to determine schema format without a media-type hint.
+
+    Tries JSON first, then YAML.  Returns:
+    - `DocType.OPENAPI`      if the dict contains ``"openapi"`` with a string value
+    - `DocType.JSON_SCHEMA`  if the dict contains recognised JSON Schema keywords
+                             (any of: ``$schema``, ``$defs``, ``definitions``, ``type``,
+                             ``properties``, ``allOf``, ``anyOf``, ``oneOf``, ``items``)
+    - `None`                 if the bytes are unparseable or look like neither
     """
-    if media_type.essence not in _JSON_YAML_ESSENCES:
-        return False
-    try:
-        data = JsonLikeReader().read(content, media_type)
-    except ReadError:
-        return False
+    data = _try_parse(content)
     if not isinstance(data, dict):
-        return False
-    # After isinstance(data, dict), ty narrows to dict[object, object]; cast to get str keys.
-    d = cast("dict[str, JsonValue]", data)
-    return isinstance(d.get("openapi"), str)
+        return None
+    d = cast("dict[str, object]", data)
+    if isinstance(d.get("openapi"), str):
+        return DocType.OPENAPI
+    if _JSON_SCHEMA_KEYWORDS & d.keys():
+        return DocType.JSON_SCHEMA
+    return None
+
+
+def _try_parse(content: bytes) -> object:
+    try:
+        return JsonReader().read(content)
+    except ReadError:
+        pass
+    try:
+        return YamlReader().read(content)
+    except ReadError:
+        pass
+    return None

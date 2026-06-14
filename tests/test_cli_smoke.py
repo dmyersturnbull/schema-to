@@ -34,7 +34,7 @@ def test_cli_help() -> None:
 def test_cli_pass_thru_json_schema(tmp_path: Path) -> None:
     """Pass-thru on a JSON Schema file creates a normalised `.schema.json` output."""
     schema = {"type": "object", "title": "User", "properties": {"name": {"type": "string"}}}
-    input_file = tmp_path / "user.json"
+    input_file = tmp_path / "user.schema.json"
     input_file.write_text(json.dumps(schema))
 
     output_dir = tmp_path / "out"
@@ -55,7 +55,7 @@ def test_cli_pass_thru_json_schema(tmp_path: Path) -> None:
 def test_cli_pass_thru_yaml_output(tmp_path: Path) -> None:
     """--yaml flag produces a `.schema.yaml` artifact."""
     schema = {"type": "object", "title": "Item"}
-    input_file = tmp_path / "item.json"
+    input_file = tmp_path / "item.schema.json"
     input_file.write_text(json.dumps(schema))
 
     output_dir = tmp_path / "out"
@@ -78,7 +78,7 @@ def test_cli_unsupported_target_exits_nonzero(tmp_path: Path) -> None:
 
     result = _run(str(input_file), "--to", "typescript")
     assert result.returncode != 0
-    assert "not yet supported" in result.stderr
+    assert "not supported" in result.stderr
 
 
 @pytest.mark.parametrize("flag", ["--help"])

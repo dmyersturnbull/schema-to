@@ -6,8 +6,8 @@
 Both accept a `use_yaml` flag (emit YAML instead of JSON, default `False`).
 
 Documents arrive as `JsonSchemaRawDoc` or `OpenApiRawDoc` because
-`FileDataSource` uses `peek_is_openapi` to select the correct subclass at
-source-collection time.  Transpiler `accepts()` methods are therefore a simple
+`FileDataSource` uses compound filename extensions to select the correct subclass
+at source-collection time.  Transpiler `accepts()` methods are therefore a simple
 `isinstance` check with no additional I/O.
 """
 
@@ -16,7 +16,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from schema_to.io.sink import Artifact, JsonArtifact, YamlArtifact
+from schema_to.io.sink import (
+    Artifact,
+    JsonSchemaJsonArtifact,
+    JsonSchemaYamlArtifact,
+    OpenApiJsonArtifact,
+    OpenApiYamlArtifact,
+)
 from schema_to.io.source import JsonSchemaRawDoc, OpenApiRawDoc, RawDoc
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.parse.openapi import OpenApiParser
@@ -54,10 +60,10 @@ class JsonSchemaPassThruTranspiler(Transpiler[JsonSchemaRawDoc, Artifact]):
         if isinstance(result, Err):
             return result
         data = self.serializer.serialize_document(result.value)
-        content, _ = encode(data, use_yaml=self.use_yaml)
+        content = encode(data, use_yaml=self.use_yaml)
         ext = ".yaml" if self.use_yaml else ".json"
-        stem = doc.display_name or "schema"
-        artifact_cls = YamlArtifact if self.use_yaml else JsonArtifact
+        stem = (doc.display_name or "schema").removesuffix(".schema")
+        artifact_cls = JsonSchemaYamlArtifact if self.use_yaml else JsonSchemaJsonArtifact
         return Ok(
             [
                 artifact_cls(
@@ -89,10 +95,10 @@ class OpenApiPassThruTranspiler(Transpiler[OpenApiRawDoc, Artifact]):
         if isinstance(result, Err):
             return result
         data = self.serializer.serialize(result.value)
-        content, _ = encode(data, use_yaml=self.use_yaml)
+        content = encode(data, use_yaml=self.use_yaml)
         ext = ".yaml" if self.use_yaml else ".json"
         stem = doc.display_name or "openapi"
-        artifact_cls = YamlArtifact if self.use_yaml else JsonArtifact
+        artifact_cls = OpenApiYamlArtifact if self.use_yaml else OpenApiJsonArtifact
         return Ok(
             [artifact_cls(artifact_id=f"{stem}{ext}", content=content, source_ids=(doc.source_id,))]
         )

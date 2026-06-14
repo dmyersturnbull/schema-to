@@ -17,7 +17,18 @@ from schema_to.io.media_type import MediaType, MediaTypes
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-__all__ = ["Artifact", "DataSink", "JsonArtifact", "PythonArtifact", "SqlArtifact", "YamlArtifact"]
+__all__ = [
+    "Artifact",
+    "DataSink",
+    "JsonSchemaArtifact",
+    "JsonSchemaJsonArtifact",
+    "JsonSchemaYamlArtifact",
+    "OpenApiArtifact",
+    "OpenApiJsonArtifact",
+    "OpenApiYamlArtifact",
+    "PythonArtifact",
+    "SqlArtifact",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,17 +50,41 @@ class Artifact(ABC):  # ClassVar[media_type] acts as an abstract class attribute
 
 
 @dataclass(frozen=True, slots=True)
-class JsonArtifact(Artifact):
-    """A `.json` file."""
-
-    media_type: ClassVar[MediaType] = MediaTypes.json
+class JsonSchemaArtifact(Artifact):
+    """A JSON Schema output document (JSON or YAML encoding)."""
 
 
 @dataclass(frozen=True, slots=True)
-class YamlArtifact(Artifact):
-    """A `.yaml` file."""
+class JsonSchemaJsonArtifact(JsonSchemaArtifact):
+    """A JSON Schema document serialised as JSON."""
 
-    media_type: ClassVar[MediaType] = MediaTypes.yaml
+    media_type: ClassVar[MediaType] = MediaTypes.json_schema
+
+
+@dataclass(frozen=True, slots=True)
+class JsonSchemaYamlArtifact(JsonSchemaArtifact):
+    """A JSON Schema document serialised as YAML."""
+
+    media_type: ClassVar[MediaType] = MediaTypes.json_schema_yaml
+
+
+@dataclass(frozen=True, slots=True)
+class OpenApiArtifact(Artifact):
+    """An OpenAPI output document (JSON or YAML encoding)."""
+
+
+@dataclass(frozen=True, slots=True)
+class OpenApiJsonArtifact(OpenApiArtifact):
+    """An OpenAPI document serialised as JSON."""
+
+    media_type: ClassVar[MediaType] = MediaTypes.openapi
+
+
+@dataclass(frozen=True, slots=True)
+class OpenApiYamlArtifact(OpenApiArtifact):
+    """An OpenAPI document serialised as YAML."""
+
+    media_type: ClassVar[MediaType] = MediaTypes.openapi_yaml
 
 
 @dataclass(frozen=True, slots=True)
