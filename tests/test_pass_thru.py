@@ -17,13 +17,14 @@ from schema_to import (
     OpenApiPassThruTranspiler,
     OpenApiRawDoc,
 )
+from schema_to.io.sink import JsonSchemaYamlArtifact, OpenApiYamlArtifact
 
 
 def _make_json_schema_doc(data: object, source_id: str = "test://doc") -> JsonSchemaRawDoc:
     return JsonSchemaRawDoc(
         source_id=source_id,
         content=orjson.dumps(data),
-        media_type=MediaTypes.json,
+        media_type=MediaTypes.json_schema,
         display_name="test",
     )
 
@@ -32,7 +33,7 @@ def _make_openapi_doc(data: object, source_id: str = "test://doc") -> OpenApiRaw
     return OpenApiRawDoc(
         source_id=source_id,
         content=orjson.dumps(data),
-        media_type=MediaTypes.json,
+        media_type=MediaTypes.openapi,
         display_name="test",
     )
 
@@ -134,7 +135,8 @@ def test_json_schema_yaml_output() -> None:
     assert isinstance(result, Ok)
     artifact = result.value[0]
     assert artifact.artifact_id.endswith(".schema.yaml")
-    assert artifact.media_type == MediaTypes.yaml
+    assert isinstance(artifact, JsonSchemaYamlArtifact)
+    assert artifact.media_type == MediaTypes.json_schema_yaml
     assert "type" in artifact.content.decode("utf-8")
 
 
@@ -146,5 +148,6 @@ def test_openapi_yaml_output() -> None:
     assert isinstance(result, Ok)
     artifact = result.value[0]
     assert artifact.artifact_id.endswith(".yaml")
-    assert artifact.media_type == MediaTypes.yaml
+    assert isinstance(artifact, OpenApiYamlArtifact)
+    assert artifact.media_type == MediaTypes.openapi_yaml
     assert "openapi" in artifact.content.decode("utf-8")

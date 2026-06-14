@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from schema_to.cst.base import SourceRef
 from schema_to.cst.json_schema import JsonSchemaDocument
-from schema_to.io.sink import Artifact, JsonArtifact, YamlArtifact
+from schema_to.io.sink import Artifact, JsonSchemaJsonArtifact, JsonSchemaYamlArtifact
 from schema_to.io.source import OpenApiRawDoc, RawDoc
 from schema_to.parse.openapi import OpenApiParser
 from schema_to.pipeline import Transpiler
@@ -50,7 +50,7 @@ class OpenApiExtractTranspiler(Transpiler[RawDoc, Artifact]):
         artifacts: list[Artifact] = []
         ext = ".yaml" if self.use_yaml else ".json"
 
-        artifact_cls = YamlArtifact if self.use_yaml else JsonArtifact
+        artifact_cls = JsonSchemaYamlArtifact if self.use_yaml else JsonSchemaJsonArtifact
         for name, schema in cst.components.schemas.items():
             doc_cst = JsonSchemaDocument(
                 root=schema,
@@ -59,7 +59,7 @@ class OpenApiExtractTranspiler(Transpiler[RawDoc, Artifact]):
                 source_ref=SourceRef(doc.source_id, f"/components/schemas/{name}"),
             )
             data = self.js_serializer.serialize_document(doc_cst)
-            content, _ = encode(data, use_yaml=self.use_yaml)
+            content = encode(data, use_yaml=self.use_yaml)
             artifacts.append(
                 artifact_cls(
                     artifact_id=f"{name}.schema{ext}", content=content, source_ids=(doc.source_id,)

@@ -54,10 +54,21 @@ from schema_to.errors import (
 )
 from schema_to.generate.pydantic import PydanticTransformer
 from schema_to.generate.sql import PostgresTransformer
-from schema_to.io.file import DirectoryDataSource, FileDataSink, FileDataSource
+from schema_to.io.core import DefaultJsonLikeReader, JsonLikeReader
+from schema_to.io.file import DirectoryDataSource, FileDataSink, FileDataSource, PeekingDirectorySource
 from schema_to.io.media_type import MediaType, MediaTypeParam, MediaTypes
 from schema_to.io.memory import InMemoryDataSink, InMemoryDataSource
-from schema_to.io.sink import Artifact, DataSink
+from schema_to.io.routing import DocType
+from schema_to.io.sink import (
+    Artifact,
+    DataSink,
+    JsonSchemaArtifact,
+    JsonSchemaJsonArtifact,
+    JsonSchemaYamlArtifact,
+    OpenApiArtifact,
+    OpenApiJsonArtifact,
+    OpenApiYamlArtifact,
+)
 from schema_to.io.source import DataSource, JsonSchemaRawDoc, OpenApiRawDoc, RawDoc
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.parse.openapi import OpenApiParser
@@ -78,7 +89,10 @@ __all__ = [
     # I/O
     "DataSink",
     "DataSource",
+    "DefaultJsonLikeReader",
     "DirectoryDataSource",
+    # Routing
+    "DocType",
     # Result
     "Err",
     "FileDataSink",
@@ -87,8 +101,13 @@ __all__ = [
     "GenerationError",
     "InMemoryDataSink",
     "InMemoryDataSource",
+    "JsonLikeReader",
     # Parsers
     "JsonSchemaParser",
+    # Artifacts
+    "JsonSchemaArtifact",
+    "JsonSchemaJsonArtifact",
+    "JsonSchemaYamlArtifact",
     # Transpilers
     "JsonSchemaPassThruTranspiler",
     "JsonSchemaRawDoc",
@@ -103,13 +122,17 @@ __all__ = [
     "MediaTypeParam",
     "MediaTypes",
     "Ok",
+    "OpenApiArtifact",
     "OpenApiExtractTranspiler",
+    "OpenApiJsonArtifact",
     "OpenApiParser",
     "OpenApiPassThruTranspiler",
     "OpenApiRawDoc",
     "OpenApiSerializer",
+    "OpenApiYamlArtifact",
     "ParseError",
     # Pipeline
+    "PeekingDirectorySource",
     "Pipeline",
     # Generators
     "PostgresTransformer",

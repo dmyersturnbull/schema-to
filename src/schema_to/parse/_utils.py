@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from schema_to.errors import ParseError, SourceLocation, TranspilationError
-from schema_to.io.core import JsonLikeReader, ReadError
+from schema_to.io.core import DefaultJsonLikeReader, ReadError
 from schema_to.result import Err, Result
 
 if TYPE_CHECKING:
@@ -46,7 +46,7 @@ def decode_raw_doc(document: RawDoc) -> JsonValue:
     can treat it uniformly alongside other parse errors.
     """
     try:
-        return JsonLikeReader().read(document.content, document.media_type)
+        return DefaultJsonLikeReader().read(document.content, document.media_type)
     except ReadError as e:
         raise ParseError(
             str(e), location=SourceLocation(document.source_id, line=e.line, column=e.column)
