@@ -10,12 +10,12 @@ readme = { file = "README.md", content-type = "text/markdown" }
 license = { text = "MIT" }
 dependencies = [
   "caseutil>=0.7.2",
-  "niquests>=3.18",
+  "niquests>=3.19",
   "orjson>=3.11",
   "py-yaml12>=0.1", # YAML 1.2 library
   "pydantic>=2.13",
   "referencing>=0.37", # JSON Schema $ref / $dynamicRef resolution
-  "typer>=0.25",
+  "typer>=0.26",
 ]
 
 [project.scripts]
@@ -23,10 +23,10 @@ schema-to = "schema_to.__main__:cli"
 
 [dependency-groups]
 dev = [
-  "hypothesis>=6.152.7",
-  "pytest>=9.0",
-  "ruff>=0.15.12",
-  "ty>=0.0.40",
+  "hypothesis>=6.155",
+  "pytest>=9.1",
+  "ruff>=0.15.17",
+  "ty>=0.0.49",
 ]
 
 [tool.ruff]
@@ -42,36 +42,39 @@ skip-magic-trailing-comma = true
 preview = true
 select = ["ALL"]
 ignore = [
-  "W191",     
-  "D206",     
-  "E114",     
-  "E117",     
-  "E501",     
-  "W505",     
-  "COM812",   
-  "COM819",   
+  "W191",
+  "D206",
+  "E114",
+  "E117",
+  "E501",
+  "W505",
+  "COM812",
+  "COM819",
   "CPY",
-  "D300",     
-  "ISC002",   
-  "D1",       
-  "D401",     
-  "D417",     
-  "DOC201",   
-  "DOC402",   
-  "DOC501",   
-  "DOC502",   
-  "E722",     
-  "FIX002",   
-  "PLR2004",  
-  "PLR6301",  
-  "RUF001",   
-  "RUF002",   
-  "RUF003",   
-  "RUF021",   
-  "S403",     
-  "S404",     
-  "TD",       
-  "Q",        
+  "D300",
+  "ISC002",
+  "D1",
+  "D401",
+  "D417",
+  "DOC201",
+  "DOC402",
+  "DOC501",
+  "DOC502",
+  "E722",
+  "FIX002",
+  "PLR2004",
+  "PLR6301",
+  "RUF001",
+  "RUF002",
+  "RUF003",
+  "RUF021",
+  "S403",
+  "S404",
+  "TC001",
+  "TC002",
+  "TC003",
+  "TD",
+  "Q",
 ]
 unfixable = [
   "TC007",
@@ -96,13 +99,13 @@ extend-unsafe-fixes = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*" = [
-  "D10",     
-  "S101",    
-  "S105",    
-  "S106",    
-  "S107",    
-  "S108",    
-  "TID252",  
+  "D10",
+  "S101",
+  "S105",
+  "S106",
+  "S107",
+  "S108",
+  "TID252",
 ]
 
 [tool.ruff.lint.flake8-bandit]
@@ -144,7 +147,7 @@ markers = [
 ]
 addopts = [
   "--import-mode=importlib",
-  "--strict",               
-  "--tb=short",             
-  "--quiet",                
+  "--strict",
+  "--tb=short",
+  "--quiet",
 ]
