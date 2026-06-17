@@ -54,6 +54,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     The parser is stateless: a single instance may be reused across documents.
     """
+
     reader: JsonLikeReader = field(default_factory=DefaultJsonLikeReader)
 
     def apply(self, input: JsonSchemaRawDoc) -> Result[JsonSchemaDocument]:

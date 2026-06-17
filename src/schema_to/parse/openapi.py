@@ -69,6 +69,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     with `"3."`.  JSON Schema embedded in `schema` fields is parsed via the
     same logic used by `JsonSchemaParser`.
     """
+
     reader: JsonLikeReader = field(default_factory=DefaultJsonLikeReader)
     js: JsonSchemaParser = field(default_factory=JsonSchemaParser)
 

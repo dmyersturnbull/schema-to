@@ -37,7 +37,11 @@ class OpenApiExtractTranspiler(Transpiler[OpenApiRawDoc, JsonSchemaArtifact]):
         js_serializer: JSON Schema serializer (injected for testability).
     """
 
-    parser: OpenApiParser = field(default_factory=lambda: OpenApiParser(reader=DefaultJsonLikeReader(), js=JsonSchemaParser(reader=DefaultJsonLikeReader())))
+    parser: OpenApiParser = field(
+        default_factory=lambda: OpenApiParser(
+            reader=DefaultJsonLikeReader(), js=JsonSchemaParser(reader=DefaultJsonLikeReader())
+        )
+    )
     js_serializer: JsonSchemaSerializer = field(default_factory=JsonSchemaSerializer)
     writer: JsonLikeWriter = field(default_factory=DefaultJsonLikeWriter)
     output_media_type: MediaType | None = None
@@ -57,7 +61,9 @@ class OpenApiExtractTranspiler(Transpiler[OpenApiRawDoc, JsonSchemaArtifact]):
             artifacts.append(self._extract_doc(doc, name, schema))
         return Ok(artifacts)
 
-    def _extract_doc(self, doc: OpenApiRawDoc, name: str, schema: BooleanSchema | ObjectSchema) -> JsonSchemaArtifact:
+    def _extract_doc(
+        self, doc: OpenApiRawDoc, name: str, schema: BooleanSchema | ObjectSchema
+    ) -> JsonSchemaArtifact:
         doc_cst = JsonSchemaDocument(
             root=schema,
             source_id=doc.doc_id,

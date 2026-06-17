@@ -85,7 +85,9 @@ class DefaultJsonLikeReader(JsonLikeReader):
                 return JsonReader().read(content)
             if media_type.subtype.endswith(("+yaml", "yaml")):
                 return YamlReader().read(content)
-        raise UnsupportedMediaTypeError(media_type=media_type, supported={MediaTypes.json, MediaTypes.yaml})
+        raise UnsupportedMediaTypeError(
+            media_type=media_type, supported={MediaTypes.json, MediaTypes.yaml}
+        )
 
 
 class JsonLikeWriter(ABC):
@@ -133,7 +135,9 @@ class DefaultJsonLikeWriter(JsonLikeWriter):
             return JsonWriter(pretty=self.pretty).write(data)
         if subtype.endswith(("+yaml", "yaml")):
             return YamlWriter().write(data)
-        raise UnsupportedMediaTypeError(media_type=media_type, supported={MediaTypes.json, MediaTypes.yaml})
+        raise UnsupportedMediaTypeError(
+            media_type=media_type, supported={MediaTypes.json, MediaTypes.yaml}
+        )
 
     def write_bytes(self, data: JsonValue, media_type: MediaType) -> bytes:
         encoding = media_type.get_param_value("charset", "utf-8")

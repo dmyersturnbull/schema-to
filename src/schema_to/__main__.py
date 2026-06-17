@@ -35,7 +35,9 @@ def transpile(
     to: Annotated[
         str,
         Option(
-            "-t", "--to", help=f"Target format. Supported: {', '.join(sorted(TranspilerRouter.SUPPORTED_TARGETS))}."
+            "-t",
+            "--to",
+            help=f"Target format. Supported: {', '.join(sorted(TranspilerRouter.SUPPORTED_TARGETS))}.",
         ),
     ] = "pass-thru",
     yaml: Annotated[bool, Option("--yaml/--json", help="Emit YAML instead of JSON.")] = False,

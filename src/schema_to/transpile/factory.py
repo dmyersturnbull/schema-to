@@ -46,7 +46,6 @@ class RoutingError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class TranspilerRouter:
-
     SUPPORTED_TARGETS: ClassVar[frozenset[str]] = frozenset({"pass-thru", "pydantic", "postgres"})
 
     def route(self, target_name: str, output_media_type: MediaType) -> Sequence[Transpiler]:

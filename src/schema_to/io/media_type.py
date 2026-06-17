@@ -34,12 +34,10 @@ class MediaType:
         return self.essence + "".join(f";{k}={v}" for k, v in self.params)
 
     @overload
-    def get_param_value(self, key: str, default: str) -> str:
-        ...
+    def get_param_value(self, key: str, default: str) -> str: ...
 
     @overload
-    def get_param_value(self, key: str, default: str | None = None) -> str | None:
-        ...
+    def get_param_value(self, key: str, default: str | None = None) -> str | None: ...
 
     def get_param_value(self, key: str, default: str | None = None) -> str | None:
         """Returns the value of the param `key`, or `default` if there are 0 or >1 unique values."""

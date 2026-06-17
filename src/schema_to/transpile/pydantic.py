@@ -29,7 +29,9 @@ __all__ = ["JsonSchemaToPydanticTranspiler"]
 class JsonSchemaToPydanticTranspiler(Transpiler[JsonSchemaRawDoc, PythonArtifact]):
     """End-to-end transpiler: JSON Schema 2020-12 → Pydantic v2 `BaseModel` classes."""
 
-    parser: JsonSchemaParser = field(default_factory=lambda: JsonSchemaParser(reader=DefaultJsonLikeReader()))
+    parser: JsonSchemaParser = field(
+        default_factory=lambda: JsonSchemaParser(reader=DefaultJsonLikeReader())
+    )
     resolver: JsonSchemaRefResolver = field(default_factory=JsonSchemaRefResolver)
     generator: PydanticTransformer = field(default_factory=PydanticTransformer)
     reifier: PythonReifier = field(default_factory=lambda: PythonReifier(artifact_id="models.py"))

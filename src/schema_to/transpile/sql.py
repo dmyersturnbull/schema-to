@@ -29,7 +29,9 @@ __all__ = ["JsonSchemaToPostgresTranspiler"]
 class JsonSchemaToPostgresTranspiler(Transpiler[JsonSchemaRawDoc, SqlArtifact]):
     """End-to-end transpiler: JSON Schema 2020-12 → PostgreSQL DDL."""
 
-    parser: JsonSchemaParser = field(default_factory=lambda: JsonSchemaParser(reader=DefaultJsonLikeReader()))
+    parser: JsonSchemaParser = field(
+        default_factory=lambda: JsonSchemaParser(reader=DefaultJsonLikeReader())
+    )
     resolver: JsonSchemaRefResolver = field(default_factory=JsonSchemaRefResolver)
     generator: PostgresTransformer = field(default_factory=PostgresTransformer)
     output_name: str = "schema.sql"

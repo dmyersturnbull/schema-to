@@ -33,17 +33,16 @@ if TYPE_CHECKING:
     from schema_to.io.core import JsonLikeWriter
     from schema_to.io.media_type import MediaType
 
-__all__ = [
-    "JsonSchemaPassThruTranspiler",
-    "OpenApiPassThruTranspiler",
-]
+__all__ = ["JsonSchemaPassThruTranspiler", "OpenApiPassThruTranspiler"]
 
 
 @dataclass(frozen=True, slots=True)
 class JsonSchemaPassThruTranspiler(Transpiler[JsonSchemaRawDoc, Artifact]):
     """Parse a JSON Schema document and emit it back as normalised JSON or YAML."""
 
-    parser: JsonSchemaParser = field(default_factory=lambda: JsonSchemaParser(reader=DefaultJsonLikeReader()))
+    parser: JsonSchemaParser = field(
+        default_factory=lambda: JsonSchemaParser(reader=DefaultJsonLikeReader())
+    )
     serializer: JsonSchemaSerializer = field(default_factory=JsonSchemaSerializer)
     writer: JsonLikeWriter = field(default_factory=DefaultJsonLikeWriter)
     output_media_type: MediaType | None = None
@@ -68,7 +67,11 @@ class JsonSchemaPassThruTranspiler(Transpiler[JsonSchemaRawDoc, Artifact]):
 class OpenApiPassThruTranspiler(Transpiler[OpenApiRawDoc, Artifact]):
     """Parse an OpenAPI 3.1 document and emit it back as normalised JSON or YAML."""
 
-    parser: OpenApiParser = field(default_factory=lambda: OpenApiParser(reader=DefaultJsonLikeReader(), js=JsonSchemaParser(reader=DefaultJsonLikeReader())))
+    parser: OpenApiParser = field(
+        default_factory=lambda: OpenApiParser(
+            reader=DefaultJsonLikeReader(), js=JsonSchemaParser(reader=DefaultJsonLikeReader())
+        )
+    )
     serializer: OpenApiSerializer = field(default_factory=OpenApiSerializer)
     writer: JsonLikeWriter = field(default_factory=DefaultJsonLikeWriter)
     output_media_type: MediaType | None = None

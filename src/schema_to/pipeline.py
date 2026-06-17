@@ -317,6 +317,7 @@ class ProcessSummary:
 @dataclass(slots=True)
 class _PipelineHelper:
     """Internal helper to track pipeline progress for `ProcessSummary`."""
+
     docs_used: list[str] = field(default_factory=list, init=False)
     artifacts_written: list[str] = field(default_factory=list, init=False)
     errors: list[TranspilationError] = field(default_factory=list, init=False)
@@ -389,12 +390,13 @@ class Pipeline[I: RawDoc, O: Artifact]:
         else:
             helper.warnings.append(
                 TranspilationWarning(
-                    f"No transpiler accepts {document.doc_id!r}; skipping.",
-                    code="no-transpiler",
+                    f"No transpiler accepts {document.doc_id!r}; skipping.", code="no-transpiler"
                 )
             )
 
-    def _transpile_doc(self, document: I, helper: _PipelineHelper, transpiler: Transpiler[I, O]) -> None:
+    def _transpile_doc(
+        self, document: I, helper: _PipelineHelper, transpiler: Transpiler[I, O]
+    ) -> None:
         result = transpiler.transpile(document)
         helper.warnings.extend(transpiler.warnings)
         match result:

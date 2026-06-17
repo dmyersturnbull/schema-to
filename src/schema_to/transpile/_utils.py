@@ -15,22 +15,26 @@ if TYPE_CHECKING:
     from schema_to.io.source import RawDoc
 
 
-class OutputInfo[A : Artifact](NamedTuple):
+class OutputInfo[A: Artifact](NamedTuple):
     filename: str
     artifact_type: type[A]
 
 
 @overload
-def choose_output(doc: RawDoc, output_media_type: MediaType | None, *, kind: Literal["openapi"]) -> OutputInfo[OpenApiArtifact]:
-    ...
+def choose_output(
+    doc: RawDoc, output_media_type: MediaType | None, *, kind: Literal["openapi"]
+) -> OutputInfo[OpenApiArtifact]: ...
 
 
 @overload
-def choose_output(doc: RawDoc, output_media_type: MediaType | None, *, kind: Literal["schema"]) -> OutputInfo[JsonSchemaArtifact]:
-    ...
+def choose_output(
+    doc: RawDoc, output_media_type: MediaType | None, *, kind: Literal["schema"]
+) -> OutputInfo[JsonSchemaArtifact]: ...
 
 
-def choose_output(doc: RawDoc, output_media_type: MediaType | None, *, kind: Literal["openapi", "schema"]) -> OutputInfo[OpenApiArtifact | JsonSchemaArtifact]:
+def choose_output(
+    doc: RawDoc, output_media_type: MediaType | None, *, kind: Literal["openapi", "schema"]
+) -> OutputInfo[OpenApiArtifact | JsonSchemaArtifact]:
     """Chooses a filename and the correct artifact type for JSON Schema or OpenAPI.
 
     Args:
@@ -41,10 +45,10 @@ def choose_output(doc: RawDoc, output_media_type: MediaType | None, *, kind: Lit
     """
     # TODO: `writer` can support more, but this forces `.yaml` or `.json`.
     if output_media_type:
-        is_yaml = (
-            output_media_type.type in {"application", "text"}
-            and output_media_type.subtype.endswith(("+yaml", "yaml"))
-        )
+        is_yaml = output_media_type.type in {
+            "application",
+            "text",
+        } and output_media_type.subtype.endswith(("+yaml", "yaml"))
     else:
         is_yaml = doc.doc_id.endswith(".yaml")
     ext = ".yaml" if is_yaml else ".json"
@@ -54,7 +58,4 @@ def choose_output(doc: RawDoc, output_media_type: MediaType | None, *, kind: Lit
     else:
         artifact_type = JsonSchemaYamlArtifact if is_yaml else JsonSchemaJsonArtifact
     stem = (doc.display_name or kind).removesuffix(f".{kind}")
-    return OutputInfo(
-        f"{stem}.{kind}{ext}",
-        artifact_type,
-    )
+    return OutputInfo(f"{stem}.{kind}{ext}", artifact_type)
