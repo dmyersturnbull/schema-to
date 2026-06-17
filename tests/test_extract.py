@@ -20,7 +20,7 @@ _JS_PARSER = JsonSchemaParser()
 
 def _make_openapi_doc(data: object, source_id: str = "test://doc") -> OpenApiRawDoc:
     return OpenApiRawDoc(
-        source_id=source_id,
+        doc_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,
         display_name="test",
@@ -29,7 +29,7 @@ def _make_openapi_doc(data: object, source_id: str = "test://doc") -> OpenApiRaw
 
 def _make_json_schema_doc(data: object, source_id: str = "test://doc") -> JsonSchemaRawDoc:
     return JsonSchemaRawDoc(
-        source_id=source_id,
+        doc_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,
         display_name="test",
@@ -68,7 +68,7 @@ def test_openapi_extract_yaml_output() -> None:
         "info": {"title": "Test", "version": "1.0"},
         "components": {"schemas": {"Foo": {"type": "object"}}},
     }
-    transpiler = OpenApiExtractTranspiler(use_yaml=True)
+    transpiler = OpenApiExtractTranspiler()
     result = transpiler.transpile(_make_openapi_doc(openapi))
     assert isinstance(result, Ok)
     artifact = result.value[0]

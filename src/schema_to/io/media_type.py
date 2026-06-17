@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import NamedTuple
+from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, NamedTuple, overload
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 __all__ = ["MediaType", "MediaTypes"]
 
@@ -13,6 +17,13 @@ class MediaType:
     type: str
     subtype: str
     params: tuple[MediaTypeParam, ...] = ()
+    _param_map: dict[str, list[str]] = field(init=False)
+
+    def __post_init__(self) -> None:
+        mp: dict[str, list[str]] = defaultdict(list)
+        for k, v in self.params:
+            mp[k].append(v)
+        setattr(self, "_param_map", mp)  # noqa: B010 # workaround to allow `slots=True`
 
     @property
     def essence(self) -> str:
@@ -21,6 +32,25 @@ class MediaType:
     @property
     def string(self) -> str:
         return self.essence + "".join(f";{k}={v}" for k, v in self.params)
+
+    @overload
+    def get_param_value(self, key: str, default: str) -> str:
+        ...
+
+    @overload
+    def get_param_value(self, key: str, default: str | None = None) -> str | None:
+        ...
+
+    def get_param_value(self, key: str, default: str | None = None) -> str | None:
+        """Returns the value of the param `key`, or `default` if there are 0 or >1 unique values."""
+        values = set(self.get_param_values(key))
+        if len(values) == 1:
+            return next(iter(values))
+        return default
+
+    def get_param_values(self, key: str) -> Sequence[str]:
+        """Returns the values of param `key`, in order."""
+        return list(self._param_map.get(key, []))
 
     def __str__(self) -> str:
         return self.string

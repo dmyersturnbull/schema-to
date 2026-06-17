@@ -10,14 +10,14 @@ class SourceLocation:
     """A position within a source document.
 
     Attributes:
-        source_id: Opaque identifier matching `RawDoc.source_id`.
+        doc_id: Opaque identifier matching `RawDoc.doc_id`.
         json_pointer: [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)
             pointer to the offending node within the parsed document.
         line: 1-based line number in the raw text, if available.
         column: 1-based column number in the raw text, if available.
     """
 
-    source_id: str
+    doc_id: str
     json_pointer: str | None = None
     line: int | None = None
     column: int | None = None

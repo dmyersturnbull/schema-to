@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, cast
 
-from schema_to import OpenApiRawDoc
+from schema_to import DefaultJsonLikeReader
 from schema_to.cst.base import SourceRef
 from schema_to.cst.openapi import (
     Components,
@@ -35,6 +35,7 @@ from schema_to.cst.openapi import (
     Tag,
 )
 from schema_to.errors import ParseError, SchemaValidationError, SourceLocation, TranspilationError
+from schema_to.io.source import OpenApiRawDoc
 from schema_to.parse._utils import (
     as_json_dict,
     as_json_list,
@@ -52,6 +53,7 @@ from schema_to.result import Err, Ok, Result
 if TYPE_CHECKING:
     from schema_to.core import JsonValue
     from schema_to.cst.json_schema import JsonSchema
+    from schema_to.io.core import JsonLikeReader
 
 __all__ = ["OpenApiParser"]
 
@@ -59,7 +61,7 @@ _HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "tr
 loc = SourceLocation
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     """Parses JSON or YAML bytes into an `OpenApiDocument` CST.
 
@@ -67,26 +69,23 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     with `"3."`.  JSON Schema embedded in `schema` fields is parsed via the
     same logic used by `JsonSchemaParser`.
     """
-
+    reader: JsonLikeReader = field(default_factory=DefaultJsonLikeReader)
     js: JsonSchemaParser = field(default_factory=JsonSchemaParser)
-
-    def accepts(self, doc: OpenApiRawDoc) -> bool:
-        return isinstance(doc, OpenApiRawDoc)
 
     def apply(self, input: OpenApiRawDoc) -> Result[OpenApiDocument]:
         try:
-            data = decode_raw_doc(input)
+            data = decode_raw_doc(input, self.reader)
         except TranspilationError as exc:
             return Err((exc,))
         if not isinstance(data, dict):
             return Err.of(
                 ParseError(
-                    "OpenAPI document must be a JSON object.", location=loc(input.source_id, "")
+                    "OpenAPI document must be a JSON object.", location=loc(input.doc_id, "")
                 )
             )
         return self._build_document(
             cast("dict[str, JsonValue]", data),  # narrowed by isinstance above; ty can't see it
-            source_id=input.source_id,
+            source_id=input.doc_id,
             display_name=input.display_name,
         )
 

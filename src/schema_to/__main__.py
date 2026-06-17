@@ -11,9 +11,10 @@ from typing import Annotated, Final
 from typer import Argument, Exit, Option, Typer, echo
 
 from schema_to.io.file import FileDataSink, FileDataSourceFactory
+from schema_to.io.media_type import MediaTypes
 from schema_to.pipeline import Pipeline
 from schema_to.result import Err, Ok
-from schema_to.transpile.factory import TranspilerRouter, RoutingError
+from schema_to.transpile.factory import RoutingError, TranspilerRouter
 
 CWD: Final = Path.cwd()
 app = Typer(
@@ -40,8 +41,9 @@ def transpile(
     yaml: Annotated[bool, Option("--yaml/--json", help="Emit YAML instead of JSON.")] = False,
 ) -> None:
     """Transpile one or more schema sources into the requested target formats."""
+    output_media_type = MediaTypes.yaml if yaml else MediaTypes.json
     try:
-        transpilers = TranspilerRouter().route(to, use_yaml=yaml)
+        transpilers = TranspilerRouter().route(to, output_media_type=output_media_type)
     except RoutingError as exc:
         echo(f"error: {exc}", err=True)
         raise Exit(1) from exc
@@ -56,7 +58,7 @@ def transpile(
         case Ok(summary):
             echo(
                 f"Wrote {summary.artifacts_written} artifact(s) from "
-                f"{summary.docs_read} document(s)."
+                f"{summary.docs_used} document(s)."
             )
             for w in summary.warnings:
                 echo(f"warning: {w.message}", err=True)

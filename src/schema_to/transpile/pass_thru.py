@@ -14,91 +14,76 @@ at source-collection time.  Transpiler `accepts()` methods are therefore a simpl
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
-from schema_to.io.sink import (
-    Artifact,
-    JsonSchemaJsonArtifact,
-    JsonSchemaYamlArtifact,
-    OpenApiJsonArtifact,
-    OpenApiYamlArtifact,
-)
-from schema_to.io.source import JsonSchemaRawDoc, OpenApiRawDoc, RawDoc
+from schema_to.io.core import DefaultJsonLikeReader, DefaultJsonLikeWriter
+from schema_to.io.sink import Artifact
+from schema_to.io.source import JsonSchemaRawDoc, OpenApiRawDoc
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.parse.openapi import OpenApiParser
 from schema_to.pipeline import Transpiler
 from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 from schema_to.serialize.openapi import OpenApiSerializer
-from schema_to.transpile._utils import encode
+from schema_to.transpile._utils import choose_output
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-__all__ = ["JsonSchemaPassThruTranspiler", "OpenApiPassThruTranspiler"]
+    from schema_to.io.core import JsonLikeWriter
+    from schema_to.io.media_type import MediaType
+
+__all__ = [
+    "JsonSchemaPassThruTranspiler",
+    "OpenApiPassThruTranspiler",
+]
 
 
 @dataclass(frozen=True, slots=True)
 class JsonSchemaPassThruTranspiler(Transpiler[JsonSchemaRawDoc, Artifact]):
-    """Parse a JSON Schema document and emit it back as normalised JSON or YAML.
+    """Parse a JSON Schema document and emit it back as normalised JSON or YAML."""
 
-    Attributes:
-        parser: JSON Schema parser (injected for testability).
-        serializer: JSON Schema serializer (injected for testability).
-        use_yaml: Emit YAML instead of JSON (default `False`).
-    """
-
-    parser: JsonSchemaParser = field(default_factory=JsonSchemaParser)
+    parser: JsonSchemaParser = field(default_factory=lambda: JsonSchemaParser(reader=DefaultJsonLikeReader()))
     serializer: JsonSchemaSerializer = field(default_factory=JsonSchemaSerializer)
-    use_yaml: bool = False
+    writer: JsonLikeWriter = field(default_factory=DefaultJsonLikeWriter)
+    output_media_type: MediaType | None = None
 
-    def accepts(self, doc: RawDoc) -> bool:
+    @override
+    def accepts(self, doc: JsonSchemaRawDoc) -> bool:
         return isinstance(doc, JsonSchemaRawDoc)
 
+    @override
     def transpile(self, doc: JsonSchemaRawDoc) -> Result[Sequence[Artifact]]:
         result = self.parser.apply(doc)
         if isinstance(result, Err):
             return result
         data = self.serializer.serialize_document(result.value)
-        content = encode(data, use_yaml=self.use_yaml)
-        ext = ".yaml" if self.use_yaml else ".json"
-        stem = (doc.display_name or "schema").removesuffix(".schema")
-        artifact_cls = JsonSchemaYamlArtifact if self.use_yaml else JsonSchemaJsonArtifact
-        return Ok(
-            [
-                artifact_cls(
-                    artifact_id=f"{stem}.schema{ext}", content=content, source_ids=(doc.source_id,)
-                )
-            ]
-        )
+        filename, artifact_cls = choose_output(doc, self.output_media_type, kind="schema")
+        content = self.writer.write_bytes(data, artifact_cls.media_type)
+        artifact = artifact_cls(artifact_id=filename, content=content, source_ids=(doc.doc_id,))
+        return Ok([artifact])
 
 
 @dataclass(frozen=True, slots=True)
 class OpenApiPassThruTranspiler(Transpiler[OpenApiRawDoc, Artifact]):
-    """Parse an OpenAPI 3.1 document and emit it back as normalised JSON or YAML.
+    """Parse an OpenAPI 3.1 document and emit it back as normalised JSON or YAML."""
 
-    Attributes:
-        parser: OpenAPI parser (injected for testability).
-        serializer: OpenAPI serializer (injected for testability).
-        use_yaml: Emit YAML instead of JSON (default `False`).
-    """
-
-    parser: OpenApiParser = field(default_factory=OpenApiParser)
+    parser: OpenApiParser = field(default_factory=lambda: OpenApiParser(reader=DefaultJsonLikeReader(), js=JsonSchemaParser(reader=DefaultJsonLikeReader())))
     serializer: OpenApiSerializer = field(default_factory=OpenApiSerializer)
-    use_yaml: bool = False
+    writer: JsonLikeWriter = field(default_factory=DefaultJsonLikeWriter)
+    output_media_type: MediaType | None = None
 
-    def accepts(self, doc: RawDoc) -> bool:
+    @override
+    def accepts(self, doc: OpenApiRawDoc) -> bool:
         return isinstance(doc, OpenApiRawDoc)
 
+    @override
     def transpile(self, doc: OpenApiRawDoc) -> Result[Sequence[Artifact]]:
         result = self.parser.apply(doc)
         if isinstance(result, Err):
             return result
         data = self.serializer.serialize(result.value)
-        content = encode(data, use_yaml=self.use_yaml)
-        ext = ".yaml" if self.use_yaml else ".json"
-        stem = doc.display_name or "openapi"
-        artifact_cls = OpenApiYamlArtifact if self.use_yaml else OpenApiJsonArtifact
-        return Ok(
-            [artifact_cls(artifact_id=f"{stem}{ext}", content=content, source_ids=(doc.source_id,))]
-        )
+        filename, artifact_cls = choose_output(doc, self.output_media_type, kind="openapi")
+        content = self.writer.write_bytes(data, artifact_cls.media_type)
+        artifact = artifact_cls(artifact_id=filename, content=content, source_ids=(doc.doc_id,))
+        return Ok([artifact])

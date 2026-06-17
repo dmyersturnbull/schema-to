@@ -37,7 +37,7 @@ _PARSER = JsonSchemaParser()
 
 def _doc(data: object, source_id: str = "test://schema") -> JsonSchemaRawDoc:
     return JsonSchemaRawDoc(
-        source_id=source_id,
+        doc_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,
         display_name="Test",
@@ -565,7 +565,7 @@ def test_table_name_from_title() -> None:
 def test_table_name_from_source_id() -> None:
     """When there is no title, source_id determines the table name."""
     doc = JsonSchemaRawDoc(
-        source_id="https://example.com/product.json",
+        doc_id="https://example.com/product.json",
         content=orjson.dumps({"type": "object"}),
         media_type=MediaTypes.json,
     )
@@ -661,13 +661,13 @@ def test_accepts_json_schema_document() -> None:
 
 
 def test_rejects_openapi_document() -> None:
-    doc = OpenApiRawDoc(source_id="test://s", content=b"{}", media_type=MediaTypes.json)
-    assert not JsonSchemaToPostgresTranspiler().accepts(doc)
+    doc = OpenApiRawDoc(doc_id="test://s", content=b"{}", media_type=MediaTypes.json)
+    assert not JsonSchemaToPostgresTranspiler().accepts(doc)  # ty:ignore[invalid-argument-type]
 
 
 def test_rejects_raw_document() -> None:
-    doc = RawDoc(source_id="test://s", content=b"{}", media_type=MediaTypes.json)
-    assert not JsonSchemaToPostgresTranspiler().accepts(doc)
+    doc = RawDoc(doc_id="test://s", content=b"{}", media_type=MediaTypes.json)
+    assert not JsonSchemaToPostgresTranspiler().accepts(doc)  # ty:ignore[invalid-argument-type]
 
 
 # ---------------------------------------------------------------------------

@@ -35,7 +35,7 @@ _PARSER = JsonSchemaParser()
 
 def _doc(data: object, source_id: str = "test://schema") -> JsonSchemaRawDoc:
     return JsonSchemaRawDoc(
-        source_id=source_id,
+        doc_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,
         display_name="Test",
@@ -64,7 +64,7 @@ def _parse_and_generate(data: object) -> str:
     assert isinstance(ast_r, Ok), (
         f"Generation failed: {[getattr(e, 'message', str(e)) for e in ast_r.errors]}"
     )
-    reify_r = PythonReifier(artifact_name="models.py").apply(ast_r.value)
+    reify_r = PythonReifier(artifact_id="models.py").apply(ast_r.value)
     assert isinstance(reify_r, Ok)
     return reify_r.value[0].content.decode("utf-8")
 
@@ -345,7 +345,7 @@ def test_title_becomes_class_name() -> None:
 def test_display_name_fallback() -> None:
     """When there is no title, display_name is used as a fallback."""
     doc = JsonSchemaRawDoc(
-        source_id="test://schema",
+        doc_id="test://schema",
         content=orjson.dumps({"type": "object"}),
         media_type=MediaTypes.json,
         display_name="user_profile",
@@ -402,9 +402,9 @@ def test_transpiler_rejects_openapi() -> None:
     openapi = {"openapi": "3.1.0", "info": {"title": "T", "version": "1"}}
     transpiler = JsonSchemaToPydanticTranspiler()
     doc = OpenApiRawDoc(
-        source_id="test://schema", content=orjson.dumps(openapi), media_type=MediaTypes.json
+        doc_id="test://schema", content=orjson.dumps(openapi), media_type=MediaTypes.json
     )
-    assert not transpiler.accepts(doc)
+    assert not transpiler.accepts(doc)  # ty:ignore[invalid-argument-type]
 
 
 # ---------------------------------------------------------------------------
@@ -474,7 +474,7 @@ def test_integration_full_pipeline() -> None:
     # address is optional $ref to Address
     assert re.search(r"address:\s*Address\s*\|\s*None", src), "address should be optional Address"
     # tags is optional list[str]
-    assert re.search(r"tags:\s*list\[str\]\s*\|\s*None", src), "tags should be optional list[str]"
+    assert re.search(r"tags:\s*list\[str]\s*\|\s*None", src), "tags should be optional list[str]"
     # status is a required Literal (enum)
     assert re.search(r"status:\s*Literal\[", src), "status should be Literal"
     assert "'active'" in src or '"active"' in src

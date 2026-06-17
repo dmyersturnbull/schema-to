@@ -27,7 +27,8 @@ from schema_to.transpile.sql import JsonSchemaToPostgresTranspiler
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from schema_to import Transpiler
+    from schema_to.io.media_type import MediaType
+    from schema_to.pipeline import Transpiler
 
 __all__ = ["RoutingError", "TranspilerRouter"]
 
@@ -48,25 +49,21 @@ class TranspilerRouter:
 
     SUPPORTED_TARGETS: ClassVar[frozenset[str]] = frozenset({"pass-thru", "pydantic", "postgres"})
 
-    def route(self, to: str, *, use_yaml: bool = False) -> Sequence[Transpiler]:
+    def route(self, target_name: str, output_media_type: MediaType) -> Sequence[Transpiler]:
         """Return the ordered list of transpilers for target `to`.
 
-        Args:
-            to: Target format name (e.g. `"pass-thru"`, `"pydantic"`).
-            use_yaml: Emit YAML output instead of JSON where the transpiler supports it.
-
         Raises:
-            RoutingError: If `to` is not recognized or supported.
+            RoutingError: If `target_name` is not recognized or supported.
         """
-        match to:
+        match target_name:
             case "pass-thru":
                 return [
-                    OpenApiPassThruTranspiler(use_yaml=use_yaml),
-                    JsonSchemaPassThruTranspiler(use_yaml=use_yaml),
+                    OpenApiPassThruTranspiler(),
+                    JsonSchemaPassThruTranspiler(output_media_type=output_media_type),
                 ]
             case "pydantic":
                 return [JsonSchemaToPydanticTranspiler()]
             case "postgres":
                 return [JsonSchemaToPostgresTranspiler()]
             case _:
-                raise RoutingError(value=to)
+                raise RoutingError(value=target_name)

@@ -30,7 +30,7 @@ _OA_SERIALIZER = OpenApiSerializer()
 
 def _make_js_doc(data: object, source_id: str = "test://doc") -> JsonSchemaRawDoc:
     return JsonSchemaRawDoc(
-        source_id=source_id,
+        doc_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,
         display_name="test",
@@ -39,7 +39,7 @@ def _make_js_doc(data: object, source_id: str = "test://doc") -> JsonSchemaRawDo
 
 def _make_oa_doc(data: object, source_id: str = "test://doc") -> OpenApiRawDoc:
     return OpenApiRawDoc(
-        source_id=source_id,
+        doc_id=source_id,
         content=orjson.dumps(data),
         media_type=MediaTypes.json,
         display_name="test",

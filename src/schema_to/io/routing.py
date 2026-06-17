@@ -48,10 +48,10 @@ def peek_doc_type(content: bytes) -> DocType | None:
 def _try_parse(content: bytes) -> object:
     try:
         return JsonReader().read(content)
-    except ReadError:
+    except ReadError:  # noqa: S110 # Just using the exception to check.
         pass
     try:
         return YamlReader().read(content)
-    except ReadError:
+    except ReadError:  # noqa: S110 # Just using the exception to check.
         pass
     return None

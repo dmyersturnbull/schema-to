@@ -148,7 +148,7 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
 def _root_class_name(doc: JsonSchemaDocument) -> str:
     if isinstance(doc.root, ObjectSchema) and doc.root.title:
         return safe_python_class_name(doc.root.title)
-    return safe_python_class_name(doc.display_name or doc.source_id.rstrip("/").rsplit("/", 1)[-1])
+    return safe_python_class_name(doc.source_id.rstrip("/").rsplit("/", 1)[-1])
 
 
 # ---------------------------------------------------------------------------
@@ -353,7 +353,7 @@ class _GenCtx:
         loc: SourceLocation | None = None
         if schema.source_ref:
             loc = SourceLocation(
-                source_id=schema.source_ref.source_id, json_pointer=schema.source_ref.json_pointer
+                doc_id=schema.source_ref.source_id, json_pointer=schema.source_ref.json_pointer
             )
         self.warnings.append(TranspilationWarning(msg, code=code, location=loc))
 
