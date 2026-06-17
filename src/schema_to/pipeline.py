@@ -40,7 +40,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import override
 
 from schema_to.ast.base import AstNode
 from schema_to.cst.base import CstNode
@@ -165,10 +166,9 @@ class DocParser[I: RawDoc, C: CstNode](Stage[I, C]):
     def apply(self, input: I) -> Result[C]:
         raise NotImplementedError
 
-    @abstractmethod
-    def accepts(self, doc: I) -> bool:
-        """Return `True` if this parser can process the given document."""
-        raise NotImplementedError
+    def accepts(self, doc: I) -> bool:  # noqa: ARG002  # Concrete subclasses might use it.
+        """Return `True` if this parser can process `doc`."""
+        return True
 
 
 class RefResolver[C: CstNode](Stage[C, C]):
@@ -231,10 +231,6 @@ class Reifier[A: AstNode, O: Artifact](Stage[A, Sequence[O]]):
 class Transpiler[I: RawDoc, O: Artifact](ABC):
     """Type-erased base for a complete single-document transpilation unit.
 
-    A `Transpiler` accepts a `RawDoc` and produces zero or more `Artifact`s.
-    The `Pipeline` holds a heterogeneous list of `Transpiler`s
-    and dispatches each document to the first one that `accepts` it.
-
     Prefer subclassing `TypedTranspiler[CstT, AstT]` for new implementations;
     use `Transpiler` directly only when the CST or AST types are not statically known
     (e.g. a plugin loaded at runtime).
@@ -242,7 +238,7 @@ class Transpiler[I: RawDoc, O: Artifact](ABC):
 
     @abstractmethod
     def accepts(self, doc: I) -> bool:
-        """Return `True` if this transpiler can process `document`."""
+        """Return `True` if this transpiler can process `doc`."""
         raise NotImplementedError
 
     @abstractmethod
@@ -261,27 +257,6 @@ class TypedTranspiler[I: RawDoc, O: Artifact, C: CstNode, A: AstNode](Transpiler
 
     Subclasses override `parse`, `resolve`, `generate`, and `reify`; the
     provided `transpile` implementation chains them via `Result.flat_map`.
-
-    Example:
-        ```python
-        class JsonSchemaToSqlTranspiler(
-            TypedTranspiler[RawJsonSchemaDocument, JsonSchemaDocument, SqlScript]
-        ):
-            def accepts(self, doc):
-                return doc.media_type == MediaType.json()
-
-            def parse(self, doc):
-                return JsonSchemaParser().apply(doc)
-
-            def resolve(self, cst):
-                return JsonSchemaRefResolver().apply(cst)
-
-            def generate(self, cst):
-                return JsonSchemaToSqlGenerator().apply(cst)
-
-            def reify(self, ast):
-                return SqlReifier().apply(ast)
-        ```
     """
 
     @abstractmethod
@@ -304,6 +279,7 @@ class TypedTranspiler[I: RawDoc, O: Artifact, C: CstNode, A: AstNode](Transpiler
         """Stage 4: serialise the AST to output bytes."""
         raise NotImplementedError
 
+    @override
     def transpile(self, doc: I) -> Result[Sequence[O]]:
         """Run all four stages sequentially."""
         doc: Result[C] = self.parse(doc)
@@ -328,23 +304,35 @@ class ProcessSummary:
     """Summary of a completed `Pipeline.process()` run.
 
     Attributes:
-        docs_read: Total number of `RawDoc`s consumed across all sources.
-        artifacts_written: Total number of `Artifact`s written to the sink.
+        docs_used: `doc_id`s of `RawDoc`s that a transpiler consumed.
+        artifacts_written: `artifact_id`s of `Artifact`s written to the sink.
         warnings: Non-fatal diagnostics accumulated during transpilation.
     """
 
-    docs_read: int
-    artifacts_written: int
+    docs_used: list[str]
+    artifacts_written: list[str]
     warnings: tuple[TranspilationWarning, ...] = ()
 
 
-@dataclass
+@dataclass(slots=True)
+class _PipelineHelper:
+    """Internal helper to track pipeline progress for `ProcessSummary`."""
+    docs_used: list[str] = field(default_factory=list, init=False)
+    artifacts_written: list[str] = field(default_factory=list, init=False)
+    errors: list[TranspilationError] = field(default_factory=list, init=False)
+    warnings: list[TranspilationWarning] = field(default_factory=list, init=False)
+
+
+@dataclass(frozen=True, slots=True)
 class Pipeline[I: RawDoc, O: Artifact]:
     """Immutable transpilation pipeline.
 
     A `Pipeline` is configured once — sources, transpilers, and sink — and
     executed by calling `process()`.  All state is local to a single `process()`
     call; the same `Pipeline` instance may be reused.
+
+    Holds a heterogeneous list of `Transpiler`s
+    and dispatches each document to the first one that `accepts` it.
 
     Attributes:
         sources: Ordered list of `DataSource`s; each is iterated exactly once.
@@ -369,6 +357,7 @@ class Pipeline[I: RawDoc, O: Artifact]:
     """
 
     sources: Sequence[DataSource[I]]
+    # TODO: Each Transpiler in `transpilers` will have different generic args. Is that compatible with the generic args on `Pipeline`?
     transpilers: Sequence[Transpiler[I, O]]
     sink: DataSink[O]
 
@@ -378,37 +367,40 @@ class Pipeline[I: RawDoc, O: Artifact]:
         Returns `Ok[ProcessSummary]` if every document was transpiled without
         fatal errors, or `Err` with all accumulated errors otherwise.
         """
-        documents_read = 0
-        artifacts_written = 0
-        errors: list[TranspilationError] = []
-        warnings: list[TranspilationWarning] = []
+        helper = _PipelineHelper()
         for source in self.sources:
             for document in source.documents():
-                documents_read += 1
-                transpiler = next((t for t in self.transpilers if t.accepts(document)), None)
-                if transpiler:
-                    result = transpiler.transpile(document)
-                    warnings.extend(transpiler.warnings)
-                    match result:
-                        case Err(errs):
-                            errors += errs
-                        case Ok(val):
-                            for artifact in val:
-                                self.sink.write(artifact)
-                                artifacts_written += 1
-                else:
-                    warnings.append(
-                        TranspilationWarning(
-                            f"No transpiler accepts {document.source_id!r}; skipping.",
-                            code="no-transpiler",
-                        )
-                    )
-        if errors:
-            return Err(tuple(errors))
+                self._next_doc(document, helper)
+        if helper.errors:
+            return Err(tuple(helper.errors))
         return Ok(
             ProcessSummary(
-                docs_read=documents_read,
-                artifacts_written=artifacts_written,
-                warnings=tuple(warnings),
+                docs_used=helper.docs_used,
+                artifacts_written=helper.artifacts_written,
+                warnings=tuple(helper.warnings),
             )
         )
+
+    def _next_doc(self, document: I, helper: _PipelineHelper) -> None:
+        transpiler = next((t for t in self.transpilers if t.accepts(document)), None)
+        if transpiler:
+            helper.docs_used.append(document.doc_id)
+            self._transpile_doc(document, helper, transpiler)
+        else:
+            helper.warnings.append(
+                TranspilationWarning(
+                    f"No transpiler accepts {document.doc_id!r}; skipping.",
+                    code="no-transpiler",
+                )
+            )
+
+    def _transpile_doc(self, document: I, helper: _PipelineHelper, transpiler: Transpiler[I, O]) -> None:
+        result = transpiler.transpile(document)
+        helper.warnings.extend(transpiler.warnings)
+        match result:
+            case Err(errs):
+                helper.errors += errs
+            case Ok(val):
+                for artifact in val:
+                    helper.artifacts_written.append(artifact.artifact_id)
+                    self.sink.write(artifact)

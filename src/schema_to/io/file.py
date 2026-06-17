@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import glob
+from collections.abc import Callable, Mapping
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
@@ -14,17 +15,23 @@ from schema_to.io.sink import Artifact, DataSink
 from schema_to.io.source import DataSource, JsonSchemaRawDoc, OpenApiRawDoc, RawDoc
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator, Sequence
+    from collections.abc import Iterator, Sequence
 
 __all__ = [
     "DirectoryDataSource",
+    "DocFormat",
     "FileDataSink",
     "FileDataSource",
     "FileDataSourceFactory",
     "PeekingDirectorySource",
+    "SuffixMap",
 ]
 
-_DEFAULT_SUFFIX_MAP: dict[str, tuple[type[RawDoc], MediaType]] = {
+DocFormat = tuple[type[RawDoc], MediaType]
+SuffixMap = Mapping[str, DocFormat]
+PeekFn = Callable[[bytes | str], type[RawDoc] | None]
+
+_DEFAULT_SUFFIX_MAP: SuffixMap = {
     ".schema.json": (JsonSchemaRawDoc, MediaTypes.json_schema),
     ".schema.yaml": (JsonSchemaRawDoc, MediaTypes.json_schema_yaml),
     ".schema.yml": (JsonSchemaRawDoc, MediaTypes.json_schema_yaml),
@@ -59,7 +66,7 @@ class FileDataSource(DataSource):
         stem = self.path.stem
         display_name = Path(stem).stem if "." in stem else stem
         yield self.doc_cls(
-            source_id=self.path.as_uri(),
+            doc_id=self.path.as_uri(),
             content=content,
             media_type=self.media_type,
             display_name=display_name,
@@ -83,8 +90,8 @@ class DirectoryDataSource(DataSource):
         include_hidden: Whether to look in dotted directories.
     """
 
-    suffix_map: ClassVar[dict[str, tuple[type[RawDoc], MediaType]]] = _DEFAULT_SUFFIX_MAP
-    peek_fn: ClassVar[Callable[[bytes], object] | None] = None
+    suffix_map: ClassVar[SuffixMap] = _DEFAULT_SUFFIX_MAP
+    peek_fn: ClassVar[PeekFn | None] = None
 
     root: Path
     _: KW_ONLY
@@ -125,7 +132,7 @@ class DirectoryDataSource(DataSource):
             stem = path.stem
             display_name = Path(stem).stem if "." in stem else stem
             yield doc_cls(
-                source_id=path.as_uri(),
+                doc_id=path.as_uri(),
                 content=content,
                 media_type=media_type,
                 display_name=display_name,

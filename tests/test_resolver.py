@@ -27,7 +27,7 @@ _PARSER = JsonSchemaParser()
 
 def _doc(data: object, source_id: str = "test://doc") -> JsonSchemaRawDoc:
     return JsonSchemaRawDoc(
-        source_id=source_id, content=orjson.dumps(data), media_type=MediaTypes.json
+        doc_id=source_id, content=orjson.dumps(data), media_type=MediaTypes.json
     )
 
 

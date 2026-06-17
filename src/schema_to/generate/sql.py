@@ -325,7 +325,7 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
         )
         return DataType.jsonb()
 
-    def _check_exprs(  # noqa: C901
+    def _check_exprs(  # noqa: C901  # Mostly shared structure
         self, schema: ObjectSchema, col_name: str, data_type: DataType
     ) -> ColumnConstraint:
         exprs: list[str] = []
@@ -369,6 +369,6 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
         loc: SourceLocation | None = None
         if schema.source_ref:
             loc = SourceLocation(
-                source_id=schema.source_ref.source_id, json_pointer=schema.source_ref.json_pointer
+                doc_id=schema.source_ref.source_id, json_pointer=schema.source_ref.json_pointer
             )
         self._warnings.append(TranspilationWarning(msg, code=code, location=loc))

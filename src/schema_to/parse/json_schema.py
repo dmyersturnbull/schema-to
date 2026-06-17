@@ -10,9 +10,10 @@ diagnostics rather than stopping at the first fault.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, cast
 
-from schema_to import JsonSchemaRawDoc
+from schema_to import DefaultJsonLikeReader
 from schema_to.cst.base import SourceRef
 from schema_to.cst.json_schema import (
     BooleanSchema,
@@ -25,6 +26,7 @@ from schema_to.cst.json_schema import (
     SchemaType,
 )
 from schema_to.errors import ParseError, SchemaValidationError, SourceLocation, TranspilationError
+from schema_to.io.source import JsonSchemaRawDoc
 from schema_to.parse._utils import (
     as_json_dict,
     as_json_list,
@@ -39,24 +41,24 @@ from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
     from schema_to.core import JsonValue
+    from schema_to.io.core import JsonLikeReader
 
 __all__ = ["JsonSchemaParser"]
 
 loc = SourceLocation
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
 class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
     """Parses JSON or YAML bytes into a `JsonSchemaDocument` CST.
 
     The parser is stateless: a single instance may be reused across documents.
     """
-
-    def accepts(self, doc: JsonSchemaRawDoc) -> bool:
-        return isinstance(doc, JsonSchemaRawDoc)
+    reader: JsonLikeReader = field(default_factory=DefaultJsonLikeReader)
 
     def apply(self, input: JsonSchemaRawDoc) -> Result[JsonSchemaDocument]:
         try:
-            raw = decode_raw_doc(input)
+            raw = decode_raw_doc(input, self.reader)
         except TranspilationError as exc:
             return Err((exc,))
         return self._build_document(raw, document=input)
@@ -64,15 +66,15 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
     def _build_document(
         self, data: JsonValue, *, document: JsonSchemaRawDoc
     ) -> Result[JsonSchemaDocument]:
-        root_r = self._build_schema(data, source_id=document.source_id, pointer="")
+        root_r = self._build_schema(data, source_id=document.doc_id, pointer="")
         if isinstance(root_r, Err):
             return root_r
         return Ok(
             JsonSchemaDocument(
                 root=root_r.value,
-                source_id=document.source_id,
+                source_id=document.doc_id,
                 display_name=document.display_name,
-                source_ref=SourceRef(document.source_id, ""),
+                source_ref=SourceRef(document.doc_id, ""),
             )
         )
 

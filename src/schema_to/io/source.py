@@ -28,7 +28,7 @@ class RawDoc:
     a `DataSource` as a `RawDoc`, decoupling I/O from transformation.
 
     Attributes:
-        source_id: Globally unique, opaque identifier
+        doc_id: Globally unique, opaque identifier
             (e.g. an absolute URI or a content-addressed hash).
             Used as the key for `$ref` resolution and error reporting.
         content: Raw bytes exactly as supplied by the source.
@@ -40,7 +40,7 @@ class RawDoc:
             A good default is `source_id`.
     """
 
-    source_id: str
+    doc_id: str
     content: bytes
     media_type: MediaType
     _: KW_ONLY
@@ -58,7 +58,7 @@ class OpenApiRawDoc(RawDoc):
     """A `RawDoc` known to contain an OpenAPI 3.1 document."""
 
 
-class DataSource[T: RawDoc](ABC):
+class DataSource[I: RawDoc](ABC):
     """A lazily-iterable supplier of raw documents.
 
     A single `DataSource` may yield any number of documents: zero (empty),
@@ -73,6 +73,6 @@ class DataSource[T: RawDoc](ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def documents(self) -> Iterator[T]:
+    def documents(self) -> Iterator[I]:
         """Yield each document provided by this source in an unspecified order."""
         raise NotImplementedError

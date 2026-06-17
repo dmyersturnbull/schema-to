@@ -46,10 +46,10 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     """Serialise a `PythonModule` AST to a single `.py` `Artifact`.
 
     Attributes:
-        artifact_name: Base file name for the output artifact (e.g. `"models.py"`).
+        artifact_id: Base file name for the output artifact (e.g. `"models.py"`).
     """
 
-    artifact_name: str
+    artifact_id: str
 
     def apply(self, input: PythonModule) -> Result[Sequence[PythonArtifact]]:
         try:
@@ -59,7 +59,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
         return Ok(
             [
                 PythonArtifact(
-                    artifact_id=self.artifact_name,
+                    artifact_id=self.artifact_id,
                     content=source.encode("utf-8"),
                     source_ids=input.source_ids,
                 )
@@ -218,5 +218,5 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     # Method stubs (for abstract methods etc.)
     # ------------------------------------------------------------------
 
-    def _emit_method_stub(self, m: object) -> list[str]:
+    def _emit_method_stub(self, m: FunctionDef) -> list[str]:  # noqa: ARG002 # This method is defined to be overridden.
         return ["pass"]

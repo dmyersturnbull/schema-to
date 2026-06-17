@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from schema_to.errors import ParseError, SourceLocation, TranspilationError
-from schema_to.io.core import DefaultJsonLikeReader, ReadError
+from schema_to.io.core import JsonLikeReader, ReadError
 from schema_to.result import Err, Result
 
 if TYPE_CHECKING:
@@ -36,20 +36,20 @@ def ptr(parent: str, *segments: str | int) -> str:
 
 
 def loc(source_id: str, pointer: str) -> SourceLocation:
-    return SourceLocation(source_id=source_id, json_pointer=pointer)
+    return SourceLocation(doc_id=source_id, json_pointer=pointer)
 
 
-def decode_raw_doc(document: RawDoc) -> JsonValue:
+def decode_raw_doc(doc: RawDoc, reader: JsonLikeReader) -> JsonValue:
     """Decode a raw document's bytes to a JSON-compatible value.
 
     Raises `ParseError` (a `TranspilationError`) on malformed input so callers
     can treat it uniformly alongside other parse errors.
     """
     try:
-        return DefaultJsonLikeReader().read(document.content, document.media_type)
+        return reader.read(doc.content, doc.media_type)
     except ReadError as e:
         raise ParseError(
-            str(e), location=SourceLocation(document.source_id, line=e.line, column=e.column)
+            str(e), location=SourceLocation(doc.doc_id, line=e.line, column=e.column)
         ) from e
 
 
