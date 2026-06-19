@@ -38,15 +38,28 @@ if TYPE_CHECKING:
 __all__ = ["JsonSchemaParser"]
 
 
-@dataclass(slots=True)
-class _ScalarBuckets:
-    """Accumulator for the five homogeneous-typed scalar field dicts."""
-
-    str_vals: dict[str, str | None] = field(default_factory=dict)
-    bool_vals: dict[str, bool] = field(default_factory=dict)
-    int_vals: dict[str, int | None] = field(default_factory=dict)
-    float_vals: dict[str, float | None] = field(default_factory=dict)
-    list_vals: dict[str, list[JsonValue] | None] = field(default_factory=dict)
+# Union of every type that can appear as an ObjectSchema field value.
+# Used as the value type for the data-driven kwargs dict so that individual
+# assignments type-check without resorting to `Any` or `object`.
+type _SchemaFieldValue = (
+    str
+    | bool
+    | int
+    | float
+    | list[JsonValue]
+    | JsonSchemaType
+    | frozenset[JsonSchemaType]
+    | frozenset[str]
+    | DefaultValue
+    | ConstValue
+    | JsonSchema
+    | list[JsonSchema]
+    | dict[str, JsonSchema]
+    | dict[str, bool]
+    | dict[str, frozenset[str]]
+    | dict[str, JsonValue]
+    | SourceRef
+)
 
 
 loc = SourceLocation
@@ -56,22 +69,30 @@ loc = SourceLocation
 #
 # With `from __future__ import annotations`, every ObjectSchema field
 # annotation is stored as a literal string at runtime.  We map those strings
-# to a dispatch tag so the data-driven loop can handle each
-# JsonValue-compatible field automatically without hard-coding json key names
-# in the parser.  Complex fields (JsonSchema, frozenset, ConstValue, …) are
-# handled in explicit typed locals and do not appear in this table.
+# to a dispatch tag so the data-driven loop handles each field automatically
+# without hard-coding JSON key names or field names in the parser.
+# Synthetic fields (extensions, source_ref) have no "key" metadata entry and
+# are excluded from the loop entirely; they are appended after the loop.
 # ---------------------------------------------------------------------------
 
 _KIND_BY_ANNOTATION: dict[str, str] = {
+    # Scalar kinds
     "str | None": "str",
     "float | None": "num",
     "bool": "bool",
     "int | None": "int",
     "Sequence[JsonValue] | None": "json_array",
+    # Complex kinds
+    "SchemaType | None": "schema_type",
+    "DefaultValue | None": "default_value",
+    "ConstValue | None": "const_value",
+    "Mapping[str, JsonSchema] | None": "schema_map",
+    "Mapping[str, bool] | None": "bool_map",
+    "frozenset[str] | None": "str_frozenset",
+    "Mapping[str, frozenset[str]] | None": "dep_required_map",
+    "JsonSchema | None": "optional_schema",
+    "Sequence[JsonSchema] | None": "schema_list",
 }
-
-# Scalar kinds whose values are directly JsonValue-compatible.
-_SCALAR_KINDS: frozenset[str] = frozenset(_KIND_BY_ANNOTATION.values()) | {"int_nn"}
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -121,226 +142,147 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             )
         )
 
-    def _build_object_schema(  # noqa: PLR0914
+    def _build_object_schema(
         self, data: dict[str, JsonValue], *, source_id: str, pointer: str
     ) -> Result[JsonSchema]:
-        """Build an ObjectSchema from a raw JSON object.
+        """Build an `ObjectSchema` from a raw JSON object.
 
-        Scalar fields (str, bool, int, float, list[JsonValue]) are collected
-        into per-type dicts by a data-driven loop that reads `key` and `kind`
-        from each ObjectSchema field's `metadata`.  Complex fields (JsonSchema
-        sub-trees, frozensets, wrapper types) are parsed in explicit typed
-        locals below the loop.
+        A data-driven loop reads `key` and `kind` from each `ObjectSchema`
+        field's `metadata` and dispatches to `_parse_field_into`, which
+        deposits the parsed value into `kwargs`.  Adding a new field to
+        `ObjectSchema` (with appropriate metadata) requires no change here.
         """
         errors: list[TranspilationError] = []
-
-        # Per-type dicts for scalar fields — populated by the data-driven loop.
-        # Using separate typed containers ensures ObjectSchema() can be
-        # constructed with plain .get() calls and no type suppressions.
-        buckets = _ScalarBuckets()
-        fk: dict[str, str] = {}  # field_name → json_key for ALL keyed fields
+        kwargs: dict[str, _SchemaFieldValue] = {}
 
         for f in fields(ObjectSchema):
             json_key = f.metadata.get("key")
             if json_key is None:
-                continue
-            fk[f.name] = json_key
+                continue  # synthetic field (extensions, source_ref) — handled below
             kind = f.metadata.get("kind") or _KIND_BY_ANNOTATION.get(f.type, "")
-            if kind not in _SCALAR_KINDS:
+            if not kind:
                 continue
-            self._parse_scalar_field(
-                data, json_key, kind, f.name, buckets,
+            self._parse_field_into(
+                data, f.name, json_key, kind, kwargs,
                 source_id=source_id, pointer=pointer, errors=errors,
             )
 
-        # -- Complex fields (explicit typed locals) ----------------------------
-        schema_type: SchemaType | None = None
-        if fk["type"] in data:
-            r = self._parse_schema_type(
-                data[fk["type"]], location=loc(source_id, ptr(pointer, fk["type"]))
-            )
-            if isinstance(r, Err):
-                errors.extend(r.errors)
-            else:
-                schema_type = r.value
-
-        default = DefaultValue(data[fk["default"]]) if fk["default"] in data else None
-        const = ConstValue(data[fk["const"]]) if fk["const"] in data else None
-
-        defs = self._build_schema_map(
-            data, fk["defs"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        vocabulary = self._parse_vocabulary(data, source_id=source_id, pointer=pointer, errors=errors)
-        required = self._parse_required(data, source_id=source_id, pointer=pointer, errors=errors)
-        dependent_required = self._parse_dependent_required(
-            data, source_id=source_id, pointer=pointer, errors=errors
-        )
-        prefix_items = self._build_schema_list(
-            data, fk["prefix_items"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        items = self._build_optional_schema(
-            data, fk["items"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        contains = self._build_optional_schema(
-            data, fk["contains"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        properties = self._build_schema_map(
-            data, fk["properties"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        pattern_properties = self._build_schema_map(
-            data, fk["pattern_properties"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        additional_properties = self._build_optional_schema(
-            data, fk["additional_properties"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        property_names = self._build_optional_schema(
-            data, fk["property_names"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        dependent_schemas = self._build_schema_map(
-            data, fk["dependent_schemas"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        all_of = self._build_schema_list(
-            data, fk["all_of"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        any_of = self._build_schema_list(
-            data, fk["any_of"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        one_of = self._build_schema_list(
-            data, fk["one_of"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        not_ = self._build_optional_schema(
-            data, fk["not_"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        if_ = self._build_optional_schema(
-            data, fk["if_"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        then = self._build_optional_schema(
-            data, fk["then"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        else_ = self._build_optional_schema(
-            data, fk["else_"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        unevaluated_items = self._build_optional_schema(
-            data, fk["unevaluated_items"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        unevaluated_properties = self._build_optional_schema(
-            data, fk["unevaluated_properties"], source_id=source_id, pointer=pointer, errors=errors
-        )
-        content_schema = self._build_optional_schema(
-            data, fk["content_schema"], source_id=source_id, pointer=pointer, errors=errors
-        )
+        kwargs["extensions"] = {k: v for k, v in data.items() if k.startswith("x-")}
+        kwargs["source_ref"] = SourceRef(source_id, pointer)
 
         if errors:
             return Err(tuple(errors))
 
-        # ObjectSchema is constructed with typed .get() calls so no type
-        # suppressions are needed: each dict has a homogeneous value type that
-        # matches the corresponding ObjectSchema field type exactly.
-        sv, bv, iv, fv, lv = (
-            buckets.str_vals, buckets.bool_vals, buckets.int_vals,
-            buckets.float_vals, buckets.list_vals,
-        )
-        schema: JsonSchema = ObjectSchema(
-            # Scalar fields from the data-driven loop
-            id=sv.get("id"),
-            schema=sv.get("schema"),
-            anchor=sv.get("anchor"),
-            dynamic_anchor=sv.get("dynamic_anchor"),
-            ref=sv.get("ref"),
-            dynamic_ref=sv.get("dynamic_ref"),
-            comment=sv.get("comment"),
-            title=sv.get("title"),
-            description=sv.get("description"),
-            deprecated=bv.get("deprecated", False),
-            read_only=bv.get("read_only", False),
-            write_only=bv.get("write_only", False),
-            unique_items=bv.get("unique_items", False),
-            multiple_of=fv.get("multiple_of"),
-            maximum=fv.get("maximum"),
-            exclusive_maximum=fv.get("exclusive_maximum"),
-            minimum=fv.get("minimum"),
-            exclusive_minimum=fv.get("exclusive_minimum"),
-            max_length=iv.get("max_length"),
-            min_length=iv.get("min_length"),
-            pattern=sv.get("pattern"),
-            min_contains=iv.get("min_contains"),
-            max_contains=iv.get("max_contains"),
-            min_items=iv.get("min_items"),
-            max_items=iv.get("max_items"),
-            min_properties=iv.get("min_properties"),
-            max_properties=iv.get("max_properties"),
-            content_encoding=sv.get("content_encoding"),
-            content_media_type=sv.get("content_media_type"),
-            format=sv.get("format"),
-            examples=lv.get("examples"),
-            enum=lv.get("enum"),
-            # Complex fields
-            type=schema_type,
-            default=default,
-            const=const,
-            defs=defs,
-            vocabulary=vocabulary,
-            required=required,
-            dependent_required=dependent_required,
-            prefix_items=prefix_items,
-            items=items,
-            contains=contains,
-            properties=properties,
-            pattern_properties=pattern_properties,
-            additional_properties=additional_properties,
-            property_names=property_names,
-            dependent_schemas=dependent_schemas,
-            all_of=all_of,
-            any_of=any_of,
-            one_of=one_of,
-            not_=not_,
-            if_=if_,
-            then=then,
-            else_=else_,
-            unevaluated_items=unevaluated_items,
-            unevaluated_properties=unevaluated_properties,
-            content_schema=content_schema,
-            extensions={k: v for k, v in data.items() if k.startswith("x-")},
-            source_ref=SourceRef(source_id, pointer),
-        )
+        schema: JsonSchema = ObjectSchema(**kwargs)  # ty: ignore[invalid-argument-type]
         return Ok(schema)
 
-    # -- Scalar field dispatcher ----------------------------------------------
+    # -- Unified field dispatcher ---------------------------------------------
 
-    def _parse_scalar_field(  # noqa: C901
+    def _parse_field_into(  # noqa: C901, PLR0912
         self,
         data: dict[str, JsonValue],
+        field_name: str,
         json_key: str,
         kind: str,
-        field_name: str,
-        buckets: _ScalarBuckets,
+        kwargs: dict[str, _SchemaFieldValue],
         *,
         source_id: str,
         pointer: str,
         errors: list[TranspilationError],
     ) -> None:
-        """Parse one scalar ObjectSchema field and deposit the result into the appropriate typed dict."""
-        if json_key not in data:
-            if kind == "bool":
-                buckets.bool_vals[field_name] = False
-            return
-        raw = data[json_key]
+        """Parse one `ObjectSchema` field and deposit the result into `kwargs`."""
+        match kind:
+            case "schema_type":
+                if json_key in data:
+                    r = self._parse_schema_type(
+                        data[json_key], location=loc(source_id, ptr(pointer, json_key))
+                    )
+                    if isinstance(r, Err):
+                        errors.extend(r.errors)
+                    else:
+                        kwargs[field_name] = r.value
+            case "default_value":
+                if json_key in data:
+                    kwargs[field_name] = DefaultValue(data[json_key])
+            case "const_value":
+                if json_key in data:
+                    kwargs[field_name] = ConstValue(data[json_key])
+            case "schema_map":
+                result = self._build_schema_map(
+                    data, json_key, source_id=source_id, pointer=pointer, errors=errors
+                )
+                if result is not None:
+                    kwargs[field_name] = result
+            case "bool_map":
+                result = self._parse_bool_map(
+                    data, json_key, source_id=source_id, pointer=pointer, errors=errors
+                )
+                if result is not None:
+                    kwargs[field_name] = result
+            case "str_frozenset":
+                result = self._parse_str_frozenset(
+                    data, json_key, source_id=source_id, pointer=pointer, errors=errors
+                )
+                if result is not None:
+                    kwargs[field_name] = result
+            case "dep_required_map":
+                result = self._parse_dep_required_map(
+                    data, json_key, source_id=source_id, pointer=pointer, errors=errors
+                )
+                if result is not None:
+                    kwargs[field_name] = result
+            case "optional_schema":
+                result = self._build_optional_schema(
+                    data, json_key, source_id=source_id, pointer=pointer, errors=errors
+                )
+                if result is not None:
+                    kwargs[field_name] = result
+            case "schema_list":
+                result = self._build_schema_list(
+                    data, json_key, source_id=source_id, pointer=pointer, errors=errors
+                )
+                if result is not None:
+                    kwargs[field_name] = result
+            case _:
+                self._parse_scalar_into(
+                    data, field_name, json_key, kind, kwargs,
+                    source_id=source_id, pointer=pointer, errors=errors,
+                )
+
+    def _parse_scalar_into(  # noqa: C901, PLR0912
+        self,
+        data: dict[str, JsonValue],
+        field_name: str,
+        json_key: str,
+        kind: str,
+        kwargs: dict[str, _SchemaFieldValue],
+        *,
+        source_id: str,
+        pointer: str,
+        errors: list[TranspilationError],
+    ) -> None:
+        """Parse one scalar `ObjectSchema` field into `kwargs`."""
         match kind:
             case "str":
-                buckets.str_vals[field_name] = raw if isinstance(raw, str) else None
+                raw = data.get(json_key)
+                if isinstance(raw, str):
+                    kwargs[field_name] = raw
             case "num":
-                buckets.float_vals[field_name] = (
-                    raw if isinstance(raw, (int, float)) and not isinstance(raw, bool) else None
-                )
+                raw = data.get(json_key)
+                if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+                    kwargs[field_name] = float(raw)
             case "bool":
-                buckets.bool_vals[field_name] = bool(raw)
+                kwargs[field_name] = bool(data.get(json_key))
             case "int":
-                buckets.int_vals[field_name] = (
-                    raw if isinstance(raw, int) and not isinstance(raw, bool) else None
-                )
+                raw = data.get(json_key)
+                if isinstance(raw, int) and not isinstance(raw, bool):
+                    kwargs[field_name] = raw
             case "int_nn":
+                if json_key not in data:
+                    return
+                raw = data[json_key]
                 if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
-                    buckets.int_vals[field_name] = raw
+                    kwargs[field_name] = raw
                 else:
                     errors.append(
                         SchemaValidationError(
@@ -349,8 +291,11 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                         )
                     )
             case "json_array":
+                if json_key not in data:
+                    return
+                raw = data[json_key]
                 if isinstance(raw, list):
-                    buckets.list_vals[field_name] = as_json_list(raw)
+                    kwargs[field_name] = as_json_list(raw)
                 else:
                     errors.append(
                         SchemaValidationError(
@@ -361,96 +306,97 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     # -- Vocabulary sub-parsers -----------------------------------------------
 
-    def _parse_vocabulary(
+    def _parse_bool_map(
         self,
         data: dict[str, JsonValue],
+        key: str,
         *,
         source_id: str,
         pointer: str,
         errors: list[TranspilationError],
     ) -> dict[str, bool] | None:
-        if "$vocabulary" not in data:
+        if key not in data:
             return None
-        raw_vocab = data["$vocabulary"]
-        if not isinstance(raw_vocab, dict):
+        raw = data[key]
+        if not isinstance(raw, dict):
             errors.append(
                 SchemaValidationError(
-                    "$vocabulary must be an object.",
-                    location=loc(source_id, ptr(pointer, "$vocabulary")),
+                    f"{key} must be an object.",
+                    location=loc(source_id, ptr(pointer, key)),
                 )
             )
             return None
-        vocab_d = as_json_dict(raw_vocab)
-        vocabulary: dict[str, bool] = {}
-        for uri, required in vocab_d.items():
-            if not isinstance(required, bool):
+        result: dict[str, bool] = {}
+        for uri, val in as_json_dict(raw).items():
+            if not isinstance(val, bool):
                 errors.append(
                     SchemaValidationError(
-                        f"$vocabulary value for {uri!r} must be a boolean.",
-                        location=loc(source_id, ptr(pointer, "$vocabulary", uri)),
+                        f"{key} value for {uri!r} must be a boolean.",
+                        location=loc(source_id, ptr(pointer, key, uri)),
                     )
                 )
             else:
-                vocabulary[uri] = required
-        return vocabulary
+                result[uri] = val
+        return result
 
-    def _parse_required(
+    def _parse_str_frozenset(
         self,
         data: dict[str, JsonValue],
+        key: str,
         *,
         source_id: str,
         pointer: str,
         errors: list[TranspilationError],
     ) -> frozenset[str] | None:
-        if "required" not in data:
+        if key not in data:
             return None
-        raw_req = data["required"]
-        if not isinstance(raw_req, list) or not all(isinstance(s, str) for s in raw_req):
+        raw = data[key]
+        if not isinstance(raw, list) or not all(isinstance(s, str) for s in raw):
             errors.append(
                 SchemaValidationError(
-                    "required must be an array of strings.",
-                    location=loc(source_id, ptr(pointer, "required")),
+                    f"{key} must be an array of strings.",
+                    location=loc(source_id, ptr(pointer, key)),
                 )
             )
             return None
-        # The `all(isinstance(s, str) for s in raw_req)` guard above ensures every element
+        # The `all(isinstance(s, str) for s in raw)` guard above ensures every element
         # is a str; the isinstance filter below is redundant but satisfies the type checker.
-        return frozenset(x for x in raw_req if isinstance(x, str))
+        return frozenset(x for x in raw if isinstance(x, str))
 
-    def _parse_dependent_required(
+    def _parse_dep_required_map(
         self,
         data: dict[str, JsonValue],
+        key: str,
         *,
         source_id: str,
         pointer: str,
         errors: list[TranspilationError],
     ) -> dict[str, frozenset[str]] | None:
-        if "dependentRequired" not in data:
+        if key not in data:
             return None
-        raw_dr = data["dependentRequired"]
-        if not isinstance(raw_dr, dict):
+        raw = data[key]
+        if not isinstance(raw, dict):
             errors.append(
                 SchemaValidationError(
-                    "dependentRequired must be an object.",
-                    location=loc(source_id, ptr(pointer, "dependentRequired")),
+                    f"{key} must be an object.",
+                    location=loc(source_id, ptr(pointer, key)),
                 )
             )
             return None
-        dr_d = as_json_dict(raw_dr)
-        dependent_required: dict[str, frozenset[str]] = {}
-        for prop, deps in dr_d.items():
+        result: dict[str, frozenset[str]] = {}
+        for prop, deps in as_json_dict(raw).items():
             if not isinstance(deps, list) or not all(isinstance(s, str) for s in deps):
                 errors.append(
                     SchemaValidationError(
-                        f"dependentRequired[{prop!r}] must be an array of strings.",
-                        location=loc(source_id, ptr(pointer, "dependentRequired", prop)),
+                        f"{key}[{prop!r}] must be an array of strings.",
+                        location=loc(source_id, ptr(pointer, key, prop)),
                     )
                 )
             else:
                 # The `all(isinstance(s, str) for s in deps)` guard above ensures every element
                 # is a str; the isinstance filter below is redundant but satisfies the type checker.
-                dependent_required[prop] = frozenset(x for x in deps if isinstance(x, str))
-        return dependent_required
+                result[prop] = frozenset(x for x in deps if isinstance(x, str))
+        return result
 
     # -- Reusable sub-builders ------------------------------------------------
 
