@@ -20,6 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
+from schema_to.transpile.fastapi import OpenApiToFastApiTranspiler
 from schema_to.transpile.pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
 from schema_to.transpile.pydantic import JsonSchemaToPydanticTranspiler
 from schema_to.transpile.sql import JsonSchemaToPostgresTranspiler
@@ -46,7 +47,9 @@ class RoutingError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class TranspilerRouter:
-    SUPPORTED_TARGETS: ClassVar[frozenset[str]] = frozenset({"pass-thru", "pydantic", "postgres"})
+    SUPPORTED_TARGETS: ClassVar[frozenset[str]] = frozenset(
+        {"fastapi", "pass-thru", "pydantic", "postgres"}
+    )
 
     def route(self, target_name: str, output_media_type: MediaType) -> Sequence[Transpiler]:
         """Return the ordered list of transpilers for target `to`.
@@ -55,6 +58,8 @@ class TranspilerRouter:
             RoutingError: If `target_name` is not recognized or supported.
         """
         match target_name:
+            case "fastapi":
+                return [OpenApiToFastApiTranspiler()]
             case "pass-thru":
                 return [
                     OpenApiPassThruTranspiler(),

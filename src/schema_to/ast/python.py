@@ -26,6 +26,7 @@ __all__ = [
     "FieldDef",
     "FromImport",
     "FunctionDef",
+    "ModuleVarDef",
     "Parameter",
     "PythonDocString",
     "PythonModule",
@@ -209,6 +210,21 @@ class Parameter(AstNode):
 
 
 @dataclass(frozen=True, slots=True)
+class ModuleVarDef(AstNode):
+    """A module-level variable assignment, e.g. ``app = FastAPI(...)``.
+
+    Attributes:
+        name: The variable name.
+        value: The right-hand side expression as a raw string.
+        annotation: Optional type annotation for the variable.
+    """
+
+    name: str
+    value: str
+    annotation: PythonTypeAnnotation | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class TypeAliasDef(AstNode):
     """A `type Name = ...` declaration (PEP 695).
 
@@ -288,6 +304,8 @@ class PythonModule(AstNode):
     """
 
     imports: Sequence[SimpleImport | FromImport] = field(default_factory=list)
-    declarations: Sequence[TypeAliasDef | ClassDef | FunctionDef] = field(default_factory=list)
+    declarations: Sequence[TypeAliasDef | ClassDef | FunctionDef | ModuleVarDef] = field(
+        default_factory=list
+    )
     source_ids: tuple[str, ...] = ()
     module_doc: str | None = None

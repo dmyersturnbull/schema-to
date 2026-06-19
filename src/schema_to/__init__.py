@@ -52,6 +52,7 @@ from schema_to.errors import (
     TranspilationError,
     TranspilationWarning,
 )
+from schema_to.generate.fastapi import FastApiTransformer
 from schema_to.generate.pydantic import PydanticTransformer
 from schema_to.generate.sql import PostgresTransformer
 from schema_to.io.core import DefaultJsonLikeReader, JsonLikeReader
@@ -85,6 +86,7 @@ from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 from schema_to.serialize.openapi import OpenApiSerializer
 from schema_to.transpile.extract import OpenApiExtractTranspiler
+from schema_to.transpile.fastapi import OpenApiToFastApiTranspiler
 from schema_to.transpile.pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
 from schema_to.transpile.pydantic import JsonSchemaToPydanticTranspiler
 from schema_to.transpile.sql import JsonSchemaToPostgresTranspiler
@@ -100,6 +102,8 @@ __all__ = [
     "DocType",
     # Result
     "Err",
+    # Generators
+    "FastApiTransformer",
     "FileDataSink",
     "FileDataSource",
     # Errors
@@ -134,12 +138,12 @@ __all__ = [
     "OpenApiPassThruTranspiler",
     "OpenApiRawDoc",
     "OpenApiSerializer",
+    "OpenApiToFastApiTranspiler",
     "OpenApiYamlArtifact",
     "ParseError",
     # Pipeline
     "PeekingDirectorySource",
     "Pipeline",
-    # Generators
     "PostgresTransformer",
     "ProcessSummary",
     "PydanticTransformer",
