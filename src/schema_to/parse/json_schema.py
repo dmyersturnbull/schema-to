@@ -10,7 +10,7 @@ diagnostics rather than stopping at the first fault.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import TYPE_CHECKING, cast
 
 from schema_to import DefaultJsonLikeReader
@@ -40,12 +40,34 @@ from schema_to.pipeline import DocParser
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
-    from schema_to.core import JsonValue
+    from schema_to.core import JsonObject, JsonValue
     from schema_to.io.core import JsonLikeReader
 
 __all__ = ["JsonSchemaParser"]
 
 loc = SourceLocation
+
+# ---------------------------------------------------------------------------
+# Annotation-string → parse-kind lookup table
+#
+# With `from __future__ import annotations`, every ObjectSchema field
+# annotation is stored as a literal string at runtime.  We map those strings
+# to a dispatch tag so the data-driven loop can handle each
+# JsonValue-compatible field automatically without hard-coding json key names
+# in the parser.  Complex fields (JsonSchema, frozenset, ConstValue, …) are
+# handled in explicit typed locals and do not appear in this table.
+# ---------------------------------------------------------------------------
+
+_KIND_BY_ANNOTATION: dict[str, str] = {
+    "str | None": "str",
+    "float | None": "num",
+    "bool": "bool",
+    "int | None": "int",
+    "Sequence[JsonValue] | None": "json_array",
+}
+
+# Scalar kinds whose values are directly JsonValue-compatible.
+_SCALAR_KINDS: frozenset[str] = frozenset(_KIND_BY_ANNOTATION.values()) | {"int_nn"}
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
