@@ -31,11 +31,11 @@ from schema_to.ast.python import (
     Decorator,
     FromImport,
     FunctionDef,
-    ModuleVarDef,
     PythonDocString,
     PythonModule,
     PythonTypeAnnotation,
     TypeAliasDef,
+    VarDef,
 )
 from schema_to.ast.python import Parameter as PyParameter
 from schema_to.cst.json_schema import (
@@ -196,7 +196,7 @@ def _scan_function_decl(decl: FunctionDef, needed: dict[str, set[str]]) -> None:
 
 
 def _build_imports(
-    declarations: list[TypeAliasDef | ClassDef | FunctionDef | ModuleVarDef],
+    declarations: list[TypeAliasDef | ClassDef | FunctionDef | VarDef],
 ) -> list[FromImport]:
     needed: dict[str, set[str]] = {"fastapi": {"FastAPI"}}
     for decl in declarations:
@@ -255,7 +255,7 @@ class _GenCtx:
         app_var = self._make_app_var()
         route_fns = self._generate_routes()
 
-        declarations: list[TypeAliasDef | ClassDef | FunctionDef | ModuleVarDef] = [
+        declarations: list[TypeAliasDef | ClassDef | FunctionDef | VarDef] = [
             *model_decls,
             app_var,
             *route_fns,
@@ -272,8 +272,8 @@ class _GenCtx:
 
     # -- Pydantic models from components/schemas --------------------------------
 
-    def _generate_models(self) -> list[TypeAliasDef | ClassDef | FunctionDef | ModuleVarDef]:
-        decls: list[TypeAliasDef | ClassDef | FunctionDef | ModuleVarDef] = []
+    def _generate_models(self) -> list[TypeAliasDef | ClassDef | FunctionDef | VarDef]:
+        decls: list[TypeAliasDef | ClassDef | FunctionDef | VarDef] = []
         for name, schema in self.doc.components.schemas.items():
             doc = JsonSchemaDocument(root=schema, source_id=name, display_name=name)
             transformer = PydanticTransformer()
@@ -292,12 +292,12 @@ class _GenCtx:
 
     # -- App instance -----------------------------------------------------------
 
-    def _make_app_var(self) -> ModuleVarDef:
+    def _make_app_var(self) -> VarDef:
         info = self.doc.info
         kwargs = [f'title="{_esc(info.title)}"', f'version="{_esc(info.version)}"']
         if info.description:
             kwargs.append(f'description="{_esc(info.description)}"')
-        return ModuleVarDef(name="app", value=f"FastAPI({', '.join(kwargs)})")
+        return VarDef(name="app", value=f"FastAPI({', '.join(kwargs)})")
 
     # -- Routes -----------------------------------------------------------------
 

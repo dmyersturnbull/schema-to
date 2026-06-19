@@ -22,13 +22,13 @@ from schema_to.ast.python import (
     FieldDef,
     FromImport,
     FunctionDef,
-    ModuleVarDef,
     Parameter,
     PythonDocString,
     PythonModule,
     PythonTypeAnnotation,
     SimpleImport,
     TypeAliasDef,
+    VarDef,
 )
 from schema_to.errors import ReificationError
 from schema_to.io.sink import PythonArtifact
@@ -107,13 +107,13 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     # Top-level declarations
     # ------------------------------------------------------------------
 
-    def _emit_decl(self, decl: TypeAliasDef | ClassDef | FunctionDef | ModuleVarDef) -> list[str]:
+    def _emit_decl(self, decl: TypeAliasDef | ClassDef | FunctionDef | VarDef) -> list[str]:
         if isinstance(decl, TypeAliasDef):
             return self._emit_type_alias(decl)
         if isinstance(decl, FunctionDef):
             return self._emit_function(decl)
-        if isinstance(decl, ModuleVarDef):
-            return self._emit_module_var(decl)
+        if isinstance(decl, VarDef):
+            return self._emit_var(decl)
         return self._emit_class(decl)
 
     def _emit_function(self, decl: FunctionDef) -> list[str]:
@@ -149,7 +149,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
             parts.append(part)
         return ", ".join(parts)
 
-    def _emit_module_var(self, decl: ModuleVarDef) -> list[str]:
+    def _emit_var(self, decl: VarDef) -> list[str]:
         ann = f": {self._emit_annotation(decl.annotation)}" if decl.annotation else ""
         return [f"{decl.name}{ann} = {decl.value}"]
 

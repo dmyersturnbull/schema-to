@@ -26,13 +26,15 @@ __all__ = [
     "FieldDef",
     "FromImport",
     "FunctionDef",
-    "ModuleVarDef",
     "Parameter",
+    "PyDeclaration",
+    "PyImport",
     "PythonDocString",
     "PythonModule",
     "PythonTypeAnnotation",
     "SimpleImport",
     "TypeAliasDef",
+    "VarDef",
 ]
 
 
@@ -144,6 +146,9 @@ class FromImport(AstNode):
     names: Sequence[tuple[str, str | None]]
 
 
+type PyImport = SimpleImport | FromImport
+
+
 # ---------------------------------------------------------------------------
 # Decorator
 # ---------------------------------------------------------------------------
@@ -210,8 +215,8 @@ class Parameter(AstNode):
 
 
 @dataclass(frozen=True, slots=True)
-class ModuleVarDef(AstNode):
-    """A module-level variable assignment, e.g. ``app = FastAPI(...)``.
+class VarDef(AstNode):
+    """A variable assignment, e.g. ``app = FastAPI(...)`` or ``model_config = ConfigDict(...)``.
 
     Attributes:
         name: The variable name.
@@ -287,6 +292,9 @@ class ClassDef(AstNode):
     decorators: Sequence[Decorator] = field(default_factory=list)
 
 
+type PyDeclaration = TypeAliasDef | ClassDef | FunctionDef | VarDef
+
+
 # ---------------------------------------------------------------------------
 # Module root
 # ---------------------------------------------------------------------------
@@ -303,9 +311,7 @@ class PythonModule(AstNode):
         module_doc: Module-level docstring.
     """
 
-    imports: Sequence[SimpleImport | FromImport] = field(default_factory=list)
-    declarations: Sequence[TypeAliasDef | ClassDef | FunctionDef | ModuleVarDef] = field(
-        default_factory=list
-    )
+    imports: Sequence[PyImport] = field(default_factory=list)
+    declarations: Sequence[PyDeclaration] = field(default_factory=list)
     source_ids: tuple[str, ...] = ()
     module_doc: str | None = None
