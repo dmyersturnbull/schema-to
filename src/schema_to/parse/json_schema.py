@@ -11,7 +11,7 @@ diagnostics rather than stopping at the first fault.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from schema_to import DefaultJsonLikeReader
 from schema_to.cst.base import SourceRef
@@ -27,20 +27,12 @@ from schema_to.cst.json_schema import (
 )
 from schema_to.errors import ParseError, SchemaValidationError, SourceLocation, TranspilationError
 from schema_to.io.source import JsonSchemaRawDoc
-from schema_to.parse._utils import (
-    as_json_dict,
-    as_json_list,
-    decode_raw_doc,
-    int_field,
-    num_field,
-    ptr,
-    str_field,
-)
+from schema_to.parse._utils import as_json_dict, as_json_list, decode_raw_doc, ptr
 from schema_to.pipeline import DocParser
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
-    from schema_to.core import JsonObject, JsonValue
+    from schema_to.core import JsonValue
     from schema_to.io.core import JsonLikeReader
 
 __all__ = ["JsonSchemaParser"]
@@ -105,13 +97,8 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         if isinstance(data, bool):
             return Ok(BooleanSchema(value=data, source_ref=SourceRef(source_id, pointer)))
         if isinstance(data, dict):
-            # ty treats Ok[T] as invariant; cast asserts the safe covariant narrowing:
-            # Ok[ObjectSchema] is structurally ≤ Result[JsonSchema] at runtime.
-            return cast(
-                "Result[JsonSchema]",
-                self._build_object_schema(
-                    cast("dict[str, JsonValue]", data), source_id=source_id, pointer=pointer
-                ),
+            return self._build_object_schema(
+                as_json_dict(data), source_id=source_id, pointer=pointer
             )
         return Err(
             (
@@ -122,185 +109,226 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             )
         )
 
-    def _build_object_schema(  # noqa: PLR0914 # ObjectSchema has 30+ fields; sub-builders already extracted
+    def _build_object_schema(  # noqa: C901, PLR0912, PLR0914, PLR0915
         self, data: dict[str, JsonValue], *, source_id: str, pointer: str
-    ) -> Result[ObjectSchema]:
+    ) -> Result[JsonSchema]:
+        """Build an ObjectSchema from a raw JSON object.
+
+        Scalar fields (str, bool, int, float, list[JsonValue]) are collected
+        into per-type dicts by a data-driven loop that reads `key` and `kind`
+        from each ObjectSchema field's `metadata`.  Complex fields (JsonSchema
+        sub-trees, frozensets, wrapper types) are parsed in explicit typed
+        locals below the loop.
+
+        The `match` block inside the loop is extracted to `_parse_scalar_field`
+        in the next commit.
+        """
         errors: list[TranspilationError] = []
 
-        # -- Core vocabulary -----------------------------------------------
-        defs = self._build_schema_map(
-            data, "$defs", source_id=source_id, pointer=pointer, errors=errors
-        )
-        vocabulary = self._parse_vocabulary(
-            data, source_id=source_id, pointer=pointer, errors=errors
-        )
+        # Per-type dicts for scalar fields — populated by the data-driven loop.
+        # Using separate typed containers ensures ObjectSchema() can be
+        # constructed with plain .get() calls and no type suppressions.
+        str_vals: dict[str, str | None] = {}
+        bool_vals: dict[str, bool] = {}
+        int_vals: dict[str, int | None] = {}
+        float_vals: dict[str, float | None] = {}
+        list_vals: dict[str, list[JsonValue] | None] = {}
+        fk: dict[str, str] = {}  # field_name → json_key for ALL keyed fields
 
-        # -- Metadata vocabulary -------------------------------------------
-        examples = self._parse_examples(data, source_id=source_id, pointer=pointer, errors=errors)
+        for f in fields(ObjectSchema):
+            json_key = f.metadata.get("key")
+            if json_key is None:
+                continue
+            fk[f.name] = json_key
+            kind = f.metadata.get("kind") or _KIND_BY_ANNOTATION.get(f.type, "")
+            if kind not in _SCALAR_KINDS:
+                continue
+            if json_key not in data:
+                if kind == "bool":
+                    bool_vals[f.name] = False
+                continue
+            raw = data[json_key]
+            match kind:
+                case "str":
+                    str_vals[f.name] = raw if isinstance(raw, str) else None
+                case "num":
+                    float_vals[f.name] = (
+                        raw if isinstance(raw, (int, float)) and not isinstance(raw, bool) else None
+                    )
+                case "bool":
+                    bool_vals[f.name] = bool(raw)
+                case "int":
+                    int_vals[f.name] = (
+                        raw if isinstance(raw, int) and not isinstance(raw, bool) else None
+                    )
+                case "int_nn":
+                    if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
+                        int_vals[f.name] = raw
+                    else:
+                        errors.append(
+                            SchemaValidationError(
+                                f"{json_key} must be a non-negative integer.",
+                                location=loc(source_id, ptr(pointer, json_key)),
+                            )
+                        )
+                case "json_array":
+                    if isinstance(raw, list):
+                        list_vals[f.name] = as_json_list(raw)
+                    else:
+                        errors.append(
+                            SchemaValidationError(
+                                f"{json_key} must be an array.",
+                                location=loc(source_id, ptr(pointer, json_key)),
+                            )
+                        )
 
-        # -- Validation vocabulary -----------------------------------------
+        # -- Complex fields (explicit typed locals) ----------------------------
         schema_type: SchemaType | None = None
-        if "type" in data:
-            r = self._parse_schema_type(data["type"], location=loc(source_id, ptr(pointer, "type")))
+        if fk["type"] in data:
+            r = self._parse_schema_type(
+                data[fk["type"]], location=loc(source_id, ptr(pointer, fk["type"]))
+            )
             if isinstance(r, Err):
                 errors.extend(r.errors)
             else:
                 schema_type = r.value
 
-        enum_val = self._parse_enum(data, source_id=source_id, pointer=pointer, errors=errors)
+        default = DefaultValue(data[fk["default"]]) if fk["default"] in data else None
+        const = ConstValue(data[fk["const"]]) if fk["const"] in data else None
 
-        # -- Numeric / string constraint validation ------------------------
-        self._validate_numeric_constraints(
-            data, source_id=source_id, pointer=pointer, errors=errors
+        defs = self._build_schema_map(
+            data, fk["defs"], source_id=source_id, pointer=pointer, errors=errors
         )
-        self._validate_string_constraints(data, source_id=source_id, pointer=pointer, errors=errors)
-
-        # -- Array keywords ------------------------------------------------
-        prefix_items = self._build_schema_list(
-            data, "prefixItems", source_id=source_id, pointer=pointer, errors=errors
-        )
-        items = self._build_optional_schema(
-            data, "items", source_id=source_id, pointer=pointer, errors=errors
-        )
-        contains = self._build_optional_schema(
-            data, "contains", source_id=source_id, pointer=pointer, errors=errors
-        )
-
-        # -- Object keywords -----------------------------------------------
-        properties = self._build_schema_map(
-            data, "properties", source_id=source_id, pointer=pointer, errors=errors
-        )
-        pattern_properties = self._build_schema_map(
-            data, "patternProperties", source_id=source_id, pointer=pointer, errors=errors
-        )
-        additional_properties = self._build_optional_schema(
-            data, "additionalProperties", source_id=source_id, pointer=pointer, errors=errors
-        )
-        property_names = self._build_optional_schema(
-            data, "propertyNames", source_id=source_id, pointer=pointer, errors=errors
-        )
-        dependent_schemas = self._build_schema_map(
-            data, "dependentSchemas", source_id=source_id, pointer=pointer, errors=errors
-        )
+        vocabulary = self._parse_vocabulary(data, source_id=source_id, pointer=pointer, errors=errors)
         required = self._parse_required(data, source_id=source_id, pointer=pointer, errors=errors)
         dependent_required = self._parse_dependent_required(
             data, source_id=source_id, pointer=pointer, errors=errors
         )
-
-        # -- Applicator vocabulary -----------------------------------------
+        prefix_items = self._build_schema_list(
+            data, fk["prefix_items"], source_id=source_id, pointer=pointer, errors=errors
+        )
+        items = self._build_optional_schema(
+            data, fk["items"], source_id=source_id, pointer=pointer, errors=errors
+        )
+        contains = self._build_optional_schema(
+            data, fk["contains"], source_id=source_id, pointer=pointer, errors=errors
+        )
+        properties = self._build_schema_map(
+            data, fk["properties"], source_id=source_id, pointer=pointer, errors=errors
+        )
+        pattern_properties = self._build_schema_map(
+            data, fk["pattern_properties"], source_id=source_id, pointer=pointer, errors=errors
+        )
+        additional_properties = self._build_optional_schema(
+            data, fk["additional_properties"], source_id=source_id, pointer=pointer, errors=errors
+        )
+        property_names = self._build_optional_schema(
+            data, fk["property_names"], source_id=source_id, pointer=pointer, errors=errors
+        )
+        dependent_schemas = self._build_schema_map(
+            data, fk["dependent_schemas"], source_id=source_id, pointer=pointer, errors=errors
+        )
         all_of = self._build_schema_list(
-            data, "allOf", source_id=source_id, pointer=pointer, errors=errors
+            data, fk["all_of"], source_id=source_id, pointer=pointer, errors=errors
         )
         any_of = self._build_schema_list(
-            data, "anyOf", source_id=source_id, pointer=pointer, errors=errors
+            data, fk["any_of"], source_id=source_id, pointer=pointer, errors=errors
         )
         one_of = self._build_schema_list(
-            data, "oneOf", source_id=source_id, pointer=pointer, errors=errors
+            data, fk["one_of"], source_id=source_id, pointer=pointer, errors=errors
         )
         not_ = self._build_optional_schema(
-            data, "not", source_id=source_id, pointer=pointer, errors=errors
+            data, fk["not_"], source_id=source_id, pointer=pointer, errors=errors
         )
         if_ = self._build_optional_schema(
-            data, "if", source_id=source_id, pointer=pointer, errors=errors
+            data, fk["if_"], source_id=source_id, pointer=pointer, errors=errors
         )
         then = self._build_optional_schema(
-            data, "then", source_id=source_id, pointer=pointer, errors=errors
+            data, fk["then"], source_id=source_id, pointer=pointer, errors=errors
         )
         else_ = self._build_optional_schema(
-            data, "else", source_id=source_id, pointer=pointer, errors=errors
+            data, fk["else_"], source_id=source_id, pointer=pointer, errors=errors
         )
-
-        # -- Unevaluated vocabulary ----------------------------------------
         unevaluated_items = self._build_optional_schema(
-            data, "unevaluatedItems", source_id=source_id, pointer=pointer, errors=errors
+            data, fk["unevaluated_items"], source_id=source_id, pointer=pointer, errors=errors
         )
         unevaluated_properties = self._build_optional_schema(
-            data, "unevaluatedProperties", source_id=source_id, pointer=pointer, errors=errors
+            data, fk["unevaluated_properties"], source_id=source_id, pointer=pointer, errors=errors
         )
-
-        # -- Content vocabulary --------------------------------------------
         content_schema = self._build_optional_schema(
-            data, "contentSchema", source_id=source_id, pointer=pointer, errors=errors
+            data, fk["content_schema"], source_id=source_id, pointer=pointer, errors=errors
         )
 
         if errors:
             return Err(tuple(errors))
 
-        return Ok(
-            ObjectSchema(
-                # Core
-                id=str_field(data, "$id"),
-                schema=str_field(data, "$schema"),
-                anchor=str_field(data, "$anchor"),
-                dynamic_anchor=str_field(data, "$dynamicAnchor"),
-                ref=str_field(data, "$ref"),
-                dynamic_ref=str_field(data, "$dynamicRef"),
-                defs=defs,
-                comment=str_field(data, "$comment"),
-                vocabulary=vocabulary,
-                # Metadata
-                title=str_field(data, "title"),
-                description=str_field(data, "description"),
-                default=DefaultValue(data["default"]) if "default" in data else None,
-                deprecated=bool(data.get("deprecated")),
-                read_only=bool(data.get("readOnly")),
-                write_only=bool(data.get("writeOnly")),
-                examples=examples,
-                # Validation
-                type=schema_type,
-                enum=enum_val,
-                const=ConstValue(data["const"]) if "const" in data else None,
-                # Numeric
-                multiple_of=num_field(data, "multipleOf"),
-                maximum=num_field(data, "maximum"),
-                exclusive_maximum=num_field(data, "exclusiveMaximum"),
-                minimum=num_field(data, "minimum"),
-                exclusive_minimum=num_field(data, "exclusiveMinimum"),
-                # String
-                max_length=int_field(data, "maxLength"),
-                min_length=int_field(data, "minLength"),
-                pattern=str_field(data, "pattern"),
-                # Array
-                prefix_items=prefix_items,
-                items=items,
-                contains=contains,
-                min_contains=int_field(data, "minContains"),
-                max_contains=int_field(data, "maxContains"),
-                min_items=int_field(data, "minItems"),
-                max_items=int_field(data, "maxItems"),
-                unique_items=bool(data.get("uniqueItems")),
-                # Object
-                properties=properties,
-                pattern_properties=pattern_properties,
-                additional_properties=additional_properties,
-                property_names=property_names,
-                required=required,
-                dependent_required=dependent_required,
-                dependent_schemas=dependent_schemas,
-                min_properties=int_field(data, "minProperties"),
-                max_properties=int_field(data, "maxProperties"),
-                # Applicator
-                all_of=all_of,
-                any_of=any_of,
-                one_of=one_of,
-                not_=not_,
-                if_=if_,
-                then=then,
-                else_=else_,
-                # Unevaluated
-                unevaluated_items=unevaluated_items,
-                unevaluated_properties=unevaluated_properties,
-                # Content
-                content_encoding=str_field(data, "contentEncoding"),
-                content_media_type=str_field(data, "contentMediaType"),
-                content_schema=content_schema,
-                # Format
-                format=str_field(data, "format"),
-                # Extensions and provenance
-                extensions={k: v for k, v in data.items() if k.startswith("x-")},
-                source_ref=SourceRef(source_id, pointer),
-            )
+        # ObjectSchema is constructed with typed .get() calls so no type
+        # suppressions are needed: each dict has a homogeneous value type that
+        # matches the corresponding ObjectSchema field type exactly.
+        schema: JsonSchema = ObjectSchema(
+            # Scalar fields from the data-driven loop
+            id=str_vals.get("id"),
+            schema=str_vals.get("schema"),
+            anchor=str_vals.get("anchor"),
+            dynamic_anchor=str_vals.get("dynamic_anchor"),
+            ref=str_vals.get("ref"),
+            dynamic_ref=str_vals.get("dynamic_ref"),
+            comment=str_vals.get("comment"),
+            title=str_vals.get("title"),
+            description=str_vals.get("description"),
+            deprecated=bool_vals.get("deprecated", False),
+            read_only=bool_vals.get("read_only", False),
+            write_only=bool_vals.get("write_only", False),
+            unique_items=bool_vals.get("unique_items", False),
+            multiple_of=float_vals.get("multiple_of"),
+            maximum=float_vals.get("maximum"),
+            exclusive_maximum=float_vals.get("exclusive_maximum"),
+            minimum=float_vals.get("minimum"),
+            exclusive_minimum=float_vals.get("exclusive_minimum"),
+            max_length=int_vals.get("max_length"),
+            min_length=int_vals.get("min_length"),
+            pattern=str_vals.get("pattern"),
+            min_contains=int_vals.get("min_contains"),
+            max_contains=int_vals.get("max_contains"),
+            min_items=int_vals.get("min_items"),
+            max_items=int_vals.get("max_items"),
+            min_properties=int_vals.get("min_properties"),
+            max_properties=int_vals.get("max_properties"),
+            content_encoding=str_vals.get("content_encoding"),
+            content_media_type=str_vals.get("content_media_type"),
+            format=str_vals.get("format"),
+            examples=list_vals.get("examples"),
+            enum=list_vals.get("enum"),
+            # Complex fields
+            type=schema_type,
+            default=default,
+            const=const,
+            defs=defs,
+            vocabulary=vocabulary,
+            required=required,
+            dependent_required=dependent_required,
+            prefix_items=prefix_items,
+            items=items,
+            contains=contains,
+            properties=properties,
+            pattern_properties=pattern_properties,
+            additional_properties=additional_properties,
+            property_names=property_names,
+            dependent_schemas=dependent_schemas,
+            all_of=all_of,
+            any_of=any_of,
+            one_of=one_of,
+            not_=not_,
+            if_=if_,
+            then=then,
+            else_=else_,
+            unevaluated_items=unevaluated_items,
+            unevaluated_properties=unevaluated_properties,
+            content_schema=content_schema,
+            extensions={k: v for k, v in data.items() if k.startswith("x-")},
+            source_ref=SourceRef(source_id, pointer),
         )
+        return Ok(schema)
 
     # -- Vocabulary sub-parsers -----------------------------------------------
 
@@ -336,81 +364,6 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             else:
                 vocabulary[uri] = required
         return vocabulary
-
-    def _parse_examples(
-        self,
-        data: dict[str, JsonValue],
-        *,
-        source_id: str,
-        pointer: str,
-        errors: list[TranspilationError],
-    ) -> list[JsonValue] | None:
-        if "examples" not in data:
-            return None
-        raw_ex = data["examples"]
-        if not isinstance(raw_ex, list):
-            errors.append(
-                SchemaValidationError(
-                    "examples must be an array.", location=loc(source_id, ptr(pointer, "examples"))
-                )
-            )
-            return None
-        return as_json_list(raw_ex)
-
-    def _parse_enum(
-        self,
-        data: dict[str, JsonValue],
-        *,
-        source_id: str,
-        pointer: str,
-        errors: list[TranspilationError],
-    ) -> list[JsonValue] | None:
-        if "enum" not in data:
-            return None
-        raw_enum = data["enum"]
-        if not isinstance(raw_enum, list):
-            errors.append(
-                SchemaValidationError(
-                    "enum must be an array.", location=loc(source_id, ptr(pointer, "enum"))
-                )
-            )
-            return None
-        return as_json_list(raw_enum)
-
-    def _validate_numeric_constraints(
-        self,
-        data: dict[str, JsonValue],
-        *,
-        source_id: str,
-        pointer: str,
-        errors: list[TranspilationError],
-    ) -> None:
-        for key in ("multipleOf", "maximum", "exclusiveMaximum", "minimum", "exclusiveMinimum"):
-            val = data.get(key)
-            if val is not None and not isinstance(val, (int, float)):
-                errors.append(
-                    SchemaValidationError(
-                        f"{key} must be a number.", location=loc(source_id, ptr(pointer, key))
-                    )
-                )
-
-    def _validate_string_constraints(
-        self,
-        data: dict[str, JsonValue],
-        *,
-        source_id: str,
-        pointer: str,
-        errors: list[TranspilationError],
-    ) -> None:
-        for key in ("maxLength", "minLength"):
-            val = data.get(key)
-            if val is not None and (not isinstance(val, int) or val < 0):
-                errors.append(
-                    SchemaValidationError(
-                        f"{key} must be a non-negative integer.",
-                        location=loc(source_id, ptr(pointer, key)),
-                    )
-                )
 
     def _parse_required(
         self,
