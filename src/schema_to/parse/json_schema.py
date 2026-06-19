@@ -37,6 +37,18 @@ if TYPE_CHECKING:
 
 __all__ = ["JsonSchemaParser"]
 
+
+@dataclass(slots=True)
+class _ScalarBuckets:
+    """Accumulator for the five homogeneous-typed scalar field dicts."""
+
+    str_vals: dict[str, str | None] = field(default_factory=dict)
+    bool_vals: dict[str, bool] = field(default_factory=dict)
+    int_vals: dict[str, int | None] = field(default_factory=dict)
+    float_vals: dict[str, float | None] = field(default_factory=dict)
+    list_vals: dict[str, list[JsonValue] | None] = field(default_factory=dict)
+
+
 loc = SourceLocation
 
 # ---------------------------------------------------------------------------
@@ -109,7 +121,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             )
         )
 
-    def _build_object_schema(  # noqa: C901, PLR0912, PLR0914, PLR0915
+    def _build_object_schema(  # noqa: PLR0914
         self, data: dict[str, JsonValue], *, source_id: str, pointer: str
     ) -> Result[JsonSchema]:
         """Build an ObjectSchema from a raw JSON object.
@@ -119,20 +131,13 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         from each ObjectSchema field's `metadata`.  Complex fields (JsonSchema
         sub-trees, frozensets, wrapper types) are parsed in explicit typed
         locals below the loop.
-
-        The `match` block inside the loop is extracted to `_parse_scalar_field`
-        in the next commit.
         """
         errors: list[TranspilationError] = []
 
         # Per-type dicts for scalar fields — populated by the data-driven loop.
         # Using separate typed containers ensures ObjectSchema() can be
         # constructed with plain .get() calls and no type suppressions.
-        str_vals: dict[str, str | None] = {}
-        bool_vals: dict[str, bool] = {}
-        int_vals: dict[str, int | None] = {}
-        float_vals: dict[str, float | None] = {}
-        list_vals: dict[str, list[JsonValue] | None] = {}
+        buckets = _ScalarBuckets()
         fk: dict[str, str] = {}  # field_name → json_key for ALL keyed fields
 
         for f in fields(ObjectSchema):
@@ -143,44 +148,10 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             kind = f.metadata.get("kind") or _KIND_BY_ANNOTATION.get(f.type, "")
             if kind not in _SCALAR_KINDS:
                 continue
-            if json_key not in data:
-                if kind == "bool":
-                    bool_vals[f.name] = False
-                continue
-            raw = data[json_key]
-            match kind:
-                case "str":
-                    str_vals[f.name] = raw if isinstance(raw, str) else None
-                case "num":
-                    float_vals[f.name] = (
-                        raw if isinstance(raw, (int, float)) and not isinstance(raw, bool) else None
-                    )
-                case "bool":
-                    bool_vals[f.name] = bool(raw)
-                case "int":
-                    int_vals[f.name] = (
-                        raw if isinstance(raw, int) and not isinstance(raw, bool) else None
-                    )
-                case "int_nn":
-                    if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
-                        int_vals[f.name] = raw
-                    else:
-                        errors.append(
-                            SchemaValidationError(
-                                f"{json_key} must be a non-negative integer.",
-                                location=loc(source_id, ptr(pointer, json_key)),
-                            )
-                        )
-                case "json_array":
-                    if isinstance(raw, list):
-                        list_vals[f.name] = as_json_list(raw)
-                    else:
-                        errors.append(
-                            SchemaValidationError(
-                                f"{json_key} must be an array.",
-                                location=loc(source_id, ptr(pointer, json_key)),
-                            )
-                        )
+            self._parse_scalar_field(
+                data, json_key, kind, f.name, buckets,
+                source_id=source_id, pointer=pointer, errors=errors,
+            )
 
         # -- Complex fields (explicit typed locals) ----------------------------
         schema_type: SchemaType | None = None
@@ -265,40 +236,44 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         # ObjectSchema is constructed with typed .get() calls so no type
         # suppressions are needed: each dict has a homogeneous value type that
         # matches the corresponding ObjectSchema field type exactly.
+        sv, bv, iv, fv, lv = (
+            buckets.str_vals, buckets.bool_vals, buckets.int_vals,
+            buckets.float_vals, buckets.list_vals,
+        )
         schema: JsonSchema = ObjectSchema(
             # Scalar fields from the data-driven loop
-            id=str_vals.get("id"),
-            schema=str_vals.get("schema"),
-            anchor=str_vals.get("anchor"),
-            dynamic_anchor=str_vals.get("dynamic_anchor"),
-            ref=str_vals.get("ref"),
-            dynamic_ref=str_vals.get("dynamic_ref"),
-            comment=str_vals.get("comment"),
-            title=str_vals.get("title"),
-            description=str_vals.get("description"),
-            deprecated=bool_vals.get("deprecated", False),
-            read_only=bool_vals.get("read_only", False),
-            write_only=bool_vals.get("write_only", False),
-            unique_items=bool_vals.get("unique_items", False),
-            multiple_of=float_vals.get("multiple_of"),
-            maximum=float_vals.get("maximum"),
-            exclusive_maximum=float_vals.get("exclusive_maximum"),
-            minimum=float_vals.get("minimum"),
-            exclusive_minimum=float_vals.get("exclusive_minimum"),
-            max_length=int_vals.get("max_length"),
-            min_length=int_vals.get("min_length"),
-            pattern=str_vals.get("pattern"),
-            min_contains=int_vals.get("min_contains"),
-            max_contains=int_vals.get("max_contains"),
-            min_items=int_vals.get("min_items"),
-            max_items=int_vals.get("max_items"),
-            min_properties=int_vals.get("min_properties"),
-            max_properties=int_vals.get("max_properties"),
-            content_encoding=str_vals.get("content_encoding"),
-            content_media_type=str_vals.get("content_media_type"),
-            format=str_vals.get("format"),
-            examples=list_vals.get("examples"),
-            enum=list_vals.get("enum"),
+            id=sv.get("id"),
+            schema=sv.get("schema"),
+            anchor=sv.get("anchor"),
+            dynamic_anchor=sv.get("dynamic_anchor"),
+            ref=sv.get("ref"),
+            dynamic_ref=sv.get("dynamic_ref"),
+            comment=sv.get("comment"),
+            title=sv.get("title"),
+            description=sv.get("description"),
+            deprecated=bv.get("deprecated", False),
+            read_only=bv.get("read_only", False),
+            write_only=bv.get("write_only", False),
+            unique_items=bv.get("unique_items", False),
+            multiple_of=fv.get("multiple_of"),
+            maximum=fv.get("maximum"),
+            exclusive_maximum=fv.get("exclusive_maximum"),
+            minimum=fv.get("minimum"),
+            exclusive_minimum=fv.get("exclusive_minimum"),
+            max_length=iv.get("max_length"),
+            min_length=iv.get("min_length"),
+            pattern=sv.get("pattern"),
+            min_contains=iv.get("min_contains"),
+            max_contains=iv.get("max_contains"),
+            min_items=iv.get("min_items"),
+            max_items=iv.get("max_items"),
+            min_properties=iv.get("min_properties"),
+            max_properties=iv.get("max_properties"),
+            content_encoding=sv.get("content_encoding"),
+            content_media_type=sv.get("content_media_type"),
+            format=sv.get("format"),
+            examples=lv.get("examples"),
+            enum=lv.get("enum"),
             # Complex fields
             type=schema_type,
             default=default,
@@ -329,6 +304,60 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             source_ref=SourceRef(source_id, pointer),
         )
         return Ok(schema)
+
+    # -- Scalar field dispatcher ----------------------------------------------
+
+    def _parse_scalar_field(  # noqa: C901
+        self,
+        data: dict[str, JsonValue],
+        json_key: str,
+        kind: str,
+        field_name: str,
+        buckets: _ScalarBuckets,
+        *,
+        source_id: str,
+        pointer: str,
+        errors: list[TranspilationError],
+    ) -> None:
+        """Parse one scalar ObjectSchema field and deposit the result into the appropriate typed dict."""
+        if json_key not in data:
+            if kind == "bool":
+                buckets.bool_vals[field_name] = False
+            return
+        raw = data[json_key]
+        match kind:
+            case "str":
+                buckets.str_vals[field_name] = raw if isinstance(raw, str) else None
+            case "num":
+                buckets.float_vals[field_name] = (
+                    raw if isinstance(raw, (int, float)) and not isinstance(raw, bool) else None
+                )
+            case "bool":
+                buckets.bool_vals[field_name] = bool(raw)
+            case "int":
+                buckets.int_vals[field_name] = (
+                    raw if isinstance(raw, int) and not isinstance(raw, bool) else None
+                )
+            case "int_nn":
+                if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
+                    buckets.int_vals[field_name] = raw
+                else:
+                    errors.append(
+                        SchemaValidationError(
+                            f"{json_key} must be a non-negative integer.",
+                            location=loc(source_id, ptr(pointer, json_key)),
+                        )
+                    )
+            case "json_array":
+                if isinstance(raw, list):
+                    buckets.list_vals[field_name] = as_json_list(raw)
+                else:
+                    errors.append(
+                        SchemaValidationError(
+                            f"{json_key} must be an array.",
+                            location=loc(source_id, ptr(pointer, json_key)),
+                        )
+                    )
 
     # -- Vocabulary sub-parsers -----------------------------------------------
 
