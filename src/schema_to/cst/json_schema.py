@@ -182,13 +182,23 @@ class ObjectSchema(_JsonSchema):
     unique_items: bool = field(default=False, metadata={"key": "uniqueItems"})
 
     # -- Object keywords --------------------------------------------------
-    properties: Mapping[str, JsonSchema] | None = field(default=None, metadata={"key": "properties"})
-    pattern_properties: Mapping[str, JsonSchema] | None = field(default=None, metadata={"key": "patternProperties"})
-    additional_properties: JsonSchema | None = field(default=None, metadata={"key": "additionalProperties"})
+    properties: Mapping[str, JsonSchema] | None = field(
+        default=None, metadata={"key": "properties"}
+    )
+    pattern_properties: Mapping[str, JsonSchema] | None = field(
+        default=None, metadata={"key": "patternProperties"}
+    )
+    additional_properties: JsonSchema | None = field(
+        default=None, metadata={"key": "additionalProperties"}
+    )
     property_names: JsonSchema | None = field(default=None, metadata={"key": "propertyNames"})
     required: frozenset[str] | None = field(default=None, metadata={"key": "required"})
-    dependent_required: Mapping[str, frozenset[str]] | None = field(default=None, metadata={"key": "dependentRequired"})
-    dependent_schemas: Mapping[str, JsonSchema] | None = field(default=None, metadata={"key": "dependentSchemas"})
+    dependent_required: Mapping[str, frozenset[str]] | None = field(
+        default=None, metadata={"key": "dependentRequired"}
+    )
+    dependent_schemas: Mapping[str, JsonSchema] | None = field(
+        default=None, metadata={"key": "dependentSchemas"}
+    )
     min_properties: int | None = field(default=None, metadata={"key": "minProperties"})
     max_properties: int | None = field(default=None, metadata={"key": "maxProperties"})
 
@@ -203,7 +213,9 @@ class ObjectSchema(_JsonSchema):
 
     # -- Unevaluated vocabulary -------------------------------------------
     unevaluated_items: JsonSchema | None = field(default=None, metadata={"key": "unevaluatedItems"})
-    unevaluated_properties: JsonSchema | None = field(default=None, metadata={"key": "unevaluatedProperties"})
+    unevaluated_properties: JsonSchema | None = field(
+        default=None, metadata={"key": "unevaluatedProperties"}
+    )
 
     # -- Content vocabulary -----------------------------------------------
     content_encoding: str | None = field(default=None, metadata={"key": "contentEncoding"})

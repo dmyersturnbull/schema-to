@@ -165,8 +165,14 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             if not kind:
                 continue
             self._parse_field_into(
-                data, f.name, json_key, kind, kwargs,
-                source_id=source_id, pointer=pointer, errors=errors,
+                data,
+                f.name,
+                json_key,
+                kind,
+                kwargs,
+                source_id=source_id,
+                pointer=pointer,
+                errors=errors,
             )
 
         kwargs["extensions"] = {k: v for k, v in data.items() if k.startswith("x-")}
@@ -235,8 +241,14 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                 )
             case _:
                 self._parse_scalar_into(
-                    data, field_name, json_key, kind, kwargs,
-                    source_id=source_id, pointer=pointer, errors=errors,
+                    data,
+                    field_name,
+                    json_key,
+                    kind,
+                    kwargs,
+                    source_id=source_id,
+                    pointer=pointer,
+                    errors=errors,
                 )
 
     def _parse_scalar_into(  # noqa: C901, PLR0912
@@ -307,8 +319,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         if not isinstance(raw, Mapping):
             errors.append(
                 SchemaValidationError(
-                    f"{key} must be an object.",
-                    location=loc(source_id, ptr(pointer, key)),
+                    f"{key} must be an object.", location=loc(source_id, ptr(pointer, key))
                 )
             )
             return None
@@ -364,8 +375,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         if not isinstance(raw, Mapping):
             errors.append(
                 SchemaValidationError(
-                    f"{key} must be an object.",
-                    location=loc(source_id, ptr(pointer, key)),
+                    f"{key} must be an object.", location=loc(source_id, ptr(pointer, key))
                 )
             )
             return None
