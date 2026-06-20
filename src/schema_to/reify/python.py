@@ -22,11 +22,13 @@ from schema_to.ast.python import (
     FieldDef,
     FromImport,
     FunctionDef,
+    Parameter,
     PythonDocString,
     PythonModule,
     PythonTypeAnnotation,
     SimpleImport,
     TypeAliasDef,
+    VarDef,
 )
 from schema_to.errors import ReificationError
 from schema_to.io.sink import PythonArtifact
@@ -83,8 +85,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
         if module.imports:
             lines.append("")
 
-        visible = [d for d in module.declarations if not isinstance(d, FunctionDef)]
-        for i, decl in enumerate(visible):
+        for i, decl in enumerate(module.declarations):
             if i:
                 lines.append("")
             lines += self._emit_decl(decl)
@@ -106,10 +107,51 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     # Top-level declarations
     # ------------------------------------------------------------------
 
-    def _emit_decl(self, decl: TypeAliasDef | ClassDef) -> list[str]:
+    def _emit_decl(self, decl: TypeAliasDef | ClassDef | FunctionDef | VarDef) -> list[str]:
         if isinstance(decl, TypeAliasDef):
             return self._emit_type_alias(decl)
+        if isinstance(decl, FunctionDef):
+            return self._emit_function(decl)
+        if isinstance(decl, VarDef):
+            return self._emit_var(decl)
         return self._emit_class(decl)
+
+    def _emit_function(self, decl: FunctionDef) -> list[str]:
+        lines: list[str] = []
+        for dec in decl.decorators:
+            mod = f"{dec.module}." if dec.module else ""
+            lines.append(f"@{mod}{dec.name}")
+        prefix = "async " if decl.is_async else ""
+        params_str = self._emit_params(decl.parameters)
+        ret = (
+            f" -> {self._emit_annotation(decl.return_annotation)}" if decl.return_annotation else ""
+        )
+        lines.append(f"{prefix}def {decl.name}({params_str}){ret}:")
+        body: list[str] = []
+        if decl.doc:
+            body += self._emit_docstring(decl.doc, indent=_INDENT)
+        body.append(f"{_INDENT}...")
+        lines += body
+        return lines
+
+    def _emit_params(self, params: Sequence[Parameter]) -> str:
+        parts: list[str] = []
+        kw_sep_inserted = False
+        for p in params:
+            if p.kind == "keyword_only" and not kw_sep_inserted:
+                parts.append("*")
+                kw_sep_inserted = True
+            part = p.name
+            if p.annotation:
+                part += f": {self._emit_annotation(p.annotation)}"
+            if p.default is not None:
+                part += f" = {p.default}"
+            parts.append(part)
+        return ", ".join(parts)
+
+    def _emit_var(self, decl: VarDef) -> list[str]:
+        ann = f": {self._emit_annotation(decl.annotation)}" if decl.annotation else ""
+        return [f"{decl.name}{ann} = {decl.value}"]
 
     def _emit_type_alias(self, decl: TypeAliasDef) -> list[str]:
         ann = self._emit_annotation(decl.annotation)
