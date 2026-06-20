@@ -10,6 +10,7 @@ diagnostics rather than stopping at the first fault.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, MutableSequence
 from dataclasses import dataclass, field, fields
 from typing import TYPE_CHECKING
 
@@ -59,6 +60,7 @@ type _SchemaFieldValue = (
     | dict[str, frozenset[str]]
     | dict[str, JsonValue]
     | SourceRef
+    | None
 )
 
 
@@ -129,7 +131,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
     def _build_schema(self, data: JsonValue, *, source_id: str, pointer: str) -> Result[JsonSchema]:
         if isinstance(data, bool):
             return Ok(BooleanSchema(value=data, source_ref=SourceRef(source_id, pointer)))
-        if isinstance(data, dict):
+        if isinstance(data, Mapping):
             return self._build_object_schema(
                 as_json_dict(data), source_id=source_id, pointer=pointer
             )
@@ -208,41 +210,29 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                 if json_key in data:
                     kwargs[field_name] = ConstValue(data[json_key])
             case "schema_map":
-                result = self._build_schema_map(
+                kwargs[field_name] = self._build_schema_map(
                     data, json_key, source_id=source_id, pointer=pointer, errors=errors
                 )
-                if result is not None:
-                    kwargs[field_name] = result
             case "bool_map":
-                result = self._parse_bool_map(
+                kwargs[field_name] = self._parse_bool_map(
                     data, json_key, source_id=source_id, pointer=pointer, errors=errors
                 )
-                if result is not None:
-                    kwargs[field_name] = result
             case "str_frozenset":
-                result = self._parse_str_frozenset(
+                kwargs[field_name] = self._parse_str_frozenset(
                     data, json_key, source_id=source_id, pointer=pointer, errors=errors
                 )
-                if result is not None:
-                    kwargs[field_name] = result
             case "dep_required_map":
-                result = self._parse_dep_required_map(
+                kwargs[field_name] = self._parse_dep_required_map(
                     data, json_key, source_id=source_id, pointer=pointer, errors=errors
                 )
-                if result is not None:
-                    kwargs[field_name] = result
             case "optional_schema":
-                result = self._build_optional_schema(
+                kwargs[field_name] = self._build_optional_schema(
                     data, json_key, source_id=source_id, pointer=pointer, errors=errors
                 )
-                if result is not None:
-                    kwargs[field_name] = result
             case "schema_list":
-                result = self._build_schema_list(
+                kwargs[field_name] = self._build_schema_list(
                     data, json_key, source_id=source_id, pointer=pointer, errors=errors
                 )
-                if result is not None:
-                    kwargs[field_name] = result
             case _:
                 self._parse_scalar_into(
                     data, field_name, json_key, kind, kwargs,
@@ -277,9 +267,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                 raw = data.get(json_key)
                 if isinstance(raw, int) and not isinstance(raw, bool):
                     kwargs[field_name] = raw
-            case "int_nn":
-                if json_key not in data:
-                    return
+            case "int_nn" if json_key in data:
                 raw = data[json_key]
                 if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0:
                     kwargs[field_name] = raw
@@ -290,11 +278,9 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                             location=loc(source_id, ptr(pointer, json_key)),
                         )
                     )
-            case "json_array":
-                if json_key not in data:
-                    return
+            case "json_array" if json_key in data:
                 raw = data[json_key]
-                if isinstance(raw, list):
+                if isinstance(raw, MutableSequence):
                     kwargs[field_name] = as_json_list(raw)
                 else:
                     errors.append(
@@ -318,7 +304,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         if key not in data:
             return None
         raw = data[key]
-        if not isinstance(raw, dict):
+        if not isinstance(raw, Mapping):
             errors.append(
                 SchemaValidationError(
                     f"{key} must be an object.",
@@ -351,7 +337,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         if key not in data:
             return None
         raw = data[key]
-        if not isinstance(raw, list) or not all(isinstance(s, str) for s in raw):
+        if not isinstance(raw, MutableSequence) or not all(isinstance(s, str) for s in raw):
             errors.append(
                 SchemaValidationError(
                     f"{key} must be an array of strings.",
@@ -375,7 +361,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         if key not in data:
             return None
         raw = data[key]
-        if not isinstance(raw, dict):
+        if not isinstance(raw, Mapping):
             errors.append(
                 SchemaValidationError(
                     f"{key} must be an object.",
@@ -385,7 +371,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             return None
         result: dict[str, frozenset[str]] = {}
         for prop, deps in as_json_dict(raw).items():
-            if not isinstance(deps, list) or not all(isinstance(s, str) for s in deps):
+            if not isinstance(deps, MutableSequence) or not all(isinstance(s, str) for s in deps):
                 errors.append(
                     SchemaValidationError(
                         f"{key}[{prop!r}] must be an array of strings.",
@@ -414,7 +400,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                         ),
                     )
                 )
-        if isinstance(value, list):
+        if isinstance(value, MutableSequence):
             types: list[JsonSchemaType] = []
             errs: list[TranspilationError] = []
             for item in as_json_list(value):
@@ -474,7 +460,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         if key not in data:
             return None
         raw = data[key]
-        if not isinstance(raw, list):
+        if not isinstance(raw, MutableSequence):
             errors.append(
                 SchemaValidationError(
                     f"{key} must be an array.", location=loc(source_id, ptr(pointer, key))
@@ -502,7 +488,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         if key not in data:
             return None
         raw = data[key]
-        if not isinstance(raw, dict):
+        if not isinstance(raw, Mapping):
             errors.append(
                 SchemaValidationError(
                     f"{key} must be an object.", location=loc(source_id, ptr(pointer, key))
