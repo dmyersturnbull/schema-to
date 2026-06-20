@@ -2,21 +2,21 @@
 
 Mapping rules
 -------------
-* ``components/schemas`` entries are converted to Pydantic v2 ``BaseModel``
+* `components/schemas` entries are converted to Pydantic v2 `BaseModel`
   classes via `PydanticTransformer`.
-* Each path × HTTP-method pair becomes an ``async def`` route function
-  decorated with ``@app.<method>("<path>")``.
-* Path parameters are annotated with ``Annotated[T, Path()]``.
-* Query parameters use ``Annotated[T, Query()]``; optional ones add ``= None``.
-* Header and cookie parameters use ``Annotated[T, Header()]`` /
-  ``Annotated[T, Cookie()]`` respectively.
-* Request bodies whose schema is a ``$ref`` to a component become a ``body``
+* Each path × HTTP-method pair becomes an `async def` route function
+  decorated with `@app.<method>("<path>")`.
+* Path parameters are annotated with `Annotated[T, Path()]`.
+* Query parameters use `Annotated[T, Query()]`; optional ones add `= None`.
+* Header and cookie parameters use `Annotated[T, Header()]` /
+  `Annotated[T, Cookie()]` respectively.
+* Request bodies whose schema is a `$ref` to a component become a `body`
   parameter typed as that Pydantic model.  Inline schemas fall back to
-  ``dict[str, Any]``.
+  `dict[str, Any]`.
 * The primary 2xx response schema, when determinable, is set as
-  ``response_model=`` in the decorator and as the function return annotation.
+  `response_model=` in the decorator and as the function return annotation.
 * Schemas that cannot be mapped emit a `TranspilationWarning` and fall back
-  to ``Any``.
+  to `Any`.
 """
 
 from __future__ import annotations
@@ -409,7 +409,7 @@ class _GenCtx:
 
 
 def _annotated(base: PythonTypeAnnotation, fastapi_expr: str) -> PythonTypeAnnotation:
-    """Wrap *base* in ``Annotated[base, fastapi_expr]``."""
+    """Wrap *base* in `Annotated[base, fastapi_expr]`."""
     return PythonTypeAnnotation(
         "Annotated",
         module="typing",

@@ -216,7 +216,7 @@ class Parameter(AstNode):
 
 @dataclass(frozen=True, slots=True)
 class VarDef(AstNode):
-    """A variable assignment, e.g. ``app = FastAPI(...)`` or ``model_config = ConfigDict(...)``.
+    """A variable assignment, e.g. `app = FastAPI(...)` or `model_config = ConfigDict(...)`.
 
     Attributes:
         name: The variable name.

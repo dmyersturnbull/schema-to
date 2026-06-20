@@ -28,10 +28,10 @@ def peek_doc_type(content: bytes) -> DocType | None:
     """Peek at raw bytes to determine schema format without a media-type hint.
 
     Tries JSON first, then YAML.  Returns:
-    - `DocType.OPENAPI`      if the dict contains ``"openapi"`` with a string value
+    - `DocType.OPENAPI`      if the dict contains `"openapi"` with a string value
     - `DocType.JSON_SCHEMA`  if the dict contains recognised JSON Schema keywords
-                             (any of: ``$schema``, ``$defs``, ``definitions``, ``type``,
-                             ``properties``, ``allOf``, ``anyOf``, ``oneOf``, ``items``)
+                             (any of: `$schema`, `$defs`, `definitions`, `type`,
+                             `properties`, `allOf`, `anyOf`, `oneOf`, `items`)
     - `None`                 if the bytes are unparseable or look like neither
     """
     data = _try_parse(content)

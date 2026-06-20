@@ -79,7 +79,7 @@ class DirectoryDataSource(DataSource):
     """A `DataSource` that yields all schema files matching known compound extensions under a directory.
 
     Files whose name does not end with a recognised compound extension (e.g.
-    ``.schema.json``, ``.openapi.yaml``) are silently skipped, so a directory
+    `.schema.json`, `.openapi.yaml`) are silently skipped, so a directory
     can contain a mix of schema files and unrelated assets.
 
     Subclass and override `suffix_map` or `peek_fn` to customise discovery.
