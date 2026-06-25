@@ -66,6 +66,7 @@ from schema_to.generate.endpoint_body import (
     role_for_param,
 )
 from schema_to.generate.pydantic import PydanticTransformer
+from schema_to.generate.security import build_security_module, route_security_params
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 
@@ -278,11 +279,15 @@ class _GenCtx:
     def build(self) -> Result[PythonModule]:
         model_decls = self._generate_models()
         app_var = self._make_app_var()
+        security = build_security_module(self.doc.components.security_schemes)
+        self.extra_imports.extend(security.imports)
+        self.warnings.extend(security.warnings)
         route_fns = self._generate_routes()
 
         declarations: list[TypeAliasDef | ClassDef | FunctionDef | VarDef] = [
             *model_decls,
             app_var,
+            *security.declarations,
             *route_fns,
         ]
         imports = _build_imports(declarations, self.extra_imports)
@@ -343,15 +348,25 @@ class _GenCtx:
         decorator = self._make_decorator(method, path, success_code, return_ann)
         doc = self._op_doc(op)
         body = self._render_body(path, path_item, method, op, merged)
+        sec_params = self._security_params(op)
         return FunctionDef(
             name=fn_name,
-            parameters=[*params, *body.parameters],
+            parameters=[*params, *body.parameters, *sec_params],
             return_annotation=return_ann,
             doc=doc,
             decorators=[decorator],
             is_async=True,
             body=tuple(body.lines),
         )
+
+    def _security_params(self, op: Operation) -> list[PyParameter]:
+        """Build `Security`/`Depends` parameters for the operation's requirements."""
+        params, imports, warnings = route_security_params(
+            self._effective_security(op), self.doc.components.security_schemes
+        )
+        self.extra_imports.extend(imports)
+        self.warnings.extend(warnings)
+        return params
 
     def _render_body(
         self,
