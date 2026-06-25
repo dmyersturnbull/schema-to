@@ -2,6 +2,10 @@
 build-backend = "uv_build"
 requires = ["uv-build>=0.11, <1.0"]
 
+[tool.uv.build-backend]
+# Ship the code-generation templates (non-.py files) inside the wheel.
+source-include = ["src/schema_to/generate/templates/**/*.jinja"]
+
 [project]
 name = "schema-to"
 version = "0.0.1"
@@ -10,6 +14,7 @@ readme = { file = "README.md", content-type = "text/markdown" }
 license = { text = "MIT" }
 dependencies = [
   "caseutil>=0.7.2",
+  "jinja2>=3.1.6", # Templating for generated FastAPI endpoint bodies
   "niquests>=3.19",
   "orjson>=3.11",
   "py-yaml12>=0.1", # YAML 1.2 library
@@ -24,6 +29,7 @@ schema-to = "schema_to.__main__:cli"
 [dependency-groups]
 dev = [
   "hypothesis>=6.155",
+  "psycopg[binary]>=3.2", # Only to test the generated runtime module; not a runtime dep
   "pytest>=9.1",
   "ruff>=0.15.18",
   "ty>=0.0.51",

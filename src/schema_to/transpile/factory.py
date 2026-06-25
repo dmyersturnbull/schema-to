@@ -20,6 +20,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
+from schema_to.generate.fastapi import FastApiTransformer
+from schema_to.generate.postgres_backend import PostgresBodyBackend
 from schema_to.transpile.fastapi import OpenApiToFastApiTranspiler
 from schema_to.transpile.pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
 from schema_to.transpile.pydantic import JsonSchemaToPydanticTranspiler
@@ -48,7 +50,7 @@ class RoutingError(Exception):
 @dataclass(frozen=True, slots=True)
 class TranspilerRouter:
     SUPPORTED_TARGETS: ClassVar[frozenset[str]] = frozenset(
-        {"fastapi", "pass-thru", "pydantic", "postgres"}
+        {"fastapi", "fastapi+postgres", "pass-thru", "pydantic", "postgres"}
     )
 
     def route(self, target_name: str, output_media_type: MediaType) -> Sequence[Transpiler]:
@@ -60,6 +62,12 @@ class TranspilerRouter:
         match target_name:
             case "fastapi":
                 return [OpenApiToFastApiTranspiler()]
+            case "fastapi+postgres":
+                return [
+                    OpenApiToFastApiTranspiler(
+                        generator=FastApiTransformer(body_backend=PostgresBodyBackend())
+                    )
+                ]
             case "pass-thru":
                 return [
                     OpenApiPassThruTranspiler(),

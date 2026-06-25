@@ -29,11 +29,13 @@ from schema_to.generate._names import safe_sql_identifier
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+    from schema_to.ast.python import Parameter as PyParameter
     from schema_to.ast.python import PyImport
     from schema_to.core import JsonValue
     from schema_to.cst.json_schema import ObjectSchema
     from schema_to.cst.openapi import Operation, PathItem, SecurityRequirement
     from schema_to.errors import TranspilationWarning
+    from schema_to.io.sink import PythonArtifact
 
 __all__ = [
     "DEFAULT_PK_COLUMN",
@@ -149,11 +151,14 @@ class EndpointBody:
 
     Attributes:
         lines: Body statement lines, each without leading indentation.
+        parameters: Extra route parameters the body needs (e.g. an injected
+            database connection); appended to the route signature.
         imports: Imports the body statements require.
         warnings: Non-fatal diagnostics raised while rendering.
     """
 
     lines: Sequence[str] = field(default_factory=tuple)
+    parameters: Sequence[PyParameter] = field(default_factory=tuple)
     imports: Sequence[PyImport] = field(default_factory=tuple)
     warnings: Sequence[TranspilationWarning] = field(default_factory=tuple)
 
@@ -165,6 +170,13 @@ class EndpointBodyBackend(ABC):
     def render(self, ctx: EndpointContext) -> EndpointBody:
         """Render the body for one route."""
         raise NotImplementedError
+
+    def support_artifacts(self) -> Sequence[PythonArtifact]:
+        """Extra files the rendered bodies depend on (e.g. a runtime helper).
+
+        Emitted once per transpiled document. Defaults to none.
+        """
+        return ()
 
 
 @dataclass(frozen=True, slots=True)

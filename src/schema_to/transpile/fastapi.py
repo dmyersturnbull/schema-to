@@ -12,7 +12,7 @@ from schema_to.io.source import OpenApiRawDoc
 from schema_to.parse.openapi import OpenApiParser
 from schema_to.pipeline import Transpiler
 from schema_to.reify.python import PythonReifier
-from schema_to.result import Err, Result
+from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -64,11 +64,13 @@ class OpenApiToFastApiTranspiler(Transpiler[OpenApiRawDoc, PythonArtifact]):
         if isinstance(r1, Err):
             return r1
         cst: OpenApiDocument = r1.value
-        # Stage 2: generate
-        gen = FastApiTransformer()
-        r2 = gen.apply(cst)
+        # Stage 2: generate (the configured generator carries the body backend)
+        r2 = self.generator.apply(cst)
         if isinstance(r2, Err):
             return r2
-        # Stage 3: reify
+        # Stage 3: reify, then append any support modules the backend needs.
         reifier = PythonReifier(artifact_id=self.output_name)
-        return reifier.apply(r2.value)
+        r3 = reifier.apply(r2.value)
+        if isinstance(r3, Err):
+            return r3
+        return Ok([*r3.value, *self.generator.body_backend.support_artifacts()])

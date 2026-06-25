@@ -52,7 +52,15 @@ from schema_to.errors import (
     TranspilationError,
     TranspilationWarning,
 )
+from schema_to.generate.endpoint_body import (
+    EndpointBody,
+    EndpointBodyBackend,
+    EndpointContext,
+    EndpointKind,
+    NullBodyBackend,
+)
 from schema_to.generate.fastapi import FastApiTransformer
+from schema_to.generate.postgres_backend import PostgresBodyBackend
 from schema_to.generate.pydantic import PydanticTransformer
 from schema_to.generate.sql import PostgresTransformer
 from schema_to.io.core import DefaultJsonLikeReader, JsonLikeReader
@@ -100,6 +108,11 @@ __all__ = [
     "DirectoryDataSource",
     # Routing
     "DocType",
+    "EndpointBody",
+    # Endpoint-body backends
+    "EndpointBodyBackend",
+    "EndpointContext",
+    "EndpointKind",
     # Result
     "Err",
     # Generators
@@ -130,6 +143,8 @@ __all__ = [
     "MediaType",
     "MediaTypeParam",
     "MediaTypes",
+    # Pipeline
+    "NullBodyBackend",
     "Ok",
     "OpenApiArtifact",
     "OpenApiExtractTranspiler",
@@ -141,9 +156,9 @@ __all__ = [
     "OpenApiToFastApiTranspiler",
     "OpenApiYamlArtifact",
     "ParseError",
-    # Pipeline
     "PeekingDirectorySource",
     "Pipeline",
+    "PostgresBodyBackend",
     "PostgresTransformer",
     "ProcessSummary",
     "PydanticTransformer",

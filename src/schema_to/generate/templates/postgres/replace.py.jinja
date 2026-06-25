@@ -1,0 +1,7 @@
+data = to_dict({{ body }})
+async with conn.cursor(row_factory=dict_row) as cur:
+    query, params = build_replace_query(
+        schema={{ schema }}, table={{ table }}, pk_column={{ pk }}, pk_value={{ id }}, data=data
+    )
+    await cur.execute(query, params)
+    return await cur.fetchone()

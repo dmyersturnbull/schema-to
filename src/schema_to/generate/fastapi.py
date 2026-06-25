@@ -57,6 +57,7 @@ from schema_to.cst.openapi import Parameter as OasParameter
 from schema_to.errors import SourceLocation, TranspilationWarning
 from schema_to.generate._names import safe_python_class_name, safe_python_field_name
 from schema_to.generate.endpoint_body import (
+    EndpointBody,
     EndpointBodyBackend,
     NullBodyBackend,
     ParamRole,
@@ -336,40 +337,48 @@ class _GenCtx:
         self, path: str, path_item: PathItem, method: HttpMethod, op: Operation
     ) -> FunctionDef:
         fn_name = _op_fn_name(method, path, op.operation_id)
-        params = self._build_params(op)
+        merged = _merged_parameters(path_item, op)
+        params = self._build_params(merged, op)
         success_code, return_ann = self._success_response(op)
         decorator = self._make_decorator(method, path, success_code, return_ann)
         doc = self._op_doc(op)
-        body = self._render_body(path, path_item, method, op)
+        body = self._render_body(path, path_item, method, op, merged)
         return FunctionDef(
             name=fn_name,
-            parameters=params,
+            parameters=[*params, *body.parameters],
             return_annotation=return_ann,
             doc=doc,
             decorators=[decorator],
             is_async=True,
-            body=body,
+            body=tuple(body.lines),
         )
 
     def _render_body(
-        self, path: str, path_item: PathItem, method: HttpMethod, op: Operation
-    ) -> tuple[str, ...]:
+        self,
+        path: str,
+        path_item: PathItem,
+        method: HttpMethod,
+        op: Operation,
+        merged: Sequence[OasParameter],
+    ) -> EndpointBody:
         """Delegate the route body to the configured `EndpointBodyBackend`."""
         ctx = endpoint_context(
             method=method,
             path=path,
             op=op,
             path_item=path_item,
-            params=self._route_params(op),
+            params=self._route_params(merged, op),
             security=self._effective_security(op),
             resource_schema=self._resource_schema(op),
         )
         body = self.body_backend.render(ctx)
         self.extra_imports.extend(body.imports)
         self.warnings.extend(body.warnings)
-        return tuple(body.lines)
+        return body
 
-    def _route_params(self, op: Operation) -> list[RouteParam]:
+    def _route_params(
+        self, merged: Sequence[OasParameter], op: Operation
+    ) -> list[RouteParam]:
         """Resolve the route's parameters with their query-construction roles."""
         out = [
             RouteParam(
@@ -378,7 +387,7 @@ class _GenCtx:
                 py_name=safe_python_field_name(p.name),
                 location=p.in_,
             )
-            for p in op.parameters
+            for p in merged
         ]
         if self._body_param(op) is not None:
             out.append(RouteParam(role=ParamRole.BODY, name="body", py_name="body"))
@@ -420,8 +429,10 @@ class _GenCtx:
             description=op.description if op.summary else None,
         )
 
-    def _build_params(self, op: Operation) -> list[PyParameter]:
-        params = [self._oas_param_to_py(p) for p in op.parameters]
+    def _build_params(
+        self, merged: Sequence[OasParameter], op: Operation
+    ) -> list[PyParameter]:
+        params = [self._oas_param_to_py(p) for p in merged]
         body_param = self._body_param(op)
         if body_param is not None:
             params.append(body_param)
@@ -508,6 +519,21 @@ def _annotated(base: PythonTypeAnnotation, fastapi_expr: str) -> PythonTypeAnnot
 
 def _opt_default(p: OasParameter) -> str | None:
     return "None" if not p.required else None
+
+
+def _merged_parameters(path_item: PathItem, op: Operation) -> list[OasParameter]:
+    """Merge path-item parameters with operation parameters.
+
+    Per the OpenAPI spec, parameters declared on a `PathItem` apply to all of
+    its operations; an operation parameter overrides a path-item one with the
+    same `name` and `in` location.
+    """
+    by_key: dict[tuple[str, ParameterLocation], OasParameter] = {
+        (p.name, p.in_): p for p in path_item.parameters
+    }
+    for p in op.parameters:
+        by_key[p.name, p.in_] = p
+    return list(by_key.values())
 
 
 def _iter_operations(path_item: PathItem) -> Iterator[tuple[HttpMethod, Operation]]:

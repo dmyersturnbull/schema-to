@@ -7,7 +7,14 @@ route body empty (so the reifier keeps its `...` stub).
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from schema_to.cst.openapi import HttpMethod, Operation, ParameterLocation, PathItem
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from schema_to.core import JsonValue
 from schema_to.generate.endpoint_body import (
     EndpointContext,
     EndpointKind,
@@ -19,8 +26,8 @@ from schema_to.generate.endpoint_body import (
 )
 
 
-def _op(**kw: object) -> Operation:
-    return Operation(responses={}, **kw)  # type: ignore[arg-type]
+def _op(extensions: Mapping[str, JsonValue] | None = None) -> Operation:
+    return Operation(responses={}, extensions=extensions or {})
 
 
 def test_infer_kind_from_path_and_method() -> None:
