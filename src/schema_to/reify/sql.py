@@ -107,7 +107,7 @@ class SqlReifier(Reifier[SqlScript, SqlArtifact]):
 
         if stmt.jsonschema_constraint:
             escaped = stmt.jsonschema_constraint.replace("'", "''")
-            parts.append(f"{_INDENT}CHECK (jsonschema_is_valid('{escaped}', data))")
+            parts.append(f"{_INDENT}CHECK (jsonb_matches_schema('{escaped}', data))")
 
         if not parts:
             return f"{header}\n{_INDENT}-- (no columns)\n);"

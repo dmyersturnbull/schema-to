@@ -13,6 +13,14 @@ Supported targets:
     JSON Schema 2020-12 → Pydantic v2 `BaseModel` classes.
   - `postgres`
     JSON Schema 2020-12 → PostgreSQL DDL (`CREATE TABLE` statements).
+  - `pg-jsonschema`
+    Like `postgres`, plus `pg_jsonschema` `CHECK` constraints validating each
+    JSON/JSONB column against its sub-schema.
+  - `fastapi`
+    OpenAPI 3.1 → FastAPI application module (route stubs + security wiring).
+  - `fastapi+postgres`
+    Like `fastapi`, but route bodies are filled with psycopg-backed queries
+    and a `pg_runtime.py` support module is emitted alongside `main.py`.
 """
 
 from __future__ import annotations
@@ -22,6 +30,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from schema_to.generate.fastapi import FastApiTransformer
 from schema_to.generate.postgres_backend import PostgresBodyBackend
+from schema_to.generate.sql import PostgresTransformer
 from schema_to.transpile.fastapi import OpenApiToFastApiTranspiler
 from schema_to.transpile.pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
 from schema_to.transpile.pydantic import JsonSchemaToPydanticTranspiler
@@ -50,7 +59,7 @@ class RoutingError(Exception):
 @dataclass(frozen=True, slots=True)
 class TranspilerRouter:
     SUPPORTED_TARGETS: ClassVar[frozenset[str]] = frozenset(
-        {"fastapi", "fastapi+postgres", "pass-thru", "pydantic", "postgres"}
+        {"fastapi", "fastapi+postgres", "pass-thru", "pydantic", "postgres", "pg-jsonschema"}
     )
 
     def route(self, target_name: str, output_media_type: MediaType) -> Sequence[Transpiler]:
@@ -77,5 +86,11 @@ class TranspilerRouter:
                 return [JsonSchemaToPydanticTranspiler()]
             case "postgres":
                 return [JsonSchemaToPostgresTranspiler()]
+            case "pg-jsonschema":
+                return [
+                    JsonSchemaToPostgresTranspiler(
+                        generator=PostgresTransformer(validate_json=True)
+                    )
+                ]
             case _:
                 raise RoutingError(value=target_name)

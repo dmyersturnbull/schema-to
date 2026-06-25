@@ -30,6 +30,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypeIs
 
+import orjson
+
 from schema_to.ast.sql import (
     ColumnConstraint,
     ColumnDef,
@@ -50,6 +52,7 @@ from schema_to.errors import GenerationError, SourceLocation, TranspilationWarni
 from schema_to.generate._names import safe_sql_identifier
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
+from schema_to.serialize.json_schema import JsonSchemaSerializer
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -170,9 +173,13 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
 
     Attributes:
         resolver: Optional resolver for cross-document `$ref` lookup.
+        validate_json: When `True`, emit `pg_jsonschema` `CHECK` constraints
+            validating each JSON/JSONB column against its sub-schema, and a
+            `CREATE EXTENSION IF NOT EXISTS pg_jsonschema;` preamble.
     """
 
     resolver: JsonSchemaRefResolver | None = None
+    validate_json: bool = False
     _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
 
     @property
@@ -197,7 +204,8 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
             if _is_object_schema(def_schema)
         ]
         root_stmt = self._schema_to_table(root, safe_sql_identifier(root.title or sid), sid)
-        return SqlScript(statements=(*def_stmts, root_stmt), source_ids=(sid,))
+        preamble = "CREATE EXTENSION IF NOT EXISTS pg_jsonschema;" if self.validate_json else None
+        return SqlScript(statements=(*def_stmts, root_stmt), source_ids=(sid,), preamble=preamble)
 
     def _get_as_object_schema(self, input: JsonSchemaDocument) -> ObjectSchema:
         root = input.root
@@ -246,14 +254,29 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
             if isinstance(eff_schema, ObjectSchema)
             else ColumnConstraint()
         )
+        check_expr = self._with_json_check(check.check_expr, eff_schema, col_name, data_type)
 
         doc = schema.description or schema.title
         return ColumnDef(
             name=col_name,
             data_type=data_type,
-            constraint=ColumnConstraint(not_null=not nullable, check_expr=check.check_expr),
+            constraint=ColumnConstraint(not_null=not nullable, check_expr=check_expr),
             doc=doc,
         )
+
+    def _with_json_check(
+        self, base: str | None, schema: JsonSchema, col_name: str, data_type: DataType
+    ) -> str | None:
+        """Append a `pg_jsonschema` validation check for a JSON/JSONB column."""
+        if not self.validate_json or data_type.base not in {PgDataType.JSON, PgDataType.JSONB}:
+            return base
+        if not isinstance(schema, ObjectSchema):
+            return base
+        schema_json = orjson.dumps(JsonSchemaSerializer().serialize(schema)).decode("utf-8")
+        fn = "jsonb_matches_schema" if data_type.base == PgDataType.JSONB else "json_matches_schema"
+        escaped = schema_json.replace("'", "''")
+        json_check = f"{fn}('{escaped}', {col_name})"
+        return f"{base} AND {json_check}" if base else json_check
 
     def _schema_to_data_type(self, schema: JsonSchema, col_name: str) -> DataType:  # noqa: PLR0911 # No helpful way to consolidate return statements
         # Boolean schema.
