@@ -451,7 +451,7 @@ class _GenCtx:
         body_param = self._body_param(op)
         if body_param is not None:
             params.append(body_param)
-        return [p for p in params if p is not None]
+        return _order_params([p for p in params if p is not None])
 
     def _oas_param_to_py(self, p: OasParameter) -> PyParameter | None:
         py_name = safe_python_field_name(p.name)
@@ -534,6 +534,23 @@ def _annotated(base: PythonTypeAnnotation, fastapi_expr: str) -> PythonTypeAnnot
 
 def _opt_default(p: OasParameter) -> str | None:
     return "None" if not p.required else None
+
+
+def _order_params(params: list[PyParameter]) -> list[PyParameter]:
+    """Make a positional parameter list valid Python.
+
+    Drops duplicate names (keeping the first) and orders parameters without a
+    default before those with one, since a non-default parameter cannot follow a
+    defaulted one.  FastAPI matches parameters by name, so reordering is safe.
+    """
+    seen: set[str] = set()
+    unique: list[PyParameter] = []
+    for p in params:
+        if p.name in seen:
+            continue
+        seen.add(p.name)
+        unique.append(p)
+    return [p for p in unique if p.default is None] + [p for p in unique if p.default is not None]
 
 
 def _merged_parameters(path_item: PathItem, op: Operation) -> list[OasParameter]:
