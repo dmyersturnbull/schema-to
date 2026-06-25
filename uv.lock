@@ -502,8 +502,8 @@ requires-dist = [
 dev = [
     { name = "hypothesis", specifier = ">=6.155" },
     { name = "pytest", specifier = ">=9.1" },
-    { name = "ruff", specifier = ">=0.15.17" },
-    { name = "ty", specifier = ">=0.0.49" },
+    { name = "ruff", specifier = ">=0.15.18" },
+    { name = "ty", specifier = ">=0.0.51" },
 ]
 
 [[package]]

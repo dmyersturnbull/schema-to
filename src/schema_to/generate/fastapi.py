@@ -34,6 +34,7 @@ from schema_to.ast.python import (
     PythonDocString,
     PythonModule,
     PythonTypeAnnotation,
+    SimpleImport,
     TypeAliasDef,
     VarDef,
 )
@@ -55,6 +56,14 @@ from schema_to.cst.openapi import (
 from schema_to.cst.openapi import Parameter as OasParameter
 from schema_to.errors import SourceLocation, TranspilationWarning
 from schema_to.generate._names import safe_python_class_name, safe_python_field_name
+from schema_to.generate.endpoint_body import (
+    EndpointBodyBackend,
+    NullBodyBackend,
+    ParamRole,
+    RouteParam,
+    endpoint_context,
+    role_for_param,
+)
 from schema_to.generate.pydantic import PydanticTransformer
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
@@ -62,7 +71,8 @@ from schema_to.result import Err, Ok, Result
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
 
-    from schema_to.cst.openapi import Operation
+    from schema_to.ast.python import PyImport
+    from schema_to.cst.openapi import Operation, SecurityRequirement
 
 __all__ = ["FastApiTransformer"]
 
@@ -197,7 +207,8 @@ def _scan_function_decl(decl: FunctionDef, needed: dict[str, set[str]]) -> None:
 
 def _build_imports(
     declarations: list[TypeAliasDef | ClassDef | FunctionDef | VarDef],
-) -> list[FromImport]:
+    extra: Sequence[PyImport] = (),
+) -> list[PyImport]:
     needed: dict[str, set[str]] = {"fastapi": {"FastAPI"}}
     for decl in declarations:
         if isinstance(decl, ClassDef):
@@ -206,11 +217,19 @@ def _build_imports(
             _scan_function_decl(decl, needed)
         elif isinstance(decl, TypeAliasDef):
             _scan_annotation(decl.annotation, needed)
-    return [
+    simple: list[SimpleImport] = []
+    for imp in extra:
+        if isinstance(imp, FromImport):
+            for name, _alias in imp.names:
+                needed.setdefault(imp.module, set()).add(name)
+        elif imp not in simple:
+            simple.append(imp)
+    from_imports: list[PyImport] = [
         FromImport(module=mod, names=[(n, None) for n in sorted(needed[mod])])
         for mod in sorted(needed)
         if needed[mod]
     ]
+    return [*sorted(simple, key=lambda s: s.module), *from_imports]
 
 
 # ---------------------------------------------------------------------------
@@ -223,9 +242,12 @@ class FastApiTransformer(Transformer[OpenApiDocument, PythonModule]):
     """Generates a FastAPI application `PythonModule` from an `OpenApiDocument` CST.
 
     Attributes:
+        body_backend: Strategy that fills each route body. Defaults to
+            `NullBodyBackend`, which leaves the reifier's `...` stub.
         _warnings: Accumulated non-fatal diagnostics from the most recent `apply` call.
     """
 
+    body_backend: EndpointBodyBackend = field(default_factory=NullBodyBackend)
     _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
 
     @property
@@ -234,7 +256,7 @@ class FastApiTransformer(Transformer[OpenApiDocument, PythonModule]):
 
     def apply(self, input: OpenApiDocument) -> Result[PythonModule]:
         self._warnings.clear()
-        ctx = _GenCtx(doc=input, warnings=self._warnings)
+        ctx = _GenCtx(doc=input, warnings=self._warnings, body_backend=self.body_backend)
         return ctx.build()
 
 
@@ -249,6 +271,8 @@ class _GenCtx:
 
     doc: OpenApiDocument
     warnings: list[TranspilationWarning]
+    body_backend: EndpointBodyBackend
+    extra_imports: list[PyImport] = field(default_factory=list)
 
     def build(self) -> Result[PythonModule]:
         model_decls = self._generate_models()
@@ -260,7 +284,7 @@ class _GenCtx:
             app_var,
             *route_fns,
         ]
-        imports = _build_imports(declarations)
+        imports = _build_imports(declarations, self.extra_imports)
         return Ok(
             PythonModule(
                 imports=imports,
@@ -303,17 +327,20 @@ class _GenCtx:
 
     def _generate_routes(self) -> list[FunctionDef]:
         return [
-            self._make_route_fn(path, method, operation)
+            self._make_route_fn(path, path_item, method, operation)
             for path, path_item in self.doc.paths.items()
             for method, operation in _iter_operations(path_item)
         ]
 
-    def _make_route_fn(self, path: str, method: HttpMethod, op: Operation) -> FunctionDef:
+    def _make_route_fn(
+        self, path: str, path_item: PathItem, method: HttpMethod, op: Operation
+    ) -> FunctionDef:
         fn_name = _op_fn_name(method, path, op.operation_id)
         params = self._build_params(op)
         success_code, return_ann = self._success_response(op)
         decorator = self._make_decorator(method, path, success_code, return_ann)
         doc = self._op_doc(op)
+        body = self._render_body(path, path_item, method, op)
         return FunctionDef(
             name=fn_name,
             parameters=params,
@@ -321,7 +348,69 @@ class _GenCtx:
             doc=doc,
             decorators=[decorator],
             is_async=True,
+            body=body,
         )
+
+    def _render_body(
+        self, path: str, path_item: PathItem, method: HttpMethod, op: Operation
+    ) -> tuple[str, ...]:
+        """Delegate the route body to the configured `EndpointBodyBackend`."""
+        ctx = endpoint_context(
+            method=method,
+            path=path,
+            op=op,
+            path_item=path_item,
+            params=self._route_params(op),
+            security=self._effective_security(op),
+            resource_schema=self._resource_schema(op),
+        )
+        body = self.body_backend.render(ctx)
+        self.extra_imports.extend(body.imports)
+        self.warnings.extend(body.warnings)
+        return tuple(body.lines)
+
+    def _route_params(self, op: Operation) -> list[RouteParam]:
+        """Resolve the route's parameters with their query-construction roles."""
+        out = [
+            RouteParam(
+                role=role_for_param(p.name, p.in_),
+                name=p.name,
+                py_name=safe_python_field_name(p.name),
+                location=p.in_,
+            )
+            for p in op.parameters
+        ]
+        if self._body_param(op) is not None:
+            out.append(RouteParam(role=ParamRole.BODY, name="body", py_name="body"))
+        return out
+
+    def _effective_security(self, op: Operation) -> Sequence[SecurityRequirement]:
+        """Operation-level security, falling back to the document default."""
+        return op.security if op.security is not None else self.doc.security
+
+    def _resource_schema(self, op: Operation) -> ObjectSchema | None:
+        """Best-effort resolution of the resource object schema for an operation."""
+        schema: JsonSchema | None = None
+        if op.request_body is not None:
+            schema = _json_schema_from_content(op.request_body.content)
+        if schema is None:
+            for code, resp in op.responses.items():
+                if code.startswith("2"):
+                    schema = _json_schema_from_content(resp.content)
+                    break
+        return self._lookup_object_schema(schema)
+
+    def _lookup_object_schema(self, schema: JsonSchema | None) -> ObjectSchema | None:
+        if schema is None or isinstance(schema, BooleanSchema):
+            return None
+        ref = schema.ref
+        if ref is None and schema.items is not None and not isinstance(schema.items, BooleanSchema):
+            ref = schema.items.ref
+        if ref is None:
+            return schema if isinstance(schema, ObjectSchema) else None
+        name = ref.rstrip("/").rsplit("/", 1)[-1]
+        target = self.doc.components.schemas.get(name)
+        return target if isinstance(target, ObjectSchema) else None
 
     def _op_doc(self, op: Operation) -> PythonDocString | None:
         if not (op.summary or op.description):

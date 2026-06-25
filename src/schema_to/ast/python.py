@@ -82,9 +82,14 @@ class PythonTypeAnnotation(AstNode):
     """
 
     name: str
-    args: Sequence[PythonTypeAnnotation] = field(default_factory=list)
+    args: Sequence[PythonTypeAnnotation] = field(default_factory=tuple)
     module: str | None = None
     nullable: bool = False
+
+    def __post_init__(self) -> None:
+        # Coerce `args` to a tuple so the annotation is hashable (it is used in
+        # set/`in` membership tests); callers may pass a list for convenience.
+        object.__setattr__(self, "args", tuple(self.args))
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +261,9 @@ class FunctionDef(AstNode):
         decorators: Applied decorators, in declaration order.
         is_async: Whether the function is declared with `async def`.
         is_abstract: Whether to emit `@abstractmethod`.
+        body: Rendered statement lines for the function body, each without
+            leading indentation (the reifier indents them). When empty, the
+            reifier emits an `...` stub.
     """
 
     name: str
@@ -265,6 +273,7 @@ class FunctionDef(AstNode):
     decorators: Sequence[Decorator] = field(default_factory=list)
     is_async: bool = False
     is_abstract: bool = False
+    body: Sequence[str] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True, slots=True)
