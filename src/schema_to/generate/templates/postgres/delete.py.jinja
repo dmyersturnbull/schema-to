@@ -1,9 +1,0 @@
-async with conn.cursor() as cur:
-    query, params = build_delete_query(
-        schema={{ schema }}, table={{ table }}, pk_column={{ pk }}, pk_value={{ id }}
-    )
-    await cur.execute(query, params)
-    deleted = cur.rowcount
-if deleted == 0:
-    raise HTTPException(status_code=404)
-return None

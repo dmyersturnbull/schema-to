@@ -60,12 +60,11 @@ from schema_to.generate.endpoint_body import (
     EndpointBody,
     EndpointBodyBackend,
     NullBodyBackend,
-    ParamRole,
     RouteParam,
     endpoint_context,
-    role_for_param,
 )
 from schema_to.generate.pydantic import PydanticTransformer
+from schema_to.generate.rest import ParamRole, role_for_param
 from schema_to.generate.security import build_security_module, route_security_params
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
@@ -584,7 +583,12 @@ def _op_fn_name(method: HttpMethod, path: str, operation_id: str | None) -> str:
 
 
 def _json_schema_from_content(content: Mapping[str, MediaTypeObject]) -> JsonSchema | None:
-    for media_type in ("application/json", "application/*", "*/*"):
+    for media_type in (
+        "application/json",
+        "application/merge-patch+json",
+        "application/*",
+        "*/*",
+    ):
         mt = content.get(media_type)
         if mt is not None:
             return mt.schema

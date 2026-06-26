@@ -2,10 +2,6 @@
 build-backend = "uv_build"
 requires = ["uv-build>=0.11, <1.0"]
 
-[tool.uv.build-backend]
-# Ship the code-generation templates (non-.py files) inside the wheel.
-source-include = ["src/schema_to/generate/templates/**/*.jinja"]
-
 [project]
 name = "schema-to"
 version = "0.0.1"
@@ -35,8 +31,20 @@ dev = [
   "ty>=0.0.51",
 ]
 
+[tool.ty.environment]
+# Let `query-dsl` (staged in src/extra) resolve for the tests that exercise it.
+extra-paths = ["src/extra"]
+
+[tool.ty.src]
+# The standalone `query-dsl` package and the illustrative examples are checked by
+# their own tooling, not as part of the schema-to library.
+exclude = ["src/extra", "examples"]
+
 [tool.ruff]
-exclude = [] # Rely on https://docs.astral.sh/ruff/settings/#respect-gitignore
+# `src/extra` is the standalone `query-dsl` package (its own pyproject + CI);
+# `examples` holds illustrative generated-style code. Neither is part of the
+# schema-to library, so they are outside its lint gate.
+extend-exclude = ["src/extra", "examples"]
 src = ["src"] # Needed for import sorting
 line-length = 100
 
@@ -141,7 +149,7 @@ max-bool-expr = 10
 max-nested-blocks = 4
 
 [tool.pytest]
-pythonpath = ["src/"]
+pythonpath = ["src/", "src/extra/"]
 testpaths = ["tests/"]
 empty_parameter_set_mark = "fail_at_collect"
 log_level = "WARNING"

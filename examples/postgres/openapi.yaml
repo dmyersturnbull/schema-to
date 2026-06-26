@@ -1,0 +1,186 @@
+openapi: 3.1.0
+info:
+  title: Things API
+  version: "1.0"
+
+# This document demonstrates schema-to's generic endpoint-body extension
+# mechanism. schema-to itself knows nothing about PostgreSQL: each operation
+# carries its body as an `x-fastapi-body` Jinja template, declares the imports
+# it needs with `x-fastapi-imports`, and injects a database connection with
+# `x-fastapi-params`. The templates call the `query-dsl` runtime library and the
+# `_db` glue module shipped alongside this file.
+#
+# Template context available to `x-fastapi-body`:
+#   ext            merged `x-` extensions (read `x-pg-table` etc. here)
+#   arg(role)      the Python name of a parameter by role, or the literal `None`
+#   json_columns   resource properties holding JSON (object-/array-typed)
+#   method, path, operation, params, params_by_name, params_by_role
+#   the `| py` filter renders a value as a Python literal (via `repr`)
+
+components:
+  schemas:
+    Thing:
+      type: object
+      properties:
+        id: {type: integer}
+        name: {type: string}
+        meta: {type: object}
+      required: [id, name]
+
+paths:
+  /api/things/:
+    x-pg-table: things
+    x-fastapi-params:
+      - {name: conn, annotation: AsyncConnection, default: Depends(get_db)}
+    get:
+      operationId: listThings
+      parameters:
+        - {name: select, in: query, schema: {type: string}}
+        - {name: where, in: query, schema: {type: string}}
+        - {name: sort, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer}}
+        - {name: offset, in: query, schema: {type: integer}}
+      x-fastapi-imports:
+        - from fastapi import Depends
+        - from psycopg import AsyncConnection
+        - from psycopg.rows import dict_row
+        - from query_dsl import build_list_query
+        - from _db import get_db
+      x-fastapi-body: |
+        async with conn.cursor(row_factory=dict_row) as cur:
+            query, params = build_list_query(
+                schema={{ ext.get("x-pg-schema", "public") | py }},
+                table={{ ext["x-pg-table"] | py }},
+                select={{ arg("select") }},
+                where={{ arg("where") }},
+                sort={{ arg("sort") }},
+                limit={{ arg("limit") }},
+                offset={{ arg("offset") }},
+                json_columns={{ json_columns | py }},
+            )
+            await cur.execute(query, params)
+            return await cur.fetchall()
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/Thing"}
+
+  /api/things/{id}:
+    x-pg-table: things
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: integer}}
+    x-fastapi-params:
+      - {name: conn, annotation: AsyncConnection, default: Depends(get_db)}
+    get:
+      operationId: getThing
+      x-fastapi-imports:
+        - from fastapi import Depends, HTTPException
+        - from psycopg import AsyncConnection
+        - from psycopg.rows import dict_row
+        - from query_dsl import build_get_query
+        - from _db import get_db
+      x-fastapi-body: |
+        async with conn.cursor(row_factory=dict_row) as cur:
+            query, params = build_get_query(
+                schema={{ ext.get("x-pg-schema", "public") | py }},
+                table={{ ext["x-pg-table"] | py }},
+                pk_column={{ ext.get("x-pg-id", "id") | py }},
+                pk_value={{ arg("id") }},
+            )
+            await cur.execute(query, params)
+            row = await cur.fetchone()
+        if row is None:
+            raise HTTPException(status_code=404)
+        return row
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Thing"}
+    put:
+      operationId: putThing
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/Thing"}
+      x-fastapi-imports:
+        - from fastapi import Depends
+        - from psycopg import AsyncConnection
+        - from psycopg.rows import dict_row
+        - from query_dsl import build_replace_query
+        - from _db import get_db, to_dict
+      x-fastapi-body: |
+        async with conn.cursor(row_factory=dict_row) as cur:
+            query, params = build_replace_query(
+                schema={{ ext.get("x-pg-schema", "public") | py }},
+                table={{ ext["x-pg-table"] | py }},
+                pk_column={{ ext.get("x-pg-id", "id") | py }},
+                pk_value={{ arg("id") }},
+                data=to_dict({{ arg("body") }}),
+            )
+            await cur.execute(query, params)
+            return await cur.fetchone()
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Thing"}
+    patch:
+      operationId: patchThing
+      requestBody:
+        content:
+          application/merge-patch+json:
+            schema: {type: object}
+      x-fastapi-imports:
+        - from fastapi import Depends, HTTPException
+        - from psycopg import AsyncConnection
+        - from psycopg.rows import dict_row
+        - from query_dsl import build_merge_patch_query
+        - from _db import get_db, to_dict
+      x-fastapi-body: |
+        async with conn.cursor(row_factory=dict_row) as cur:
+            query, params = build_merge_patch_query(
+                schema={{ ext.get("x-pg-schema", "public") | py }},
+                table={{ ext["x-pg-table"] | py }},
+                pk_column={{ ext.get("x-pg-id", "id") | py }},
+                pk_value={{ arg("id") }},
+                patch=to_dict({{ arg("body") }}),
+            )
+            await cur.execute(query, params)
+            row = await cur.fetchone()
+        if row is None:
+            raise HTTPException(status_code=404)
+        return row
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Thing"}
+    delete:
+      operationId: deleteThing
+      x-fastapi-imports:
+        - from fastapi import Depends, HTTPException
+        - from psycopg import AsyncConnection
+        - from query_dsl import build_delete_query
+        - from _db import get_db
+      x-fastapi-body: |
+        async with conn.cursor() as cur:
+            query, params = build_delete_query(
+                schema={{ ext.get("x-pg-schema", "public") | py }},
+                table={{ ext["x-pg-table"] | py }},
+                pk_column={{ ext.get("x-pg-id", "id") | py }},
+                pk_value={{ arg("id") }},
+            )
+            await cur.execute(query, params)
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404)
+      responses:
+        "204":
+          description: gone

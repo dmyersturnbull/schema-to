@@ -1,9 +1,0 @@
-async with conn.cursor(row_factory=dict_row) as cur:
-    query, params = build_get_query(
-        schema={{ schema }}, table={{ table }}, pk_column={{ pk }}, pk_value={{ id }}
-    )
-    await cur.execute(query, params)
-    row = await cur.fetchone()
-if row is None:
-    raise HTTPException(status_code=404)
-return row

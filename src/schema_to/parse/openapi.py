@@ -10,6 +10,7 @@ the complete diagnostic set.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, cast
 
@@ -46,6 +47,7 @@ from schema_to.parse._utils import (
     as_json_list,
     bool_field,
     decode_raw_doc,
+    enum_member,
     extract,
     ptr,
     str_field,
@@ -827,25 +829,14 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         )
 
     def _build_security_scheme(self, data: dict[str, JsonValue]) -> SecurityScheme | None:
-        raw_type = data.get("type")
-        if not isinstance(raw_type, str):
+        scheme_type = enum_member(SecuritySchemeType, data.get("type"))
+        if scheme_type is None:
             return None
-        try:
-            scheme_type = SecuritySchemeType(raw_type)
-        except ValueError:
-            return None
-        raw_in = data.get("in")
-        location = None
-        if isinstance(raw_in, str):
-            try:
-                location = ApiKeyLocation(raw_in)
-            except ValueError:
-                location = None
         return SecurityScheme(
             type_=scheme_type,
             description=str_field(data, "description"),
             name=str_field(data, "name"),
-            in_=location,
+            in_=enum_member(ApiKeyLocation, data.get("in")),
             scheme=str_field(data, "scheme"),
             bearer_format=str_field(data, "bearerFormat"),
             flows=self._build_oauth_flows(data.get("flows")),
@@ -854,7 +845,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         )
 
     def _build_oauth_flows(self, data: JsonValue) -> OAuthFlows | None:
-        if not isinstance(data, dict):
+        if not isinstance(data, Mapping):
             return None
         flows = cast("dict[str, JsonValue]", data)
         return OAuthFlows(
@@ -866,7 +857,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         )
 
     def _build_oauth_flow(self, data: JsonValue) -> OAuthFlow | None:
-        if not isinstance(data, dict):
+        if not isinstance(data, Mapping):
             return None
         flow = cast("dict[str, JsonValue]", data)
         raw_scopes = flow.get("scopes")
@@ -875,7 +866,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 k: v if isinstance(v, str) else ""
                 for k, v in cast("dict[str, JsonValue]", raw_scopes).items()
             }
-            if isinstance(raw_scopes, dict)
+            if isinstance(raw_scopes, Mapping)
             else {}
         )
         return OAuthFlow(

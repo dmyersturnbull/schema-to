@@ -18,9 +18,9 @@ Supported targets:
     JSON/JSONB column against its sub-schema.
   - `fastapi`
     OpenAPI 3.1 → FastAPI application module (route stubs + security wiring).
-  - `fastapi+postgres`
-    Like `fastapi`, but route bodies are filled with psycopg-backed queries
-    and a `pg_runtime.py` support module is emitted alongside `main.py`.
+    Route bodies are filled from each operation's `x-fastapi-body` Jinja
+    extension when present, and left as `...` stubs otherwise; see
+    `examples/postgres/` for a worked PostgreSQL set built on `query-dsl`.
 """
 
 from __future__ import annotations
@@ -29,8 +29,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
 from schema_to.generate.fastapi import FastApiTransformer
-from schema_to.generate.postgres_backend import PostgresBodyBackend
 from schema_to.generate.sql import PostgresTransformer
+from schema_to.generate.template_body import TemplateBodyBackend
 from schema_to.transpile.fastapi import OpenApiToFastApiTranspiler
 from schema_to.transpile.pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
 from schema_to.transpile.pydantic import JsonSchemaToPydanticTranspiler
@@ -59,7 +59,7 @@ class RoutingError(Exception):
 @dataclass(frozen=True, slots=True)
 class TranspilerRouter:
     SUPPORTED_TARGETS: ClassVar[frozenset[str]] = frozenset(
-        {"fastapi", "fastapi+postgres", "pass-thru", "pydantic", "postgres", "pg-jsonschema"}
+        {"fastapi", "pass-thru", "pydantic", "postgres", "pg-jsonschema"}
     )
 
     def route(self, target_name: str, output_media_type: MediaType) -> Sequence[Transpiler]:
@@ -70,11 +70,9 @@ class TranspilerRouter:
         """
         match target_name:
             case "fastapi":
-                return [OpenApiToFastApiTranspiler()]
-            case "fastapi+postgres":
                 return [
                     OpenApiToFastApiTranspiler(
-                        generator=FastApiTransformer(body_backend=PostgresBodyBackend())
+                        generator=FastApiTransformer(body_backend=TemplateBodyBackend())
                     )
                 ]
             case "pass-thru":
