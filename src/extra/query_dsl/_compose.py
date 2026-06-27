@@ -8,15 +8,17 @@ literal value is bound as a parameter.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from collections.abc import Iterable, Mapping, Sequence
 
 from psycopg import sql
 from psycopg.types.json import Jsonb
 
-if TYPE_CHECKING:
-    from collections.abc import Iterable
+__all__ = ["Bound", "Params", "QueryError", "Value", "adapt", "column_ref", "order_by", "select_list"]
 
-__all__ = ["Params", "QueryError", "adapt", "column_ref", "order_by", "select_list"]
+# A JSON-shaped value accepted from a request and bound into a query.
+type Value = str | int | float | bool | Sequence[Value] | Mapping[str, Value] | None
+# A value after JSON adaptation, as stored for ``cursor.execute``.
+type Bound = Value | Jsonb
 
 
 class QueryError(ValueError):
@@ -26,19 +28,20 @@ class QueryError(ValueError):
     """
 
 
-# Comparison operators accepted in a ``where`` expression, mapped to SQL.
-OPERATORS: dict[str, str] = {
-    "eq": "=",
-    "ne": "<>",
-    "lt": "<",
-    "le": "<=",
-    "gt": ">",
-    "ge": ">=",
-    "like": "LIKE",
+# Comparison operators accepted in a ``where`` expression, each mapped to its
+# SQL spelling as a composable (built from a literal, so it is injection-safe).
+OPERATORS: dict[str, sql.SQL] = {
+    "eq": sql.SQL("="),
+    "ne": sql.SQL("<>"),
+    "lt": sql.SQL("<"),
+    "le": sql.SQL("<="),
+    "gt": sql.SQL(">"),
+    "ge": sql.SQL(">="),
+    "like": sql.SQL("LIKE"),
 }
 
 
-def adapt(value: Any) -> Any:
+def adapt(value: Value) -> Bound:
     """Wrap JSON-shaped values so psycopg adapts them to ``jsonb``."""
     if isinstance(value, (dict, list)):
         return Jsonb(value)
@@ -49,9 +52,9 @@ class Params:
     """Accumulates bound parameters and hands out named placeholders."""
 
     def __init__(self) -> None:
-        self.values: dict[str, Any] = {}
+        self.values: dict[str, Bound] = {}
 
-    def add(self, value: Any) -> sql.Placeholder:
+    def add(self, value: Bound) -> sql.Placeholder:
         name = f"p{len(self.values)}"
         self.values[name] = value
         return sql.Placeholder(name)

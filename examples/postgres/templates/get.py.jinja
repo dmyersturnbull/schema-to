@@ -1,0 +1,12 @@
+async with conn.cursor(row_factory=dict_row) as cur:
+    query, params = build_get_query(
+        schema={{ ext.get("x-pg-schema", "public") | repr }},
+        table={{ ext["x-pg-table"] | repr }},
+        pk_column={{ ext.get("x-pg-id", "id") | repr }},
+        pk_value={{ param("id") }},
+    )
+    await cur.execute(query, params)
+    row = await cur.fetchone()
+if row is None:
+    raise HTTPException(status_code=404)
+return row

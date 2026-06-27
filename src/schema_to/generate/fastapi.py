@@ -64,7 +64,6 @@ from schema_to.generate.endpoint_body import (
     endpoint_context,
 )
 from schema_to.generate.pydantic import PydanticTransformer
-from schema_to.generate.rest import ParamRole, role_for_param
 from schema_to.generate.security import build_security_module, route_security_params
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
@@ -393,18 +392,13 @@ class _GenCtx:
     def _route_params(
         self, merged: Sequence[OasParameter], op: Operation
     ) -> list[RouteParam]:
-        """Resolve the route's parameters with their query-construction roles."""
+        """Resolve the route's parameters for the body template's context."""
         out = [
-            RouteParam(
-                role=role_for_param(p.name, p.in_),
-                name=p.name,
-                py_name=safe_python_field_name(p.name),
-                location=p.in_,
-            )
+            RouteParam(name=p.name, py_name=safe_python_field_name(p.name), location=p.in_)
             for p in merged
         ]
         if self._body_param(op) is not None:
-            out.append(RouteParam(role=ParamRole.BODY, name="body", py_name="body"))
+            out.append(RouteParam(name="body", py_name="body"))
         return out
 
     def _effective_security(self, op: Operation) -> Sequence[SecurityRequirement]:

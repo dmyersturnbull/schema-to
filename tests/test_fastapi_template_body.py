@@ -1,6 +1,6 @@
 """End-to-end test of the generic `x-fastapi-body` mechanism.
 
-Transpiles the shipped PostgreSQL example (`examples/postgres/openapi.yaml`)
+Transpiles the shipped PostgreSQL example (`examples/postgres/things.openapi.yaml`)
 with the plain `fastapi` target and asserts that the generated module fills its
 route bodies from the inline Jinja templates, wires up the declared imports and
 the injected connection parameter, and parses as valid Python.
@@ -16,7 +16,15 @@ import pytest
 from schema_to import MediaTypes, Ok, OpenApiRawDoc
 from schema_to.transpile.factory import TranspilerRouter
 
-_EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "postgres" / "openapi.yaml"
+_EXAMPLE_DIR = Path(__file__).resolve().parent.parent / "examples" / "postgres"
+_EXAMPLE = _EXAMPLE_DIR / "things.openapi.yaml"
+
+
+def _named_templates() -> dict[str, str]:
+    return {
+        path.name.removesuffix(".py.jinja"): path.read_text(encoding="utf-8")
+        for path in (_EXAMPLE_DIR / "templates").glob("*.py.jinja")
+    }
 
 
 def _generate(target: str) -> str:
@@ -26,7 +34,9 @@ def _generate(target: str) -> str:
         media_type=MediaTypes.yaml,
         display_name="api",
     )
-    [transpiler] = TranspilerRouter().route(target, output_media_type=MediaTypes.json)
+    [transpiler] = TranspilerRouter().route(
+        target, output_media_type=MediaTypes.json, templates=_named_templates()
+    )
     result = transpiler.transpile(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     assert len(result.value) == 1

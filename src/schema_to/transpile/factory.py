@@ -37,7 +37,7 @@ from schema_to.transpile.pydantic import JsonSchemaToPydanticTranspiler
 from schema_to.transpile.sql import JsonSchemaToPostgresTranspiler
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from schema_to.io.media_type import MediaType
     from schema_to.pipeline import Transpiler
@@ -62,19 +62,28 @@ class TranspilerRouter:
         {"fastapi", "pass-thru", "pydantic", "postgres", "pg-jsonschema"}
     )
 
-    def route(self, target_name: str, output_media_type: MediaType) -> Sequence[Transpiler]:
+    def route(
+        self,
+        target_name: str,
+        output_media_type: MediaType,
+        *,
+        templates: Mapping[str, str] | None = None,
+    ) -> Sequence[Transpiler]:
         """Return the ordered list of transpilers for target `to`.
+
+        Args:
+            target_name: The requested target format.
+            output_media_type: Media type for re-emitted schema sources.
+            templates: Named endpoint-body Jinja templates (`fastapi` target),
+                registered from the CLI's `--template <name>=<path>`.
 
         Raises:
             RoutingError: If `target_name` is not recognized or supported.
         """
         match target_name:
             case "fastapi":
-                return [
-                    OpenApiToFastApiTranspiler(
-                        generator=FastApiTransformer(body_backend=TemplateBodyBackend())
-                    )
-                ]
+                backend = TemplateBodyBackend(named_templates=templates or {})
+                return [OpenApiToFastApiTranspiler(generator=FastApiTransformer(body_backend=backend))]
             case "pass-thru":
                 return [
                     OpenApiPassThruTranspiler(),

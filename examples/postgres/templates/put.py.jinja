@@ -1,0 +1,10 @@
+async with conn.cursor(row_factory=dict_row) as cur:
+    query, params = build_replace_query(
+        schema={{ ext.get("x-pg-schema", "public") | repr }},
+        table={{ ext["x-pg-table"] | repr }},
+        pk_column={{ ext.get("x-pg-id", "id") | repr }},
+        pk_value={{ param("id") }},
+        data=to_dict({{ param("body") }}),
+    )
+    await cur.execute(query, params)
+    return await cur.fetchone()

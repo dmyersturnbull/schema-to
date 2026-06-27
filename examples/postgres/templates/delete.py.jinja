@@ -1,0 +1,10 @@
+async with conn.cursor() as cur:
+    query, params = build_delete_query(
+        schema={{ ext.get("x-pg-schema", "public") | repr }},
+        table={{ ext["x-pg-table"] | repr }},
+        pk_column={{ ext.get("x-pg-id", "id") | repr }},
+        pk_value={{ param("id") }},
+    )
+    await cur.execute(query, params)
+if cur.rowcount == 0:
+    raise HTTPException(status_code=404)

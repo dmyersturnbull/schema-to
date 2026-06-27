@@ -32,20 +32,20 @@ dev = [
 ]
 
 [tool.ty.environment]
-# Let `query-dsl` (staged in src/extra) resolve for the tests that exercise it.
+# Add the staged `query-dsl` package (src/extra) to the import path so it is
+# type-checked and resolvable from the tests that exercise it.
 extra-paths = ["src/extra"]
 
 [tool.ty.src]
-# The standalone `query-dsl` package and the illustrative examples are checked by
-# their own tooling, not as part of the schema-to library.
-exclude = ["src/extra", "examples"]
+# `examples` holds illustrative generated-style code (intentional stubs), not
+# library code, so it is checked by its own tooling rather than here.
+exclude = ["examples"]
 
 [tool.ruff]
-# `src/extra` is the standalone `query-dsl` package (its own pyproject + CI);
-# `examples` holds illustrative generated-style code. Neither is part of the
-# schema-to library, so they are outside its lint gate.
-extend-exclude = ["src/extra", "examples"]
-src = ["src"] # Needed for import sorting
+# `examples` holds illustrative generated-style code, not part of the library;
+# `query-dsl` (src/extra) uses the schema-to lint config until it is split out.
+extend-exclude = ["examples"]
+src = ["src", "src/extra"] # Needed for import sorting
 line-length = 100
 
 [tool.ruff.format]
@@ -149,6 +149,8 @@ max-bool-expr = 10
 max-nested-blocks = 4
 
 [tool.pytest]
+# `src/extra` is on the path so tests can import the staged `query-dsl` package
+# (its own distribution under src/extra) without installing it.
 pythonpath = ["src/", "src/extra/"]
 testpaths = ["tests/"]
 empty_parameter_set_mark = "fail_at_collect"

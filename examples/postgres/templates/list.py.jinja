@@ -1,0 +1,13 @@
+async with conn.cursor(row_factory=dict_row) as cur:
+    query, params = build_list_query(
+        schema={{ ext.get("x-pg-schema", "public") | repr }},
+        table={{ ext["x-pg-table"] | repr }},
+        select={{ param("select") }},
+        where={{ param("where") }},
+        sort={{ param("sort") }},
+        limit={{ param("limit") }},
+        offset={{ param("offset") }},
+        json_columns={{ json_properties | repr }},
+    )
+    await cur.execute(query, params)
+    return await cur.fetchall()

@@ -17,13 +17,10 @@ The grammar::
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any
 
 from psycopg import sql
-from query_dsl._compose import OPERATORS, Params, QueryError, column_ref
 
-if TYPE_CHECKING:
-    from collections.abc import Sequence
+from query_dsl._compose import OPERATORS, Params, QueryError, Value, column_ref
 
 __all__ = ["parse_where"]
 
@@ -122,10 +119,11 @@ class _WhereParser:
         col = column_ref(path, self._json, self._params)
         value = self._value()
         if op == "in":
-            return sql.SQL("{} = ANY({})").format(col, self._params.add(list(value)))
-        return sql.SQL("{} " + OPERATORS[op] + " {}").format(col, self._params.add(value))
+            members = value if isinstance(value, list) else [value]
+            return sql.SQL("{} = ANY({})").format(col, self._params.add(members))
+        return sql.SQL("{} {} {}").format(col, OPERATORS[op], self._params.add(value))
 
-    def _value(self) -> Any:
+    def _value(self) -> Value:
         kind, text = self._next()
         if kind == "string":
             return text[1:-1].replace("''", "'")
@@ -133,15 +131,13 @@ class _WhereParser:
             return float(text) if "." in text else int(text)
         if kind == "lbracket":
             return self._list()
-        if kind == "word":
-            literal = _LITERALS.get(text.lower(), _MISSING)
-            if literal is not _MISSING:
-                return literal
+        if kind == "word" and text.lower() in _LITERALS:
+            return _LITERALS[text.lower()]
         msg = f"Expected a value in where expression, got {text!r}."
         raise QueryError(msg)
 
-    def _list(self) -> list[Any]:
-        items: list[Any] = []
+    def _list(self) -> list[Value]:
+        items: list[Value] = []
         if self._at("rbracket"):
             self._next()
             return items
@@ -165,10 +161,9 @@ class _WhereParser:
         return token[1]
 
 
-_MISSING = object()
 _LITERALS: dict[str, bool | None] = {"true": True, "false": False, "null": None}
 
 
-def parse_where(where: str, json_columns: Sequence[str], params: Params) -> sql.Composable:
+def parse_where(where: str, json_columns: frozenset[str], params: Params) -> sql.Composable:
     """Compile a ``where`` expression into a parameterised SQL predicate."""
-    return _WhereParser(where, frozenset(json_columns), params).parse()
+    return _WhereParser(where, json_columns, params).parse()

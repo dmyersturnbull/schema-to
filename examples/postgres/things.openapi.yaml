@@ -1,0 +1,132 @@
+openapi: 3.1.0
+info:
+  title: Things API
+  version: "1.0"
+
+# This document demonstrates schema-to's generic endpoint-body extension
+# mechanism. schema-to itself knows nothing about PostgreSQL: each operation
+# names a Jinja template with `x-fastapi-template`, declares the imports it
+# needs with `x-fastapi-imports`, and injects a database connection with
+# `x-fastapi-params`. The named templates live in ./templates and are registered
+# on the CLI:
+#
+#   schema-to --to fastapi \
+#     --template list=examples/postgres/templates/list.py.jinja \
+#     --template get=examples/postgres/templates/get.py.jinja \
+#     --template put=examples/postgres/templates/put.py.jinja \
+#     --template patch=examples/postgres/templates/patch.py.jinja \
+#     --template delete=examples/postgres/templates/delete.py.jinja \
+#     examples/postgres/things.openapi.yaml -o out/
+#
+# The templates call the `query-dsl` runtime library and the `_db` glue module
+# shipped alongside this file. See README.md for the full template context.
+
+components:
+  schemas:
+    Thing:
+      type: object
+      properties:
+        id: {type: integer}
+        name: {type: string}
+        meta: {type: object}
+      required: [id, name]
+
+paths:
+  /api/things/:
+    x-pg-table: things
+    x-fastapi-params:
+      - {name: conn, annotation: AsyncConnection, default: Depends(get_db)}
+    get:
+      operationId: listThings
+      x-fastapi-template: list
+      x-fastapi-imports:
+        - from fastapi import Depends
+        - from psycopg import AsyncConnection
+        - from psycopg.rows import dict_row
+        - from query_dsl import build_list_query
+        - from _db import get_db
+      parameters:
+        - {name: select, in: query, schema: {type: string}}
+        - {name: where, in: query, schema: {type: string}}
+        - {name: sort, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer}}
+        - {name: offset, in: query, schema: {type: integer}}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/Thing"}
+
+  /api/things/{id}:
+    x-pg-table: things
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: integer}}
+    x-fastapi-params:
+      - {name: conn, annotation: AsyncConnection, default: Depends(get_db)}
+    get:
+      operationId: getThing
+      x-fastapi-template: get
+      x-fastapi-imports:
+        - from fastapi import Depends, HTTPException
+        - from psycopg import AsyncConnection
+        - from psycopg.rows import dict_row
+        - from query_dsl import build_get_query
+        - from _db import get_db
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Thing"}
+    put:
+      operationId: putThing
+      x-fastapi-template: put
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/Thing"}
+      x-fastapi-imports:
+        - from fastapi import Depends
+        - from psycopg import AsyncConnection
+        - from psycopg.rows import dict_row
+        - from query_dsl import build_replace_query
+        - from _db import get_db, to_dict
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Thing"}
+    patch:
+      operationId: patchThing
+      x-fastapi-template: patch
+      requestBody:
+        content:
+          application/merge-patch+json:
+            schema: {type: object}
+      x-fastapi-imports:
+        - from fastapi import Depends, HTTPException
+        - from psycopg import AsyncConnection
+        - from psycopg.rows import dict_row
+        - from query_dsl import build_merge_patch_query
+        - from _db import get_db, to_dict
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Thing"}
+    delete:
+      operationId: deleteThing
+      x-fastapi-template: delete
+      x-fastapi-imports:
+        - from fastapi import Depends, HTTPException
+        - from psycopg import AsyncConnection
+        - from query_dsl import build_delete_query
+        - from _db import get_db
+      responses:
+        "204":
+          description: gone

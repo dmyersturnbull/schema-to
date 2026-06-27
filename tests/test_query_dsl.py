@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import pytest
+
 from query_dsl import (
     QueryError,
     build_delete_query,

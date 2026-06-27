@@ -60,7 +60,7 @@ from schema_to.generate.endpoint_body import (
 )
 from schema_to.generate.fastapi import FastApiTransformer
 from schema_to.generate.pydantic import PydanticTransformer
-from schema_to.generate.rest import ParamRole, RestOperation
+from schema_to.generate.rest import RestOperation
 from schema_to.generate.sql import PostgresTransformer
 from schema_to.generate.template_body import TemplateBodyBackend
 from schema_to.io.core import DefaultJsonLikeReader, JsonLikeReader
@@ -154,7 +154,6 @@ __all__ = [
     "OpenApiSerializer",
     "OpenApiToFastApiTranspiler",
     "OpenApiYamlArtifact",
-    "ParamRole",
     "ParseError",
     "PeekingDirectorySource",
     "Pipeline",

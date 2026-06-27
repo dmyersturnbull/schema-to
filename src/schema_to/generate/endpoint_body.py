@@ -34,7 +34,6 @@ if TYPE_CHECKING:
         SecurityRequirement,
     )
     from schema_to.errors import TranspilationWarning
-    from schema_to.generate.rest import ParamRole
     from schema_to.io.sink import PythonArtifact
 
 __all__ = [
@@ -51,14 +50,15 @@ __all__ = [
 class RouteParam:
     """A resolved route parameter, linking the OpenAPI name to its Python name.
 
+    A template selects parameters by name (and, if it cares, by location); core
+    attaches no query-specific meaning to them.
+
     Attributes:
-        role: The semantic role used by backends to build queries.
         name: The original OpenAPI parameter name (or `"body"` for the body).
         py_name: The sanitised Python identifier used in the route signature.
         location: The OpenAPI parameter location; `None` for the request body.
     """
 
-    role: ParamRole
     name: str
     py_name: str
     location: ParameterLocation | None = None
@@ -86,9 +86,9 @@ class EndpointContext:
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
     resource_schema: ObjectSchema | None = None
 
-    def param(self, role: ParamRole) -> RouteParam | None:
-        """Return the first parameter with the given role, or `None`."""
-        return next((p for p in self.params if p.role is role), None)
+    def param(self, name: str) -> RouteParam | None:
+        """Return the parameter with the given OpenAPI name, or `None`."""
+        return next((p for p in self.params if p.name == name), None)
 
 
 @dataclass(frozen=True, slots=True)

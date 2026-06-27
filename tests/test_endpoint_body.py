@@ -2,7 +2,7 @@
 
 Covers the persistence-agnostic `schema_to.generate.rest` helpers, the
 `endpoint_context` assembly (extension merging), and both shipped backends:
-`NullBodyBackend` (empty) and `TemplateBodyBackend` (renders `x-fastapi-*`).
+`NullBodyBackend` (empty) and `TemplateBodyBackend` (named + inline templates).
 """
 
 from __future__ import annotations
@@ -16,14 +16,7 @@ from schema_to.generate.endpoint_body import (
     RouteParam,
     endpoint_context,
 )
-from schema_to.generate.rest import (
-    ParamRole,
-    RestOperation,
-    infer_operation,
-    is_item_path,
-    resource_name,
-    role_for_param,
-)
+from schema_to.generate.rest import RestOperation, infer_operation, is_item_path, resource_name
 from schema_to.generate.template_body import TemplateBodyBackend
 
 if TYPE_CHECKING:
@@ -39,12 +32,9 @@ def _op(extensions: Mapping[str, JsonValue] | None = None) -> Operation:
 def test_infer_operation_from_path_and_method() -> None:
     assert infer_operation(HttpMethod.GET, "/api/things/") is RestOperation.LIST
     assert infer_operation(HttpMethod.GET, "/api/things/{id}") is RestOperation.GET
-    assert infer_operation(HttpMethod.PUT, "/api/things/{id}") is RestOperation.REPLACE
+    assert infer_operation(HttpMethod.PUT, "/api/things/{id}") is RestOperation.PUT
+    assert infer_operation(HttpMethod.PATCH, "/api/things/{id}") is RestOperation.PATCH
     assert infer_operation(HttpMethod.DELETE, "/api/things/{id}") is RestOperation.DELETE
-    assert infer_operation(HttpMethod.PATCH, "/api/things/{id}") is RestOperation.MERGE_PATCH_ITEM
-    assert (
-        infer_operation(HttpMethod.PATCH, "/api/things/") is RestOperation.MERGE_PATCH_COLLECTION
-    )
 
 
 def test_is_item_path_and_resource_name() -> None:
@@ -52,13 +42,6 @@ def test_is_item_path_and_resource_name() -> None:
     assert not is_item_path("/api/things/")
     assert resource_name("/api/things/{id}") == "things"
     assert resource_name("/") == "resource"
-
-
-def test_role_for_param() -> None:
-    assert role_for_param("select", ParameterLocation.QUERY) is ParamRole.SELECT
-    assert role_for_param("WHERE", ParameterLocation.QUERY) is ParamRole.WHERE
-    assert role_for_param("id", ParameterLocation.PATH) is ParamRole.ID
-    assert role_for_param("x-api-key", ParameterLocation.HEADER) is ParamRole.OTHER
 
 
 def test_endpoint_context_merges_extensions() -> None:
@@ -76,21 +59,19 @@ def test_endpoint_context_merges_extensions() -> None:
 
 
 def test_null_backend_renders_empty_body() -> None:
-    body = NullBodyBackend().render(
-        EndpointContext(method=HttpMethod.GET, path="/api/things/")
-    )
+    body = NullBodyBackend().render(EndpointContext(method=HttpMethod.GET, path="/api/things/"))
     assert body.lines == ()
     assert body.imports == ()
 
 
-def test_template_backend_renders_body_imports_and_params() -> None:
+def test_template_backend_inline_body() -> None:
     ctx = EndpointContext(
         method=HttpMethod.GET,
         path="/api/things/{id}",
-        params=(RouteParam(ParamRole.ID, "id", "id", ParameterLocation.PATH),),
+        params=(RouteParam("id", "id", ParameterLocation.PATH),),
         extensions={
             "x-pg-table": "things",
-            "x-fastapi-body": "row = get({{ ext['x-pg-table'] | py }}, {{ arg('id') }})\nreturn row",
+            "x-fastapi-body": "row = get({{ ext['x-pg-table'] | repr }}, {{ param('id') }})\nreturn row",
             "x-fastapi-imports": ["from db import get"],
             "x-fastapi-params": [{"name": "conn", "annotation": "AsyncConnection"}],
         },
@@ -100,6 +81,27 @@ def test_template_backend_renders_body_imports_and_params() -> None:
     assert body.parameters[0].name == "conn"
     assert body.parameters[0].annotation is not None
     assert body.imports[0].module == "db"
+
+
+def test_template_backend_named_template() -> None:
+    backend = TemplateBodyBackend(named_templates={"fetch": "return get({{ param('id') }})"})
+    ctx = EndpointContext(
+        method=HttpMethod.GET,
+        path="/api/things/{id}",
+        params=(RouteParam("id", "id", ParameterLocation.PATH),),
+        extensions={"x-fastapi-template": "fetch"},
+    )
+    assert TemplateBodyBackend.render(backend, ctx).lines == ("return get(id)",)
+
+
+def test_named_template_takes_precedence_over_inline() -> None:
+    backend = TemplateBodyBackend(named_templates={"t": "named"})
+    ctx = EndpointContext(
+        method=HttpMethod.GET,
+        path="/x",
+        extensions={"x-fastapi-template": "t", "x-fastapi-body": "inline"},
+    )
+    assert backend.render(ctx).lines == ("named",)
 
 
 def test_template_backend_without_extension_is_empty() -> None:
