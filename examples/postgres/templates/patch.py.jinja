@@ -1,0 +1,13 @@
+async with conn.cursor(row_factory=dict_row) as cur:
+    query, params = build_merge_patch_query(
+        schema={{ ext.get("x-pg-schema", "public") | repr }},
+        table={{ ext["x-pg-table"] | repr }},
+        pk_column={{ ext.get("x-pg-id", "id") | repr }},
+        pk_value={{ param("id") }},
+        patch=to_dict({{ param("body") }}),
+    )
+    await cur.execute(query, params)
+    row = await cur.fetchone()
+if row is None:
+    raise HTTPException(status_code=404)
+return row

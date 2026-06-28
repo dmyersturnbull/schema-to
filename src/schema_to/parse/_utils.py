@@ -9,6 +9,8 @@ from schema_to.io.core import JsonLikeReader, ReadError
 from schema_to.result import Err, Result
 
 if TYPE_CHECKING:
+    from enum import Enum
+
     from schema_to.core import JsonValue
     from schema_to.io.source import RawDoc
 
@@ -17,6 +19,7 @@ __all__ = [
     "as_json_list",
     "bool_field",
     "decode_raw_doc",
+    "enum_member",
     "extract",
     "int_field",
     "loc",
@@ -25,6 +28,15 @@ __all__ = [
     "str_field",
     "str_or",
 ]
+
+
+def enum_member[E: Enum](enum_cls: type[E], value: object) -> E | None:
+    """Return the `enum_cls` member whose value equals `value`, or `None`.
+
+    Avoids constructing the enum in a `try`/`except ValueError`, which would
+    also swallow unrelated `ValueError`s.
+    """
+    return next((member for member in enum_cls if member.value == value), None)
 
 
 def ptr(parent: str, *segments: str | int) -> str:

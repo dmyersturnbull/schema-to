@@ -10,6 +10,7 @@ readme = { file = "README.md", content-type = "text/markdown" }
 license = { text = "MIT" }
 dependencies = [
   "caseutil>=0.7.2",
+  "jinja2>=3.1.6", # Templating for generated FastAPI endpoint bodies
   "niquests>=3.19",
   "orjson>=3.11",
   "py-yaml12>=0.1", # YAML 1.2 library
@@ -24,14 +25,27 @@ schema-to = "schema_to.__main__:cli"
 [dependency-groups]
 dev = [
   "hypothesis>=6.155",
+  "psycopg[binary]>=3.2", # Only to test the generated runtime module; not a runtime dep
   "pytest>=9.1",
   "ruff>=0.15.18",
   "ty>=0.0.51",
 ]
 
+[tool.ty.environment]
+# Add the staged `query-dsl` package (src/extra) to the import path so it is
+# type-checked and resolvable from the tests that exercise it.
+extra-paths = ["src/extra"]
+
+[tool.ty.src]
+# `examples` holds illustrative generated-style code (intentional stubs), not
+# library code, so it is checked by its own tooling rather than here.
+exclude = ["examples"]
+
 [tool.ruff]
-exclude = [] # Rely on https://docs.astral.sh/ruff/settings/#respect-gitignore
-src = ["src"] # Needed for import sorting
+# `examples` holds illustrative generated-style code, not part of the library;
+# `query-dsl` (src/extra) uses the schema-to lint config until it is split out.
+extend-exclude = ["examples"]
+src = ["src", "src/extra"] # Needed for import sorting
 line-length = 100
 
 [tool.ruff.format]
@@ -135,7 +149,9 @@ max-bool-expr = 10
 max-nested-blocks = 4
 
 [tool.pytest]
-pythonpath = ["src/"]
+# `src/extra` is on the path so tests can import the staged `query-dsl` package
+# (its own distribution under src/extra) without installing it.
+pythonpath = ["src/", "src/extra/"]
 testpaths = ["tests/"]
 empty_parameter_set_mark = "fail_at_collect"
 log_level = "WARNING"

@@ -10,12 +10,14 @@ the complete diagnostic set.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, cast
 
 from schema_to import DefaultJsonLikeReader
 from schema_to.cst.base import SourceRef
 from schema_to.cst.openapi import (
+    ApiKeyLocation,
     Components,
     Contact,
     ExternalDocumentation,
@@ -23,6 +25,8 @@ from schema_to.cst.openapi import (
     Info,
     License,
     MediaTypeObject,
+    OAuthFlow,
+    OAuthFlows,
     OpenApiDocument,
     Operation,
     Parameter,
@@ -30,6 +34,8 @@ from schema_to.cst.openapi import (
     PathItem,
     RequestBody,
     Response,
+    SecurityScheme,
+    SecuritySchemeType,
     Server,
     ServerVariable,
     Tag,
@@ -41,6 +47,7 @@ from schema_to.parse._utils import (
     as_json_list,
     bool_field,
     decode_raw_doc,
+    enum_member,
     extract,
     ptr,
     str_field,
@@ -798,6 +805,14 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                     if h is not None:
                         headers[name] = h
 
+        security_schemes: dict[str, SecurityScheme] = {}
+        if isinstance(data.get("securitySchemes"), dict):
+            for name, ss_data in cast("dict[str, JsonValue]", data["securitySchemes"]).items():
+                if isinstance(ss_data, dict):
+                    scheme = self._build_security_scheme(cast("dict[str, JsonValue]", ss_data))
+                    if scheme is not None:
+                        security_schemes[name] = scheme
+
         if errors:
             return Err(tuple(errors))
 
@@ -808,6 +823,56 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 parameters=parameters,
                 request_bodies=request_bodies,
                 headers=headers,
+                security_schemes=security_schemes,
                 extensions={k: v for k, v in data.items() if k.startswith("x-")},
             )
+        )
+
+    def _build_security_scheme(self, data: dict[str, JsonValue]) -> SecurityScheme | None:
+        scheme_type = enum_member(SecuritySchemeType, data.get("type"))
+        if scheme_type is None:
+            return None
+        return SecurityScheme(
+            type_=scheme_type,
+            description=str_field(data, "description"),
+            name=str_field(data, "name"),
+            in_=enum_member(ApiKeyLocation, data.get("in")),
+            scheme=str_field(data, "scheme"),
+            bearer_format=str_field(data, "bearerFormat"),
+            flows=self._build_oauth_flows(data.get("flows")),
+            open_id_connect_url=str_field(data, "openIdConnectUrl"),
+            extensions={k: v for k, v in data.items() if k.startswith("x-")},
+        )
+
+    def _build_oauth_flows(self, data: JsonValue) -> OAuthFlows | None:
+        if not isinstance(data, Mapping):
+            return None
+        flows = cast("dict[str, JsonValue]", data)
+        return OAuthFlows(
+            implicit=self._build_oauth_flow(flows.get("implicit")),
+            password=self._build_oauth_flow(flows.get("password")),
+            client_credentials=self._build_oauth_flow(flows.get("clientCredentials")),
+            authorization_code=self._build_oauth_flow(flows.get("authorizationCode")),
+            extensions={k: v for k, v in flows.items() if k.startswith("x-")},
+        )
+
+    def _build_oauth_flow(self, data: JsonValue) -> OAuthFlow | None:
+        if not isinstance(data, Mapping):
+            return None
+        flow = cast("dict[str, JsonValue]", data)
+        raw_scopes = flow.get("scopes")
+        scopes: dict[str, str] = (
+            {
+                k: v if isinstance(v, str) else ""
+                for k, v in cast("dict[str, JsonValue]", raw_scopes).items()
+            }
+            if isinstance(raw_scopes, Mapping)
+            else {}
+        )
+        return OAuthFlow(
+            scopes=scopes,
+            authorization_url=str_field(flow, "authorizationUrl"),
+            token_url=str_field(flow, "tokenUrl"),
+            refresh_url=str_field(flow, "refreshUrl"),
+            extensions={k: v for k, v in flow.items() if k.startswith("x-")},
         )

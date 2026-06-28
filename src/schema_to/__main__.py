@@ -40,13 +40,24 @@ def transpile(
             help=f"Target format. Supported: {', '.join(sorted(TranspilerRouter.SUPPORTED_TARGETS))}.",
         ),
     ] = "pass-thru",
+    template: Annotated[
+        list[str] | None,
+        Option(
+            "--template",
+            help="Register an endpoint-body template as NAME=PATH (repeatable; "
+            "referenced by an operation's x-fastapi-template extension).",
+        ),
+    ] = None,
     yaml: Annotated[bool, Option("--yaml/--json", help="Emit YAML instead of JSON.")] = False,
 ) -> None:
     """Transpile one or more schema sources into the requested target formats."""
     output_media_type = MediaTypes.yaml if yaml else MediaTypes.json
     try:
-        transpilers = TranspilerRouter().route(to, output_media_type=output_media_type)
-    except RoutingError as exc:
+        templates = _load_templates(template or [])
+        transpilers = TranspilerRouter().route(
+            to, output_media_type=output_media_type, templates=templates
+        )
+    except (RoutingError, ValueError, OSError) as exc:
         echo(f"error: {exc}", err=True)
         raise Exit(1) from exc
 
@@ -68,6 +79,18 @@ def transpile(
             for e in errors:
                 echo(f"error: {e.message}", err=True)
             raise Exit(1)
+
+
+def _load_templates(specs: list[str]) -> dict[str, str]:
+    """Parse `NAME=PATH` template specs into a `{name: source}` mapping."""
+    templates: dict[str, str] = {}
+    for spec in specs:
+        name, sep, path = spec.partition("=")
+        if not sep or not name:
+            msg = f"Invalid --template {spec!r}; expected NAME=PATH."
+            raise ValueError(msg)
+        templates[name] = Path(path).read_text(encoding="utf-8")
+    return templates
 
 
 def cli() -> None:

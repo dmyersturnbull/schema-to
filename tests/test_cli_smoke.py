@@ -5,12 +5,11 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
-if TYPE_CHECKING:
-    from pathlib import Path
+_PG_EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "postgres"
 
 
 def _run(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
@@ -86,3 +85,37 @@ def test_cli_no_input_shows_help(flag: str) -> None:
     """Invoking with --help always succeeds."""
     result = _run(flag)
     assert result.returncode == 0
+
+
+def test_cli_fastapi_named_templates(tmp_path: Path) -> None:
+    """`--template name=path` fills route bodies from the named templates."""
+    template_dir = _PG_EXAMPLE / "templates"
+    template_args = [
+        arg
+        for path in sorted(template_dir.glob("*.py.jinja"))
+        for arg in ("--template", f"{path.name.removesuffix('.py.jinja')}={path}")
+    ]
+    result = _run(
+        str(_PG_EXAMPLE / "things.openapi.yaml"),
+        "--to",
+        "fastapi",
+        "--output",
+        str(tmp_path),
+        *template_args,
+    )
+    assert result.returncode == 0, f"CLI failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+
+    main = (tmp_path / "main.py").read_text()
+    assert "build_list_query(" in main
+    assert "x-fastapi" not in main
+
+
+def test_cli_unknown_template_spec_exits_nonzero(tmp_path: Path) -> None:
+    """A malformed --template spec exits with a non-zero status."""
+    schema = {"openapi": "3.1.0", "info": {"title": "x", "version": "1"}, "paths": {}}
+    input_file = tmp_path / "api.json"
+    input_file.write_text(json.dumps(schema))
+
+    result = _run(str(input_file), "--to", "fastapi", "--template", "noequals")
+    assert result.returncode != 0
+    assert "NAME=PATH" in result.stderr

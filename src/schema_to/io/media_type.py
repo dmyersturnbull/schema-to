@@ -23,7 +23,7 @@ class MediaType:
         mp: dict[str, list[str]] = defaultdict(list)
         for k, v in self.params:
             mp[k].append(v)
-        setattr(self, "_param_map", mp)  # noqa: B010 # workaround to allow `slots=True`
+        object.__setattr__(self, "_param_map", mp)  # bypass frozen __setattr__
 
     @property
     def essence(self) -> str:

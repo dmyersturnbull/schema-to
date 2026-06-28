@@ -130,7 +130,10 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
         body: list[str] = []
         if decl.doc:
             body += self._emit_docstring(decl.doc, indent=_INDENT)
-        body.append(f"{_INDENT}...")
+        if decl.body:
+            body += [f"{_INDENT}{ln}" if ln else "" for ln in decl.body]
+        else:
+            body.append(f"{_INDENT}...")
         lines += body
         return lines
 
