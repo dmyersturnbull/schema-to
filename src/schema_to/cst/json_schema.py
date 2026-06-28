@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
-from typing import TYPE_CHECKING, Literal, assert_type
+from typing import TYPE_CHECKING, Literal, TypeIs, assert_type
 
 from schema_to.cst.base import CstNode, SourceRef
 
@@ -30,6 +30,7 @@ __all__ = [
     "JsonSchemaType",
     "ObjectSchema",
     "SchemaType",
+    "is_object_schema",
 ]
 
 
@@ -105,6 +106,18 @@ class _JsonSchema(CstNode):
 
 type JsonSchema = BooleanSchema | ObjectSchema
 type BooleanApplicatorLiteral = Literal["not", "anyOf", "oneOf", "allOf"]
+
+
+def is_object_schema(schema: JsonSchema) -> TypeIs[ObjectSchema]:
+    """Return `True` if *schema* describes a JSON object (a table/model).
+
+    True when `object` is among the declared types, or when no type is declared
+    but `properties` are present (a common shorthand for an object schema).
+    """
+    if not isinstance(schema, ObjectSchema):
+        return False
+    types = schema.get_types()
+    return JsonSchemaType.OBJECT in types or (not types and schema.properties is not None)
 
 
 class BooleanApplicatorKeyword(StrEnum):

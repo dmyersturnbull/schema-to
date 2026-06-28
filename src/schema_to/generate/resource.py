@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from schema_to.cst.json_schema import BooleanSchema, JsonSchemaType
+from schema_to.cst.json_schema import JsonSchemaType
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 __all__ = ["json_properties", "property_names"]
 
+# A property holding structured JSON addressable by a dotted query path.
 _JSON_TYPES = frozenset({JsonSchemaType.OBJECT, JsonSchemaType.ARRAY})
 
 
@@ -33,21 +34,10 @@ def property_names(schema: ObjectSchema | None) -> tuple[str, ...]:
     return tuple(_properties(schema))
 
 
-def _is_json_property(prop: JsonSchema) -> bool:
-    if isinstance(prop, BooleanSchema):
-        return False
-    return bool(_property_types(prop) & _JSON_TYPES)
-
-
-def _property_types(prop: ObjectSchema) -> frozenset[JsonSchemaType]:
-    t = prop.type
-    if t is None:
-        return frozenset()
-    return t if isinstance(t, frozenset) else frozenset({t})
-
-
 def json_properties(schema: ObjectSchema | None) -> tuple[str, ...]:
     """Return the names of properties whose schema is `object`- or `array`-typed."""
     return tuple(
-        name for name, prop in _properties(schema).items() if _is_json_property(prop)
+        name
+        for name, prop in _properties(schema).items()
+        if prop.get_types() & _JSON_TYPES
     )
