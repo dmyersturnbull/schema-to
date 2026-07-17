@@ -4,7 +4,7 @@
 
 Run these often, ignoring their output:
 
-1. `uv run ruff check --fix-only --unsafe-fixes`
+1. `uv run ruff check --fix-only`
 2. `uv run format`
 
 Validating Python typing via `uv run ty check`.
@@ -18,6 +18,13 @@ Never suppress Ruff or ty rules, including with comments.
 
 Use `uv run pytest`.
 Tests should pass.
+
+## Imports
+
+Do not use `from schema_to import bar`;
+instead, import from the specific module, as in `from schema_to.foo.bar`.
+Do not use `from __future__ import annotations`;
+it is not needed in Python 3.14+, which we require.
 
 ## Typing
 
