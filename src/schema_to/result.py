@@ -6,7 +6,6 @@ Haskell/Scala, providing `map` and `flat_map` for sequential composition that
 short-circuits on the first failure.
 """
 
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -71,10 +70,10 @@ class Err(_Result):
     def of(cls, *errors: TranspilationError) -> Self:
         return cls(tuple(errors))
 
-    def map[T, U](self, f: Callable[[T], U]) -> Err:  # noqa: ARG002  # Err propagates unchanged; f is part of the Result[T] interface
+    def map[T, U](self, f: Callable[[T], U]) -> Err:  # ruff:ignore[unused-method-argument]  # Err propagates unchanged; f is part of the Result[T] interface
         return self
 
-    def flat_map[T, U](self, f: Callable[[T], Ok[U] | Err]) -> Err:  # noqa: ARG002  # same — Err short-circuits
+    def flat_map[T, U](self, f: Callable[[T], Ok[U] | Err]) -> Err:  # ruff:ignore[unused-method-argument]  # same — Err short-circuits
         return self
 
     @property

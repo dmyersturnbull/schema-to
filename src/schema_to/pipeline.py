@@ -2,8 +2,8 @@
 
 ## Stage algebra
 
-A `Stage[A, B]` is a Kleisli arrow `A → Result[B]`.  Stages compose
-left-to-right via `then`, short-circuiting on the first `Err`:
+A `Stage[A, B]` is a Kleisli arrow `A → Result[B]`.
+Stages compose left-to-right via `then`, short-circuiting on the first `Err`:
 
 ```python
 parse = JsonSchemaParser()
@@ -23,12 +23,13 @@ RawDoc
   →[reify]→   Sequence[Artifact]
 ```
 
-The type-erased `accepts(document)` predicate allows a `Pipeline` to dispatch
-each source document to the correct `Transpiler` at runtime.
+The type-erased `accepts(document)` predicate allows a `Pipeline` to dispatch each source document to the correct `Transpiler` at runtime.
 
 ## Pipeline
 
-`Pipeline` is immutable once constructed.  It drives the full process:
+`Pipeline` is immutable once constructed.
+
+It drives the full process:
 
 1. Iterate each `DataSource` to obtain `RawDoc`s.
 2. Dispatch each document to the first `Transpiler` that `accepts` it.
@@ -36,7 +37,6 @@ each source document to the correct `Transpiler` at runtime.
 4. Return a `Result[ProcessSummary]` with counts and accumulated warnings.
 """
 
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
@@ -98,9 +98,9 @@ class Stage[X, Y](ABC):
         return _MappedErrorStage(self, f)
 
 
-# `Stage.then` and `Stage.map_error` reference these helpers by name; the
-# references are resolved at *call* time (not class-definition time), so it is
-# safe to define the helpers here, after `Stage`.
+# `Stage.then` and `Stage.map_error` reference these helpers by name;
+# the references are resolved at *call* time (not class-definition time),
+# so it is safe to define the helpers here, after `Stage`.
 
 
 class _ComposedStage[X, Y, Z](Stage[X, Z]):
@@ -166,7 +166,7 @@ class DocParser[I: RawDoc, C: CstNode](Stage[I, C]):
     def apply(self, input: I) -> Result[C]:
         raise NotImplementedError
 
-    def accepts(self, doc: I) -> bool:  # noqa: ARG002  # Concrete subclasses might use it.
+    def accepts(self, doc: I) -> bool:  # ruff:ignore[unused-method-argument]  # Concrete subclasses might use it.
         """Return `True` if this parser can process `doc`."""
         return True
 
@@ -174,10 +174,10 @@ class DocParser[I: RawDoc, C: CstNode](Stage[I, C]):
 class RefResolver[C: CstNode](Stage[C, C]):
     """Resolves `$ref` and `$dynamicRef` links within a CST.
 
-    Resolution is performed against a registry of all CSTs produced so far in
-    the pipeline run, enabling cross-document references.  The output CST is
-    structurally identical to the input but with every `$ref` replaced by the
-    inlined target schema (or a resolved reference node, depending on strategy).
+    Resolution is performed against a registry of all CSTs produced so far in the pipeline run,
+    enabling cross-document references.
+    The output CST is structurally identical to the input but with every `$ref` replaced by the inlined target schema
+    (or a resolved reference node, depending on strategy).
     """
 
     @abstractmethod

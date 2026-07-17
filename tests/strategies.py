@@ -15,7 +15,6 @@ Additional strategies
   exercising the Pydantic generator.
 """
 
-from __future__ import annotations
 
 from hypothesis import strategies as st
 
@@ -134,7 +133,7 @@ def _applicator_kw_st(draw: st.DrawFn, d: dict, depth: int) -> None:
 
 
 @st.composite
-def json_schema_st(draw: st.DrawFn, depth: int = 0) -> object:  # noqa: PLR0912 # mostly shared structure
+def json_schema_st(draw: st.DrawFn, depth: int = 0) -> object:  # ruff:ignore[complex-structure, too-many-branches]  # Shared structure
     """Generate a valid JSON Schema 2020-12 value (bool or object dict)."""
     if depth > 0 and draw(st.booleans()):
         return draw(st.booleans())

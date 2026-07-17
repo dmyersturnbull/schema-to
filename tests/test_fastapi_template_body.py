@@ -6,7 +6,6 @@ route bodies from the inline Jinja templates, wires up the declared imports and
 the injected connection parameter, and parses as valid Python.
 """
 
-from __future__ import annotations
 
 import ast
 from pathlib import Path

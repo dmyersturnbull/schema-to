@@ -1,6 +1,5 @@
 """Filesystem-backed `DataSource` and `DataSink` implementations."""
 
-from __future__ import annotations
 
 import glob
 from collections.abc import Callable, Mapping
@@ -102,13 +101,13 @@ class DirectoryDataSource(DataSource):
     def __post_init__(self) -> None:
         if not self.root.is_dir():
             raise TypedNotADirectoryError(filename=self.root)
-        setattr(self, "paths", frozenset(sorted(self.__expand_sources())))  # noqa: B010 # workaround to allow `slots=True`
+        setattr(self, "paths", frozenset(sorted(self.__expand_sources())))  # ruff:ignore[set-attr-with-constant]  # workaround to allow `slots=True`
 
     def __expand_sources(self) -> Iterator[Path]:
         cls = type(self)
-        # ruff: noqa: PTH207 # `glob.glob` skips hidden dirs (including `.git/`).
+        # `glob.glob` skips hidden dirs (including `.git/`).
         for suffix in cls.suffix_map:
-            for path_str in glob.glob(
+            for path_str in glob.glob(  # ruff:ignore[glob]  # `glob.glob` can ignore hidden directories.
                 f"**/*{suffix}" if self.recursive else f"*{suffix}",
                 root_dir=str(self.root),
                 recursive=True,  # True just means that `**` works.

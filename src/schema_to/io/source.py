@@ -6,7 +6,6 @@ an HTTP endpoint, an in-memory buffer, or any other origin — the pipeline
 never assumes a filesystem is present.
 """
 
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import KW_ONLY, dataclass

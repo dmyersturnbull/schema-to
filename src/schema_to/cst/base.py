@@ -4,7 +4,6 @@ Every node in every CST carries a `SourceRef` that links it back to its origin
 in a `RawDoc`, enabling precise error messages and source-map generation.
 """
 
-from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
@@ -26,7 +25,7 @@ class SourceRef:
     json_pointer: str
 
 
-class CstNode(ABC):  # noqa: B024  # sealed marker; abstract identity is enforced by the type system
+class CstNode(ABC):  # ruff:ignore[abstract-base-class-without-abstract-method]  # sealed marker; abstract identity is enforced by the type system
     """Sealed marker base for every CST node.
 
     Concrete nodes are immutable `@dataclass(frozen=True, slots=True)` subclasses.  The

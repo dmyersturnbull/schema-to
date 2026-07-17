@@ -1,6 +1,5 @@
 """Tests for resource-schema introspection (`schema_to.generate.resource`)."""
 
-from __future__ import annotations
 
 from typing import Any
 

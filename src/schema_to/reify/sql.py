@@ -10,7 +10,6 @@ Output style:
 * `CREATE INDEX` and standalone `COMMENT ON` in statement order.
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING

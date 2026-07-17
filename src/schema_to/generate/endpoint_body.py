@@ -13,7 +13,6 @@ persistence-specific fields; a backend that wants e.g. a table name reads it
 from the extensions.
 """
 
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -133,13 +132,11 @@ class NullBodyBackend(EndpointBodyBackend):
     for operations that declare no body extension.
     """
 
-    def render(self, ctx: EndpointContext) -> EndpointBody:  # noqa: ARG002
+    def render(self, ctx: EndpointContext) -> EndpointBody:  # ruff:ignore[unused-method-argument]
         return EndpointBody()
 
 
-def _merged_extensions(
-    op: Operation, path_item: PathItem
-) -> Mapping[str, JsonValue]:
+def _merged_extensions(op: Operation, path_item: PathItem) -> Mapping[str, JsonValue]:
     """Merge an operation's `x-` extensions over its path item's."""
     return {**path_item.extensions, **op.extensions}
 

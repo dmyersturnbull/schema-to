@@ -1,6 +1,5 @@
 """Tests for the `pg-jsonschema` target (JSON Schema → PostgreSQL with validation)."""
 
-from __future__ import annotations
 
 import orjson
 
@@ -25,10 +24,7 @@ _SCHEMA = {
 
 def _transpile(target: str) -> str:
     doc = JsonSchemaRawDoc(
-        doc_id="t://s",
-        content=orjson.dumps(_SCHEMA),
-        media_type=MediaTypes.json,
-        display_name="s",
+        doc_id="t://s", content=orjson.dumps(_SCHEMA), media_type=MediaTypes.json, display_name="s"
     )
     [transpiler] = TranspilerRouter().route(target, output_media_type=MediaTypes.json)
     result = transpiler.transpile(doc)

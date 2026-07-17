@@ -19,7 +19,6 @@ operation (`method`, `path`, `operation_id`, `operation`), its resolved `params`
 resource's `json_properties`, and the REST helpers from `schema_to.generate.rest`.
 """
 
-from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field

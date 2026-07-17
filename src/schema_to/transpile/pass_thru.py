@@ -11,7 +11,6 @@ at source-collection time.  Transpiler `accepts()` methods are therefore a simpl
 `isinstance` check with no additional I/O.
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, override

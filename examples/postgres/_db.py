@@ -7,7 +7,6 @@ request-body-to-dict coercion.  Replace `get_db` with a real provider (e.g. one
 backed by a `psycopg_pool.AsyncConnectionPool`) before serving traffic.
 """
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 

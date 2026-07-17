@@ -8,7 +8,6 @@ Errors are accumulated so that a single parse call returns the complete set of
 diagnostics rather than stopping at the first fault.
 """
 
-from __future__ import annotations
 
 from collections.abc import Mapping, MutableSequence
 from dataclasses import dataclass, field, fields
@@ -66,16 +65,13 @@ type _SchemaFieldValue = (
 
 loc = SourceLocation
 
-# ---------------------------------------------------------------------------
-# Annotation-string → parse-kind lookup table
-#
-# With `from __future__ import annotations`, every ObjectSchema field
-# annotation is stored as a literal string at runtime.  We map those strings
-# to a dispatch tag so the data-driven loop handles each field automatically
+# Annotation-string → parse-kind lookup table:
+# Every ObjectSchema field annotation is stored as a literal string at runtime.
+# We map those strings to a dispatch tag.
+# That way, the data-driven loop handles each field automatically,
 # without hard-coding JSON key names or field names in the parser.
-# Synthetic fields (extensions, source_ref) have no "key" metadata entry and
-# are excluded from the loop entirely; they are appended after the loop.
-# ---------------------------------------------------------------------------
+# Synthetic fields (extensions, source_ref) have no "key" metadata entry;
+# they are instead appended after the loop.
 
 _KIND_BY_ANNOTATION: dict[str, str] = {
     # Scalar kinds
@@ -186,7 +182,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     # -- Unified field dispatcher ---------------------------------------------
 
-    def _parse_field_into(  # noqa: C901, PLR0912
+    def _parse_field_into(  # ruff:ignore[complex-structure, too-many-branches]
         self,
         data: dict[str, JsonValue],
         field_name: str,
@@ -251,7 +247,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                     errors=errors,
                 )
 
-    def _parse_scalar_into(  # noqa: C901, PLR0912
+    def _parse_scalar_into(  # ruff:ignore[complex-structure, too-many-branches]
         self,
         data: dict[str, JsonValue],
         field_name: str,

@@ -8,7 +8,6 @@ process embedded schemas without a dedicated OpenAPI-to-JSON-Schema conversion.
 The hierarchy follows the object model from the [OAS 3.1 specification](https://spec.openapis.org/oas/v3.1.0#schema).
 """
 
-from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field

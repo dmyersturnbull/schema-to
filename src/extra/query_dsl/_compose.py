@@ -6,14 +6,22 @@ fragments.  Everything here is injection-safe: identifiers are quoted and every
 literal value is bound as a parameter.
 """
 
-from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 
 from psycopg import sql
 from psycopg.types.json import Jsonb
 
-__all__ = ["Bound", "Params", "QueryError", "Value", "adapt", "column_ref", "order_by", "select_list"]
+__all__ = [
+    "Bound",
+    "Params",
+    "QueryError",
+    "Value",
+    "adapt",
+    "column_ref",
+    "order_by",
+    "select_list",
+]
 
 # A JSON-shaped value accepted from a request and bound into a query.
 type Value = str | int | float | bool | Sequence[Value] | Mapping[str, Value] | None
@@ -80,9 +88,7 @@ def column_ref(path: str, json_columns: frozenset[str], params: Params) -> sql.C
     return sql.SQL("{} #>> {}").format(sql.Identifier(head), params.add(parts[1:]))
 
 
-def select_list(
-    select: str | None, json_columns: frozenset[str], params: Params
-) -> sql.Composable:
+def select_list(select: str | None, json_columns: frozenset[str], params: Params) -> sql.Composable:
     """Compile a comma-separated ``select`` list, defaulting to ``*``."""
     if not select:
         return sql.SQL("*")

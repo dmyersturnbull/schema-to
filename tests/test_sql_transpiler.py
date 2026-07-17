@@ -14,7 +14,6 @@ Covers:
 * Integration: full schema exercising all supported features.
 """
 
-from __future__ import annotations
 
 import orjson
 from hypothesis import HealthCheck, given, settings

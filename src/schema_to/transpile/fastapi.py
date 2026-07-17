@@ -1,6 +1,5 @@
 """Transpiler: OpenAPI 3.1 → FastAPI application Python module."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, override

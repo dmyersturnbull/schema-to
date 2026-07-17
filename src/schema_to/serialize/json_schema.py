@@ -1,6 +1,5 @@
 """Serialize JSON Schema 2020-12 CST nodes back to JSON-compatible values."""
 
-from __future__ import annotations
 
 import dataclasses
 from collections.abc import Mapping, Sequence
@@ -117,7 +116,8 @@ class JsonSchemaSerializer:
         out.update(s.extensions)
         return out
 
-    def _val(self, value: JsonValue) -> JsonValue:  # noqa: PLR0911 # all returns are in the match
+    # ruff:ignore[complex-structure, too-many-return-statements]  # All returns are in the match.
+    def _val(self, value: JsonValue) -> JsonValue:
         match value:
             case BooleanSchema() | ObjectSchema():
                 return self.serialize(value)

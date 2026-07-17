@@ -6,7 +6,6 @@ them).  This is plain JSON Schema introspection — no persistence layer is
 assumed; property names are returned verbatim, not sanitised for any target.
 """
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
@@ -48,6 +47,4 @@ def _property_types(prop: ObjectSchema) -> frozenset[JsonSchemaType]:
 
 def json_properties(schema: ObjectSchema | None) -> tuple[str, ...]:
     """Return the names of properties whose schema is `object`- or `array`-typed."""
-    return tuple(
-        name for name, prop in _properties(schema).items() if _is_json_property(prop)
-    )
+    return tuple(name for name, prop in _properties(schema).items() if _is_json_property(prop))

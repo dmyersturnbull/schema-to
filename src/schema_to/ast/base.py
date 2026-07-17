@@ -5,7 +5,6 @@ Each target language has its own independent AST hierarchy (`_python`,
 cross-cutting enumerations used by more than one target.
 """
 
-from __future__ import annotations
 
 from abc import ABC
 from enum import StrEnum, auto
@@ -26,7 +25,7 @@ class Visibility(StrEnum):
     INTERNAL = auto()
 
 
-class AstNode(ABC):  # noqa: B024  # sealed marker; abstract identity is enforced by the type system
+class AstNode(ABC):  # ruff:ignore[abstract-base-class-without-abstract-method]  # sealed marker; abstract identity is enforced by the type system
     """Sealed marker base for every target-language AST node.
 
     Concrete nodes are immutable `@dataclass(frozen=True, slots=True)` subclasses organised

@@ -5,7 +5,6 @@ matched by compound extensions can be further validated before being promoted
 to typed `RawDoc` subclasses.
 """
 
-from __future__ import annotations
 
 from enum import Enum, auto
 from typing import cast
@@ -48,10 +47,10 @@ def peek_doc_type(content: bytes) -> DocType | None:
 def _try_parse(content: bytes) -> object:
     try:
         return JsonReader().read(content)
-    except ReadError:  # noqa: S110 # Just using the exception to check.
+    except ReadError:  # ruff:ignore[try-except-pass]  # Just using the exception to check.
         pass
     try:
         return YamlReader().read(content)
-    except ReadError:  # noqa: S110 # Just using the exception to check.
+    except ReadError:  # ruff:ignore[try-except-pass]  # Just using the exception to check.
         pass
     return None

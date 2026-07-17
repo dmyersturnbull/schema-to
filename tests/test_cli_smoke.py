@@ -1,6 +1,5 @@
 """CLI smoke tests: invoke the real `schema-to` binary and verify output files."""
 
-from __future__ import annotations
 
 import json
 import subprocess
@@ -13,7 +12,7 @@ _PG_EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "postgres"
 
 
 def _run(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(  # noqa: S603  # test helper: executable and module are both constants
+    return subprocess.run(  # ruff:ignore[subprocess-without-shell-equals-true]  # test helper: executable and module are both constants
         [sys.executable, "-m", "schema_to", *args],
         capture_output=True,
         text=True,

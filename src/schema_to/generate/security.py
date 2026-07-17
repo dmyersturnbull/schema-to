@@ -10,7 +10,6 @@ the generated OpenAPI, scopes are recorded per route) without pretending to
 validate credentials.
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -114,17 +113,22 @@ def build_security_module(schemes: Mapping[str, SecurityScheme]) -> SecurityModu
     imports: list[PyImport] = [FromImport(module="collections.abc", names=[("Callable", None)])]
     if security_names:
         imports.append(
-            FromImport(
-                module="fastapi.security", names=[(n, None) for n in sorted(security_names)]
-            )
+            FromImport(module="fastapi.security", names=[(n, None) for n in sorted(security_names)])
         )
-    return SecurityModule(declarations=tuple(decls), imports=tuple(imports), warnings=tuple(warnings))
+    return SecurityModule(
+        declarations=tuple(decls), imports=tuple(imports), warnings=tuple(warnings)
+    )
 
 
 def _require_scopes_stub() -> FunctionDef:
     return FunctionDef(
         name=_REQUIRE_SCOPES,
-        parameters=[Parameter(name="scopes", annotation=PythonTypeAnnotation("list", args=[PythonTypeAnnotation("str")]))],
+        parameters=[
+            Parameter(
+                name="scopes",
+                annotation=PythonTypeAnnotation("list", args=[PythonTypeAnnotation("str")]),
+            )
+        ],
         return_annotation=PythonTypeAnnotation("Callable", module="collections.abc"),
         doc=PythonDocString(
             summary="Dependency factory enforcing that the caller holds the given scopes.",
@@ -143,8 +147,7 @@ def _require_scopes_stub() -> FunctionDef:
 
 
 def route_security_params(
-    requirements: Sequence[SecurityRequirement] | None,
-    schemes: Mapping[str, SecurityScheme],
+    requirements: Sequence[SecurityRequirement] | None, schemes: Mapping[str, SecurityScheme]
 ) -> tuple[list[Parameter], list[PyImport], list[TranspilationWarning]]:
     """Build `Security`/`Depends` parameters enforcing a route's requirements."""
     if not requirements:
@@ -179,7 +182,9 @@ def route_security_params(
             kind="keyword_only",
         )
     )
-    imports: list[PyImport] = [FromImport(module="fastapi", names=[("Depends", None), ("Security", None)])]
+    imports: list[PyImport] = [
+        FromImport(module="fastapi", names=[("Depends", None), ("Security", None)])
+    ]
     return params, imports, warnings
 
 

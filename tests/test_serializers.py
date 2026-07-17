@@ -5,7 +5,6 @@ both JSON Schema and OpenAPI documents.  These tests exercise the parsers and
 serializers directly without going through a `Transpiler`.
 """
 
-from __future__ import annotations
 
 import orjson
 from hypothesis import HealthCheck, given, settings

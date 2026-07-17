@@ -4,7 +4,6 @@ This is the standalone runtime the generated FastAPI bodies depend on. It is
 staged under `src/extra/` (added to the test pythonpath) and requires psycopg.
 """
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 

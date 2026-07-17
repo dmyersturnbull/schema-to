@@ -25,7 +25,6 @@ Mapping rules
 * Unsupported constructs emit `TranspilationWarning` and fall back to `JSONB`.
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypeIs
@@ -140,7 +139,7 @@ def _join_checks(exprs: list[str]) -> str | None:
     return " AND ".join(f"({e})" for e in exprs)
 
 
-def _string_type(schema: ObjectSchema) -> DataType:  # noqa: PLR0911 # all `return`s are in the `match`
+def _string_type(schema: ObjectSchema) -> DataType:  # ruff:ignore[too-many-return-statements]  # All `return`s are in the `match`.
     """Map a `type: string` schema (with format / maxLength) to a `DataType`."""
     match schema.format:
         case "date-time":
@@ -278,7 +277,7 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
         json_check = f"{fn}('{escaped}', {col_name})"
         return f"{base} AND {json_check}" if base else json_check
 
-    def _schema_to_data_type(self, schema: JsonSchema, col_name: str) -> DataType:  # noqa: PLR0911 # No helpful way to consolidate return statements
+    def _schema_to_data_type(self, schema: JsonSchema, col_name: str) -> DataType:  # ruff:ignore[too-many-return-statements]  # No helpful way to consolidate return statements.
         # Boolean schema.
         if isinstance(schema, BooleanSchema):
             return DataType.jsonb()
@@ -348,7 +347,7 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
         )
         return DataType.jsonb()
 
-    def _check_exprs(  # noqa: C901  # Mostly shared structure
+    def _check_exprs(  # ruff:ignore[complex-structure]  # mostly shared structure
         self, schema: ObjectSchema, col_name: str, data_type: DataType
     ) -> ColumnConstraint:
         exprs: list[str] = []

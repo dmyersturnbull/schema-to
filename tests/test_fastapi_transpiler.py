@@ -7,7 +7,6 @@ Covers:
 * Integration: curated petstore-style document — models, routes, parameters, imports.
 """
 
-from __future__ import annotations
 
 import ast
 
@@ -380,7 +379,6 @@ def test_integration_petstore() -> None:
     ast.parse(src)
 
     # --- Boilerplate ---
-    assert "from __future__ import annotations" in src
     assert "from fastapi import" in src
     assert "FastAPI" in src
     assert "from pydantic import BaseModel" in src

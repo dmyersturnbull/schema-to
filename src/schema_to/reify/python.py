@@ -1,17 +1,14 @@
 """Reifier: Python AST → `.py` source bytes.
 
-Emits syntactically valid Python that can be parsed with `ast.parse` and
-formatted by `ruff format` without errors.  The output style is:
+The output style is:
 
-* `from __future__ import annotations` (enables forward references)
-* `from <module> import <names>` collected from the declaration tree
-* PEP 695 `type Name = ...` for `TypeAliasDef`
-* `class Name(BaseModel):` for `ClassDef(style=PYDANTIC)`
-* `class Name:` for plain `ClassDef`
-* Fields as `name: Annotation` or `name: Annotation = default`
+- `from <module> import <names>` collected from the declaration tree
+- PEP 695 `type Name = ...` for `TypeAliasDef`
+- `class Name(BaseModel):` for `ClassDef(style=PYDANTIC)`
+- `class Name:` for plain `ClassDef`
+- Fields as `name: Annotation` or `name: Annotation = default`
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -77,8 +74,6 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
 
         if module.module_doc:
             lines += [f'"""{module.module_doc}"""', ""]
-
-        lines += ["from __future__ import annotations", ""]
 
         for imp in module.imports:
             lines.append(self._emit_import(imp))
@@ -263,5 +258,5 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     # Method stubs (for abstract methods etc.)
     # ------------------------------------------------------------------
 
-    def _emit_method_stub(self, m: FunctionDef) -> list[str]:  # noqa: ARG002 # This method is defined to be overridden.
+    def _emit_method_stub(self, m: FunctionDef) -> list[str]:  # ruff:ignore[unused-method-argument]  # This method is defined to be overridden.
         return ["pass"]

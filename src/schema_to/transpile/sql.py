@@ -1,6 +1,5 @@
 """Transpiler: JSON Schema 2020-12 → PostgreSQL DDL."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, override

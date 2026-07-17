@@ -1,6 +1,5 @@
 """Error and warning types for the transpilation pipeline."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 

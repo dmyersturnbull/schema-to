@@ -19,7 +19,6 @@ Mapping rules
   to `Any`.
 """
 
-from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
@@ -389,9 +388,7 @@ class _GenCtx:
         self.warnings.extend(body.warnings)
         return body
 
-    def _route_params(
-        self, merged: Sequence[OasParameter], op: Operation
-    ) -> list[RouteParam]:
+    def _route_params(self, merged: Sequence[OasParameter], op: Operation) -> list[RouteParam]:
         """Resolve the route's parameters for the body template's context."""
         out = [
             RouteParam(name=p.name, py_name=safe_python_field_name(p.name), location=p.in_)
@@ -437,9 +434,7 @@ class _GenCtx:
             description=op.description if op.summary else None,
         )
 
-    def _build_params(
-        self, merged: Sequence[OasParameter], op: Operation
-    ) -> list[PyParameter]:
+    def _build_params(self, merged: Sequence[OasParameter], op: Operation) -> list[PyParameter]:
         params = [self._oas_param_to_py(p) for p in merged]
         body_param = self._body_param(op)
         if body_param is not None:
@@ -577,12 +572,7 @@ def _op_fn_name(method: HttpMethod, path: str, operation_id: str | None) -> str:
 
 
 def _json_schema_from_content(content: Mapping[str, MediaTypeObject]) -> JsonSchema | None:
-    for media_type in (
-        "application/json",
-        "application/merge-patch+json",
-        "application/*",
-        "*/*",
-    ):
+    for media_type in ("application/json", "application/merge-patch+json", "application/*", "*/*"):
         mt = content.get(media_type)
         if mt is not None:
             return mt.schema

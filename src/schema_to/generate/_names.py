@@ -5,7 +5,6 @@ Provides case-conversion functions (PascalCase, snake_case) backed by the
 identifiers while avoiding reserved keywords.
 """
 
-from __future__ import annotations
 
 import keyword
 import re

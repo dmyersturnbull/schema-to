@@ -6,7 +6,6 @@ implementations may write to a directory, accumulate in memory, upload to an
 object store, etc.
 """
 
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass

@@ -12,7 +12,6 @@ Custom extension keywords supported by the generator:
 - `x-pg-type` — override the inferred PostgreSQL type with a literal type name.
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum, auto

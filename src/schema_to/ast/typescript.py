@@ -7,7 +7,6 @@ The AST covers the subset of TypeScript needed to express schemas: `interface`,
 `type`, `enum`, and optionally function signatures for FastAPI-style endpoints.
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum, auto

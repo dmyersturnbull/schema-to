@@ -3,7 +3,6 @@
 Invoked as `schema-to <command> [options]` or `python -m schema_to`.
 """
 
-from __future__ import annotations
 
 from pathlib import Path
 from typing import Annotated, Final

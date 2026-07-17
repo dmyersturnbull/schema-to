@@ -5,7 +5,6 @@ Covers the persistence-agnostic `schema_to.generate.rest` helpers, the
 `NullBodyBackend` (empty) and `TemplateBodyBackend` (named + inline templates).
 """
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING
 

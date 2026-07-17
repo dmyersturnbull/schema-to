@@ -7,7 +7,6 @@ Covers:
 * Failure: boolean root schema cannot be transpiled.
 """
 
-from __future__ import annotations
 
 import ast
 import re
@@ -596,7 +595,6 @@ def test_integration_full_pipeline() -> None:
     ast.parse(src)
 
     # --- Boilerplate ---
-    assert "from __future__ import annotations" in src
     assert "from pydantic import BaseModel" in src
     assert "from typing import" in src
     assert "Literal" in src

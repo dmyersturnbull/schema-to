@@ -23,7 +23,6 @@ Supported targets:
     `examples/postgres/` for a worked PostgreSQL set built on `query-dsl`.
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
@@ -83,7 +82,9 @@ class TranspilerRouter:
         match target_name:
             case "fastapi":
                 backend = TemplateBodyBackend(named_templates=templates or {})
-                return [OpenApiToFastApiTranspiler(generator=FastApiTransformer(body_backend=backend))]
+                return [
+                    OpenApiToFastApiTranspiler(generator=FastApiTransformer(body_backend=backend))
+                ]
             case "pass-thru":
                 return [
                     OpenApiPassThruTranspiler(),

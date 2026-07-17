@@ -15,7 +15,6 @@ The `lookup` / `lookup_anchor` methods are intended for use by generators after
 `apply` has confirmed the document is valid.
 """
 
-from __future__ import annotations
 
 import urllib.parse
 from dataclasses import dataclass, field
@@ -45,6 +44,7 @@ _SERIALIZER = JsonSchemaSerializer()
 # ---------------------------------------------------------------------------
 
 
+# ruff:ignore[complex-structure, too-many-branches]
 def _iter_sub_schemas(schema: ObjectSchema, pointer: str) -> Iterator[tuple[str, JsonSchema]]:
     """Yield `(child_pointer, child_schema)` for every direct sub-schema."""
 
@@ -248,7 +248,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
             try:
                 resolved = ref_resolver.lookup(schema.id)
                 current_resolver = resolved.resolver
-            except Unresolvable:  # noqa: S110# Not a schema error.
+            except Unresolvable:  # ruff:ignore[try-except-pass]# Not a schema error.
                 # `$id` may reference an unregistered canonical URI.
                 # The current resolver stays valid for nested schemas;
                 # any real ref failures are already caught by the $ref/$dynamicRef checks above.

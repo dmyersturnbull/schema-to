@@ -6,7 +6,6 @@ to ``cursor.execute``.  The list builder interprets the ``select``/``where``/
 ``sort``/``limit``/``offset`` query strings; the others act on a primary key.
 """
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
@@ -42,9 +41,7 @@ def build_list_query(
     params = Params()
     json_cols = frozenset(json_columns)
     query = sql.SQL("SELECT {} FROM {}.{}").format(
-        select_list(select, json_cols, params),
-        sql.Identifier(schema),
-        sql.Identifier(table),
+        select_list(select, json_cols, params), sql.Identifier(schema), sql.Identifier(table)
     )
     if where:
         query = query + sql.SQL(" WHERE ") + parse_where(where, json_cols, params)
