@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import keyword
 import re
+from typing import Literal
 
 from caseutil import to_pascal, to_snake
 
@@ -16,6 +17,7 @@ __all__ = [
     "safe_python_class_name",
     "safe_python_field_name",
     "safe_sql_identifier",
+    "split_class_name",
     "to_pascal",
     "to_snake",
 ]
@@ -38,6 +40,12 @@ def safe_python_class_name(name: str) -> str:
     if keyword.iskeyword(pascal) or keyword.issoftkeyword(pascal):
         pascal += "_"
     return pascal
+
+
+def split_class_name(name: str, variant: Literal["read", "write"]) -> str:
+    """Return the class name for the readOnly/writeOnly split *variant* of *name*."""
+    suffix = "Read" if variant == "read" else "Write"
+    return f"{safe_python_class_name(name)}{suffix}"
 
 
 def safe_python_field_name(name: str) -> str:
