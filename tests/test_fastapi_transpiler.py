@@ -1,10 +1,10 @@
 """Tests for the OpenAPI 3.1 → FastAPI generator pipeline.
 
 Covers:
-* Unit: pure helper functions (_esc, _ref_to_class_name, _annotation_str, _nullable, _op_fn_name).
-* Property: any parsed OpenAPI document always produces syntactically valid Python.
-* Property: generated module always contains an ``app`` variable and one route per operation.
-* Integration: curated petstore-style document — models, routes, parameters, imports.
+- Unit: pure helper functions (_esc, _ref_to_class_name, _annotation_str, _nullable, _op_fn_name).
+- Property: any parsed OpenAPI document always produces syntactically valid Python.
+- Property: generated module always contains an ``app`` variable and one route per operation.
+- Integration: curated petstore-style document — models, routes, parameters, imports.
 """
 
 

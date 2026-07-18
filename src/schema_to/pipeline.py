@@ -166,7 +166,7 @@ class DocParser[I: RawDoc, C: CstNode](Stage[I, C]):
     def apply(self, input: I) -> Result[C]:
         raise NotImplementedError
 
-    def accepts(self, doc: I) -> bool:  # ruff:ignore[unused-method-argument]  # Concrete subclasses might use it.
+    def accepts(self, doc: I) -> bool:  # ruff:ignore[unused-method-argument]  # Subclasses might use it.
         """Return `True` if this parser can process `doc`."""
         return True
 
@@ -193,10 +193,10 @@ class RefResolver[C: CstNode](Stage[C, C]):
 class Transformer[C: CstNode, A: AstNode](Stage[C, A]):
     """Transforms a resolved `CstT` into a target-language `AstT`.
 
-    The generator is the heart of the transpilation: it maps JSON Schema
-    constructs (types, properties, applicators, …) onto the equivalent
-    structures in the target language.  Keywords that cannot be represented
-    emit `TranspilationWarning`s rather than hard errors where possible.
+    The generator is the heart of the transpilation:
+    It maps JSON Schema constructs (types, properties, applicators, …)
+    onto the equivalent structures in the target language.
+    Keywords that cannot be represented emit `TranspilationWarning`s rather than hard errors where possible.
     """
 
     @abstractmethod
@@ -214,8 +214,8 @@ class Reifier[A: AstNode, O: Artifact](Stage[A, Sequence[O]]):
     """Serialises an `AstT` into one or more `Artifact`s.
 
     A single AST root (e.g. `PythonModule`) typically produces one artifact,
-    but a reifier may split output across multiple files (e.g. one `.py` per
-    top-level class, or a `.sql` plus a `.ts` twin).
+    but a reifier may split output across multiple files
+    (e.g. one `.py` per top-level class, or a `.sql` plus a `.ts` twin).
     """
 
     @abstractmethod
@@ -255,8 +255,8 @@ class Transpiler[I: RawDoc, O: Artifact](ABC):
 class TypedTranspiler[I: RawDoc, O: Artifact, C: CstNode, A: AstNode](Transpiler[I, O]):
     """A fully typed transpiler with individually-overridable stage methods.
 
-    Subclasses override `parse`, `resolve`, `generate`, and `reify`; the
-    provided `transpile` implementation chains them via `Result.flat_map`.
+    Subclasses override `parse`, `resolve`, `generate`, and `reify`;
+    the provided `transpile` implementation chains them via `Result.flat_map`.
     """
 
     @abstractmethod
@@ -328,17 +328,18 @@ class _PipelineHelper:
 class Pipeline[I: RawDoc, O: Artifact]:
     """Immutable transpilation pipeline.
 
-    A `Pipeline` is configured once — sources, transpilers, and sink — and
-    executed by calling `process()`.  All state is local to a single `process()`
-    call; the same `Pipeline` instance may be reused.
+    A `Pipeline` is configured once — sources, transpilers, and sink —
+    and executed by calling `process()`.
+    All state is local to a single `process()` call;
+    the same `Pipeline` instance may be reused.
 
     Holds a heterogeneous list of `Transpiler`s
     and dispatches each document to the first one that `accepts` it.
 
     Attributes:
         sources: Ordered list of `DataSource`s; each is iterated exactly once.
-        transpilers: Ordered list of `Transpiler`s; each document is dispatched
-            to the first transpiler whose `accepts()` returns `True`.
+        transpilers: Ordered list of `Transpiler`s;
+          each document is dispatched to the first transpiler whose `accepts()` returns `True`.
         sink: Destination for all `Artifact`s produced during the run.
 
     Example:

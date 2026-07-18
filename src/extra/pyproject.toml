@@ -6,7 +6,7 @@ requires = ["uv-build>=0.11, <1.0"]
 name = "query-dsl"
 version = "0.0.1"
 description = "Parameterised PostgreSQL queries from REST select/where/sort/limit/offset strings."
-requires-python = ">=3.12"
+requires-python = "~=3.14"
 readme = "README.md"
 license = { text = "MIT" }
 dependencies = [

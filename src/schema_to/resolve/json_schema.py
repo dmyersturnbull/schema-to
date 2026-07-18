@@ -2,17 +2,19 @@
 
 Resolution is two-phase:
 
-1. **Registration** (`register`): index a `JsonSchemaDocument` into both the
-   `referencing` library registry (for URI math / anchor lookup) and our own
-   CST pointer/anchor index (for generator lookups that return typed CST nodes).
+1. **Registration** (`register`):
+   index a `JsonSchemaDocument` into both the `referencing` library registry
+   (for URI math / anchor lookup)
+   and our own CST pointer/anchor index
+   (for generator lookups that return typed CST nodes).
 
-2. **Validation** (`apply`): walk the document's schema tree and ensure every
-   `$ref` / `$dynamicRef` string is resolvable, accumulating `ResolutionError`s
-   rather than stopping at the first failure.  The document is returned unchanged
-   on success.
+2. **Validation** (`apply`):
+   walk the document's schema tree and ensure every `$ref` / `$dynamicRef` string is resolvable,
+   accumulating `ResolutionError`s rather than stopping at the first failure.
+   The document is returned unchanged on success.
 
-The `lookup` / `lookup_anchor` methods are intended for use by generators after
-`apply` has confirmed the document is valid.
+The `lookup` / `lookup_anchor` methods are intended for use by generators
+after `apply` has confirmed the document is valid.
 """
 
 
@@ -44,7 +46,7 @@ _SERIALIZER = JsonSchemaSerializer()
 # ---------------------------------------------------------------------------
 
 
-# ruff:ignore[complex-structure, too-many-branches]
+# ruff:ignore[complex-structure, too-many-branches]  # Mostly shared structure
 def _iter_sub_schemas(schema: ObjectSchema, pointer: str) -> Iterator[tuple[str, JsonSchema]]:
     """Yield `(child_pointer, child_schema)` for every direct sub-schema."""
 
@@ -248,7 +250,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
             try:
                 resolved = ref_resolver.lookup(schema.id)
                 current_resolver = resolved.resolver
-            except Unresolvable:  # ruff:ignore[try-except-pass]# Not a schema error.
+            except Unresolvable:  # ruff:ignore[try-except-pass]  # Not a schema error.
                 # `$id` may reference an unregistered canonical URI.
                 # The current resolver stays valid for nested schemas;
                 # any real ref failures are already caught by the $ref/$dynamicRef checks above.
@@ -262,10 +264,10 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
     def _split_ref(self, ref: str, base_uri: str) -> tuple[str, str]:
         """Return `(doc_uri, fragment)` by resolving *ref* against *base_uri*.
 
-        `urllib.parse.urljoin` does not correctly resolve fragment-only
-        references (`"#/foo"`) against non-HTTP base URIs such as
-        `"test://doc"` — it returns the fragment as-is with an empty document
-        component.  We detect that case and substitute the base document URI.
+        `urllib.parse.urljoin` does not correctly resolve fragment-only references (`"#/foo"`)
+        against non-HTTP base URIs such as `"test://doc"`;
+        it returns the fragment as-is with an empty document component.
+        We detect that case and substitute the base document URI.
         """
         resolved = urllib.parse.urljoin(base_uri, ref)
         if "#" in resolved:

@@ -1,9 +1,8 @@
 """Concrete Syntax Tree for [JSON Schema 2020-12](https://json-schema.org/specification).
 
-Each node type holds exactly the set of keywords defined by the specification,
-grouped by vocabulary.  The flat `ObjectSchema` avoids indirection through
-vocabulary sub-objects so that serializers and parsers can iterate
-`dataclasses.fields()` directly.
+Each node type holds the set of keywords defined by the specification, grouped by vocabulary.
+The flat `ObjectSchema` avoids indirection through vocabulary sub-objects,
+ so that serializers and parsers can iterate `dataclasses.fields()` directly.
 """
 
 
@@ -125,12 +124,12 @@ class BooleanSchema(_JsonSchema):
 class ObjectSchema(_JsonSchema):
     """A JSON Schema expressed as a keyword-bearing object.
 
-    Fields are ordered by vocabulary: core, metadata, validation, numeric,
-    string, array, object, applicator, unevaluated, content, format.
+    Fields are ordered by vocabulary:
+    core, metadata, validation, numeric, string, array, object, applicator, unevaluated, content, format.
     Each field maps 1-to-1 to the corresponding JSON Schema keyword.
 
-    Fields named with a trailing underscore (`not_`, `if_`, `else_`) avoid
-    collisions with Python reserved words.
+    Fields `not_`, `if_`, and `else_` have `_` suffixes.
+    (`not`, `if`, and `else` are Python reserved words; `then` has a suffix for symmetry.)
     """
 
     # -- Core vocabulary --------------------------------------------------

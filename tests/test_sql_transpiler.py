@@ -1,17 +1,17 @@
 """Tests for the JSON Schema → PostgreSQL DDL transpiler pipeline.
 
 Covers:
-* Property: generated SQL always contains a CREATE TABLE statement.
-* Property: generation is stable (idempotent across two calls).
-* Property: $defs object entries produce extra tables.
-* Targeted: type mappings with exact output comparisons.
-* Targeted: CHECK constraint generation and edge cases.
-* Targeted: nullable / required semantics.
-* Targeted: $defs → separate tables.
-* Targeted: COMMENT ON emission.
-* Targeted: transpiler accepts/rejects document types.
-* Failure: boolean and non-object root schemas.
-* Integration: full schema exercising all supported features.
+- Property: generated SQL always contains a CREATE TABLE statement.
+- Property: generation is stable (idempotent across two calls).
+- Property: $defs object entries produce extra tables.
+- Targeted: type mappings with exact output comparisons.
+- Targeted: CHECK constraint generation and edge cases.
+- Targeted: nullable / required semantics.
+- Targeted: $defs → separate tables.
+- Targeted: COMMENT ON emission.
+- Targeted: transpiler accepts/rejects document types.
+- Failure: boolean and non-object root schemas.
+- Integration: full schema exercising all supported features.
 """
 
 

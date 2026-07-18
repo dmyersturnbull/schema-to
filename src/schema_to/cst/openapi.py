@@ -1,11 +1,10 @@
 """Concrete Syntax Tree for [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0).
 
-OpenAPI 3.1 fully aligns with JSON Schema 2020-12: every `schema` field in this
-module is typed as `JsonSchema` (from `cst.json_schema`), not as a separate
-"Schema Object" type.  This means a single `JsonSchemaDocument` transpiler can
-process embedded schemas without a dedicated OpenAPI-to-JSON-Schema conversion.
+OpenAPI 3.1 is complaint with JSON Schema 2020-12.
+Every `schema` field in this module is typed as [JsonSchema][].
 
-The hierarchy follows the object model from the [OAS 3.1 specification](https://spec.openapis.org/oas/v3.1.0#schema).
+The hierarchy follows the object model of the
+[OAS 3.1 spec](https://spec.openapis.org/oas/v3.1.0#schema).
 """
 
 

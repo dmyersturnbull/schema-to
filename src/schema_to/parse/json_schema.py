@@ -182,7 +182,8 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     # -- Unified field dispatcher ---------------------------------------------
 
-    def _parse_field_into(  # ruff:ignore[complex-structure, too-many-branches]
+    # ruff:ignore[complex-structure, too-many-branches]  # Shared structure
+    def _parse_field_into(
         self,
         data: dict[str, JsonValue],
         field_name: str,
@@ -247,7 +248,8 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                     errors=errors,
                 )
 
-    def _parse_scalar_into(  # ruff:ignore[complex-structure, too-many-branches]
+    # ruff:ignore[complex-structure, too-many-branches]  # Mostly shared structure
+    def _parse_scalar_into(
         self,
         data: dict[str, JsonValue],
         field_name: str,

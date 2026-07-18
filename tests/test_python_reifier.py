@@ -1,8 +1,7 @@
 """Tests for the Python reifier, focused on the `FunctionDef.body` feature.
 
-A `FunctionDef` with no `body` emits an `...` stub (existing behavior); a
-`FunctionDef` with `body` lines emits those lines, indented, after the optional
-docstring.
+A `FunctionDef` with no `body` emits an `...` stub (existing behavior);
+a `FunctionDef` with `body` lines emits those lines, indented, after the optional docstring.
 """
 
 

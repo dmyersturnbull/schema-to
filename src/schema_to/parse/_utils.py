@@ -53,8 +53,8 @@ def loc(source_id: str, pointer: str) -> SourceLocation:
 def decode_raw_doc(doc: RawDoc, reader: JsonLikeReader) -> JsonValue:
     """Decode a raw document's bytes to a JSON-compatible value.
 
-    Raises `ParseError` (a `TranspilationError`) on malformed input so callers
-    can treat it uniformly alongside other parse errors.
+    Raises `ParseError` (a `TranspilationError`)
+    on malformed input so callers can treat it uniformly alongside other parse errors.
     """
     try:
         return reader.read(doc.content, doc.media_type)
@@ -72,14 +72,12 @@ def extract[T](result: Result[T], errors: list[TranspilationError]) -> T | None:
     return result.value
 
 
-# ---------------------------------------------------------------------------
-# Typed field accessors for dict[str, JsonValue]
-#
-# After `isinstance(x, dict)`, ty narrows to `dict[object, object]` rather
-# than `dict[str, JsonValue]`.  These helpers centralise the pattern of:
+# Typed field accessors for `dict[str, JsonValue]`:
+# After `isinstance(x, dict)`, ty narrows to `dict[object, object]`
+# rather than `dict[str, JsonValue]`.
+# These helpers centralise the pattern of:
 #   v = data.get(key); return v if isinstance(v, <T>) else <default>
 # so callers get a properly typed result without repeating the idiom.
-# ---------------------------------------------------------------------------
 
 
 # TODO: Why does this exist?

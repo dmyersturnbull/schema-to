@@ -2,21 +2,15 @@
 
 Mapping rules
 -------------
-* `components/schemas` entries are converted to Pydantic v2 `BaseModel`
-  classes via `PydanticTransformer`.
-* Each path × HTTP-method pair becomes an `async def` route function
-  decorated with `@app.<method>("<path>")`.
-* Path parameters are annotated with `Annotated[T, Path()]`.
-* Query parameters use `Annotated[T, Query()]`; optional ones add `= None`.
-* Header and cookie parameters use `Annotated[T, Header()]` /
-  `Annotated[T, Cookie()]` respectively.
-* Request bodies whose schema is a `$ref` to a component become a `body`
-  parameter typed as that Pydantic model.  Inline schemas fall back to
-  `dict[str, Any]`.
-* The primary 2xx response schema, when determinable, is set as
-  `response_model=` in the decorator and as the function return annotation.
-* Schemas that cannot be mapped emit a `TranspilationWarning` and fall back
-  to `Any`.
+- `components/schemas` entries are converted to Pydantic v2 `BaseModel` classes via `PydanticTransformer`.
+- Each path × HTTP-method pair becomes an `async def` route function decorated with `@app.<method>("<path>")`.
+- Path parameters are annotated with `Annotated[T, Path()]`.
+- Query parameters use `Annotated[T, Query()]`; optional ones add `= None`.
+- Header and cookie parameters use `Annotated[T, Header()]` / `Annotated[T, Cookie()]` respectively.
+- Request bodies whose schema is a `$ref` to a component become a `body` parameter typed as that Pydantic model.
+  Inline schemas fall back to `dict[str, Any]`.
+- The primary 2xx response schema, when determinable, is set as `response_model=` in the decorator and as the function return annotation.
+- Schemas that cannot be mapped emit a `TranspilationWarning` and fall back to `Any`.
 """
 
 
@@ -241,8 +235,8 @@ class FastApiTransformer(Transformer[OpenApiDocument, PythonModule]):
     """Generates a FastAPI application `PythonModule` from an `OpenApiDocument` CST.
 
     Attributes:
-        body_backend: Strategy that fills each route body. Defaults to
-            `NullBodyBackend`, which leaves the reifier's `...` stub.
+        body_backend: Strategy that fills each route body.
+          Defaults to `NullBodyBackend`, which leaves the reifier's `...` stub.
         _warnings: Accumulated non-fatal diagnostics from the most recent `apply` call.
     """
 
@@ -527,9 +521,9 @@ def _opt_default(p: OasParameter) -> str | None:
 def _order_params(params: list[PyParameter]) -> list[PyParameter]:
     """Make a positional parameter list valid Python.
 
-    Drops duplicate names (keeping the first) and orders parameters without a
-    default before those with one, since a non-default parameter cannot follow a
-    defaulted one.  FastAPI matches parameters by name, so reordering is safe.
+    Drops duplicate names (keeping the first) and orders parameters without a default before those with one,
+    since a non-default parameter cannot follow a defaulted one.
+    FastAPI matches parameters by name, so reordering is safe.
     """
     seen: set[str] = set()
     unique: list[PyParameter] = []
@@ -544,9 +538,8 @@ def _order_params(params: list[PyParameter]) -> list[PyParameter]:
 def _merged_parameters(path_item: PathItem, op: Operation) -> list[OasParameter]:
     """Merge path-item parameters with operation parameters.
 
-    Per the OpenAPI spec, parameters declared on a `PathItem` apply to all of
-    its operations; an operation parameter overrides a path-item one with the
-    same `name` and `in` location.
+    Per the OpenAPI spec, parameters declared on a `PathItem` apply to all of its operations;
+    an operation parameter overrides a path-item one with the same `name` and `in` location.
     """
     by_key: dict[tuple[str, ParameterLocation], OasParameter] = {
         (p.name, p.in_): p for p in path_item.parameters
@@ -583,6 +576,7 @@ def _schema_default(schema: JsonSchema | None) -> str | None:
     if schema is None or isinstance(schema, BooleanSchema):
         return None
     if schema.default is not None:
+        # TODO: `MutableSequence` and `MutableSequence` don't define `repr`.
         return repr(schema.default.value)
     return None
 

@@ -1,8 +1,8 @@
 """Parser/serializer round-trip tests.
 
-Verifies that parse → serialize → re-parse → re-serialize is idempotent for
-both JSON Schema and OpenAPI documents.  These tests exercise the parsers and
-serializers directly without going through a `Transpiler`.
+Verifies that parse → serialize → re-parse → re-serialize is idempotent,
+for both JSON Schema and OpenAPI documents.
+These tests exercise the parsers and serializers directly without going through a `Transpiler`.
 """
 
 

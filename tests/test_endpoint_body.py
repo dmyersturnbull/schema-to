@@ -1,7 +1,9 @@
 """Tests for REST mapping helpers, the neutral context, and body backends.
 
-Covers the persistence-agnostic `schema_to.generate.rest` helpers, the
-`endpoint_context` assembly (extension merging), and both shipped backends:
+Covers
+the persistence-agnostic `schema_to.generate.rest` helpers,
+the `endpoint_context` assembly (extension merging),
+and both shipped backends:
 `NullBodyBackend` (empty) and `TemplateBodyBackend` (named + inline templates).
 """
 

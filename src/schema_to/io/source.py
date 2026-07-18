@@ -23,8 +23,9 @@ __all__ = ["DataSource", "JsonSchemaRawDoc", "OpenApiRawDoc", "RawDoc"]
 class RawDoc:
     """An unparsed document together with its provenance metadata.
 
-    The pipeline never reads files directly; every document arrives through
-    a `DataSource` as a `RawDoc`, decoupling I/O from transformation.
+    The pipeline never reads files directly:
+    Every document arrives through a `DataSource` as a `RawDoc`.
+    This decouples I/O from transformation.
 
     Attributes:
         doc_id: Globally unique, opaque identifier

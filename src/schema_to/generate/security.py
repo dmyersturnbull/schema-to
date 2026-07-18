@@ -1,13 +1,13 @@
 """Generate FastAPI security wiring from an OpenAPI document.
 
-Translates `components.securitySchemes` into module-level `fastapi.security`
-objects, emits a `require_scopes` dependency-factory stub for role enforcement,
+Translates `components.securitySchemes` into module-level `fastapi.security` objects,
+emits a `require_scopes` dependency-factory stub for role enforcement,
 and attaches `Security`/`Depends` parameters to guarded routes.
 
-The actual enforcement is intentionally left as a stub: `require_scopes` raises
-`NotImplementedError` so the wiring is structurally complete (schemes appear in
-the generated OpenAPI, scopes are recorded per route) without pretending to
-validate credentials.
+The actual enforcement is intentionally left as a stub:
+`require_scopes` raises `NotImplementedError` so the wiring is structurally complete
+(schemes appear in the generated OpenAPI, scopes are recorded per route)
+without pretending to validate credentials.
 """
 
 

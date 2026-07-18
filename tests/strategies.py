@@ -1,17 +1,19 @@
 """Hypothesis strategies for generating valid JSON Schema and OpenAPI documents.
 
-All strategies produce values that the corresponding parser can parse without
-errors, and that the corresponding serializer can round-trip faithfully.
+All strategies produce values that the corresponding parser can parse without errors,
+and that the corresponding serializer can round-trip faithfully.
 
-Strategies are intentionally conservative: they only generate fields that the
-parser and serializer both handle, and they avoid degenerate values (NaN, Inf,
-empty strings in required-string fields) that would trigger parser errors.
+Strategies are intentionally conservative:
+They only generate fields that the parser and serializer both handle,
+and they avoid degenerate values
+(NaN, Inf, empty strings in required-string fields)
+that would trigger parser errors.
 
 Additional strategies
 ---------------------
-* `json_schema_with_defs_st` — schemas that include `$defs` and internal
+- `json_schema_with_defs_st` — schemas that include `$defs` and internal
   `$ref` pointers, exercising the resolver.
-* `object_schema_st` — schemas typed `object` with named properties,
+- `object_schema_st` — schemas typed `object` with named properties,
   exercising the Pydantic generator.
 """
 
@@ -133,7 +135,8 @@ def _applicator_kw_st(draw: st.DrawFn, d: dict, depth: int) -> None:
 
 
 @st.composite
-def json_schema_st(draw: st.DrawFn, depth: int = 0) -> object:  # ruff:ignore[complex-structure, too-many-branches]  # Shared structure
+# ruff:ignore[complex-structure, too-many-branches]  # Shared structure
+def json_schema_st(draw: st.DrawFn, depth: int = 0) -> object:
     """Generate a valid JSON Schema 2020-12 value (bool or object dict)."""
     if depth > 0 and draw(st.booleans()):
         return draw(st.booleans())

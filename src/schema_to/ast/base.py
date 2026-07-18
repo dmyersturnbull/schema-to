@@ -25,21 +25,23 @@ class Visibility(StrEnum):
     INTERNAL = auto()
 
 
-class AstNode(ABC):  # ruff:ignore[abstract-base-class-without-abstract-method]  # sealed marker; abstract identity is enforced by the type system
+# ruff:ignore[abstract-base-class-without-abstract-method]  # Sealed marker; abstract identity is enforced by the type system
+class AstNode(ABC):
     """Sealed marker base for every target-language AST node.
 
-    Concrete nodes are immutable `@dataclass(frozen=True, slots=True)` subclasses organised
-    into language-specific modules.  Each language module defines its own root
-    node (e.g. `PythonModule`, `TypeScriptModule`, `SqlScript`) that acts as the
-    entry point for reification.
+    Concrete nodes are immutable
+    `@dataclass(frozen=True, slots=True)`
+    subclasses organised into language-specific modules.
+    Each language module defines its own root node (e.g. `PythonModule`, `SqlScript`),
+    which acts as the entry point for reification.
     """
 
 
 class DocString(AstNode, ABC):
     """Abstract documentation comment attached to a declaration.
 
-    The concrete subclass lives in the target-language module so that it can
-    carry language-specific metadata (e.g. JSDoc tags, Google-style sections).
+    The concrete subclass lives in the target-language module,
+    allowing them to carry language-specific metadata (e.g. JSDoc tags, Google-style sections).
     """
 
     @property

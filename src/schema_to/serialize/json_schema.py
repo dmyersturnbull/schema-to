@@ -23,6 +23,7 @@ __all__ = ["JsonSchemaSerializer"]
 
 # Maps each ObjectSchema Python field name to its JSON Schema keyword.
 # Fields absent from this map (extensions, source_ref) are handled separately.
+# TODO: Build this dynamically from the field `metadata` in `schema_to.json_schema.ObjectSchema`.
 _SCHEMA_KEYS: dict[str, str] = {
     "id": "$id",
     "schema": "$schema",
@@ -88,9 +89,9 @@ _SCHEMA_KEYS: dict[str, str] = {
 class JsonSchemaSerializer:
     """Convert a `JsonSchema` or `JsonSchemaDocument` CST node to a `JsonValue`.
 
-    The output is a plain Python dict/bool suitable for `orjson.dumps` or
-    `yaml12.format_yaml`.  Only keywords that differ from absent/default state
-    are emitted, so the result is minimal but semantically complete.
+    The output is a plain Python dict/bool suitable for `orjson.dumps` or `yaml12.format_yaml`.
+    Only keywords that differ from absent/default state are emitted,
+    so the result is minimal but semantically complete.
     """
 
     def serialize_document(self, doc: JsonSchemaDocument) -> JsonValue:

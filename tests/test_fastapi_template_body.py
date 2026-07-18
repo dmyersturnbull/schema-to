@@ -1,9 +1,10 @@
 """End-to-end test of the generic `x-fastapi-body` mechanism.
 
-Transpiles the shipped PostgreSQL example (`examples/postgres/things.openapi.yaml`)
-with the plain `fastapi` target and asserts that the generated module fills its
-route bodies from the inline Jinja templates, wires up the declared imports and
-the injected connection parameter, and parses as valid Python.
+Transpiles the shipped PostgreSQL example
+(`examples/postgres/things.openapi.yaml`)
+with the plain `fastapi` target.
+Asserts that the generated module fills its route bodies from the inline Jinja templates,
+wires up the declared imports and the injected connection parameter, and parses as valid Python.
 """
 
 

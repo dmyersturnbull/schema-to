@@ -173,28 +173,21 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
         lines.append(f"class {decl.name}{base_str}:")
 
         body: list[str] = []
-
         # Style-specific config (Pydantic frozen)
         if decl.style == ClassStyle.PYDANTIC_FROZEN:
             body.extend([f"{_INDENT}model_config = ConfigDict(frozen=True)", ""])
-
         if decl.doc:
             body += self._emit_docstring(decl.doc, indent=_INDENT)
-
         for f in decl.fields:
             body += self._emit_field(f)
-
         for m in decl.methods:
             body.append("")
             body += [_INDENT + ln for ln in self._emit_method_stub(m)]
-
         for nested in decl.nested:
             body.append("")
             body += [_INDENT + ln for ln in self._emit_class(nested)]
-
         if not body:
             body.append(f"{_INDENT}pass")
-
         lines += body
         return lines
 
@@ -258,5 +251,6 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     # Method stubs (for abstract methods etc.)
     # ------------------------------------------------------------------
 
-    def _emit_method_stub(self, m: FunctionDef) -> list[str]:  # ruff:ignore[unused-method-argument]  # This method is defined to be overridden.
+    # ruff:ignore[unused-method-argument]  # Defined for overriding.
+    def _emit_method_stub(self, m: FunctionDef) -> list[str]:
         return ["pass"]

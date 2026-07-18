@@ -18,9 +18,9 @@ Supported targets:
     JSON/JSONB column against its sub-schema.
   - `fastapi`
     OpenAPI 3.1 → FastAPI application module (route stubs + security wiring).
-    Route bodies are filled from each operation's `x-fastapi-body` Jinja
-    extension when present, and left as `...` stubs otherwise; see
-    `examples/postgres/` for a worked PostgreSQL set built on `query-dsl`.
+    Route bodies are filled from each operation's `x-fastapi-body` Jinja extension when present,
+    and left as `...` stubs otherwise;
+    see `examples/postgres/` for a worked PostgreSQL set built on `query-dsl`.
 """
 
 

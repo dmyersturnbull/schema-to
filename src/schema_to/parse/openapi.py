@@ -1,11 +1,10 @@
 """OpenAPI 3.1 document parser.
 
 Converts a `RawDoc` (JSON or YAML bytes) into an `OpenApiDocument` CST.
-Like the JSON Schema parser, this is **non-resolving**: `$ref` values are stored
-as raw strings for a later `RefResolver` stage.
+Like the JSON Schema parser, this is **non-resolving**:
+`$ref` values are stored as raw strings for a later `RefResolver` stage.
 
-Errors are accumulated across all object builders so a single parse call yields
-the complete diagnostic set.
+Errors are accumulated across all object builders so a single parse call yields the complete diagnostic set.
 """
 
 

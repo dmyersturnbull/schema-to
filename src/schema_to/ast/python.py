@@ -260,9 +260,9 @@ class FunctionDef(AstNode):
         decorators: Applied decorators, in declaration order.
         is_async: Whether the function is declared with `async def`.
         is_abstract: Whether to emit `@abstractmethod`.
-        body: Rendered statement lines for the function body, each without
-            leading indentation (the reifier indents them). When empty, the
-            reifier emits an `...` stub.
+        body: Rendered statement lines for the function body, each without leading indentation.
+          (The reifier indents them.)
+          When empty, the reifier emits an `...` stub.
     """
 
     name: str

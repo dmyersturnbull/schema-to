@@ -5,10 +5,9 @@
 
 Both accept a `use_yaml` flag (emit YAML instead of JSON, default `False`).
 
-Documents arrive as `JsonSchemaRawDoc` or `OpenApiRawDoc` because
-`FileDataSource` uses compound filename extensions to select the correct subclass
-at source-collection time.  Transpiler `accepts()` methods are therefore a simple
-`isinstance` check with no additional I/O.
+Documents arrive as `JsonSchemaRawDoc` or `OpenApiRawDoc`
+because `FileDataSource` uses compound filename extensions to select the correct subclass at source-collection time.
+Transpiler `accepts()` methods are therefore a simple `isinstance` check with no additional I/O.
 """
 
 

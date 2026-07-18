@@ -2,15 +2,15 @@
 
 Mapping rules
 -------------
-* An `object`-typed schema (root or `$defs` entry) becomes a
+- An `object`-typed schema (root or `$defs` entry) becomes a
   `pydantic.BaseModel` subclass (`ClassStyle.PYDANTIC`).
-* Non-object named schemas become PEP 695 `type` aliases.
-* Properties that appear in `required` get a plain annotation; all others
-  get `T | None = None`.
-* `$ref: "#/$defs/Name"` becomes a forward reference to the generated class.
-* `anyOf` / `oneOf` with exactly one non-null branch collapses to `T | None`.
-* `enum` / `const` map to `Literal[…]`.
-* Unsupported constructs emit `TranspilationWarning` and fall back to `Any`.
+- Non-object named schemas become PEP 695 `type` aliases.
+- Properties that appear in `required` get a plain annotation;
+  all others get `T | None = None`.
+- `$ref: "#/$defs/Name"` becomes a forward reference to the generated class.
+- `anyOf` / `oneOf` with exactly one non-null branch collapses to `T | None`.
+- `enum` / `const` map to `Literal[…]`.
+- Unsupported constructs emit `TranspilationWarning` and fall back to `Any`.
 """
 
 
@@ -284,6 +284,7 @@ class _GenCtx:
         if not is_required:
             return "None"
         if isinstance(prop_schema, ObjectSchema) and prop_schema.default is not None:
+            # TODO: `MutableSequence` and `MutableSequence` don't define `repr`.
             return repr(prop_schema.default.value)
         return None
 

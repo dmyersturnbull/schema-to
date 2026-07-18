@@ -1,6 +1,6 @@
 """End-to-end tests for pass-through transpilation.
 
-Verifies invertibility: transpile(transpile(doc)) == transpile(doc).
+Verifies invertibility: `transpile(transpile(doc)) == transpile(doc)`.
 """
 
 

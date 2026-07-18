@@ -1,17 +1,19 @@
 """Routing utility: peek at document bytes to determine the schema format.
 
-Called by `PeekingDirectorySource` as a secondary content guard so that files
-matched by compound extensions can be further validated before being promoted
-to typed `RawDoc` subclasses.
+Called by `PeekingDirectorySource` as a content-aware secondary guard after filtering by filename extension.
+Think: magic bytes.
+Files with compound extensions like `.openapi.json` can be checked for specific content,
+before being narrowed to their `RawDoc` subclasses.
+
+The
 """
-
-
+from collections.abc import Callable
 from enum import Enum, auto
 from typing import cast
 
 from schema_to.io.core import JsonReader, ReadError, YamlReader
 
-__all__ = ["DocType", "peek_doc_type"]
+__all__ = ["DocType", "DocTypeGuesser", "peek_doc_type"]
 
 _JSON_SCHEMA_KEYWORDS: frozenset[str] = frozenset(
     {"$schema", "$defs", "definitions", "type", "properties", "allOf", "anyOf", "oneOf", "items"}
@@ -23,15 +25,17 @@ class DocType(Enum):
     OPENAPI = auto()
 
 
+DocTypeGuesser = Callable[[bytes], DocType | None]
+
+
 def peek_doc_type(content: bytes) -> DocType | None:
     """Peek at raw bytes to determine schema format without a media-type hint.
 
     Tries JSON first, then YAML.  Returns:
-    - `DocType.OPENAPI`      if the dict contains `"openapi"` with a string value
-    - `DocType.JSON_SCHEMA`  if the dict contains recognised JSON Schema keywords
-                             (any of: `$schema`, `$defs`, `definitions`, `type`,
-                             `properties`, `allOf`, `anyOf`, `oneOf`, `items`)
-    - `None`                 if the bytes are unparseable or look like neither
+    - `DocType.OPENAPI` if the dict contains `"openapi"` with a string value
+    - `DocType.JSON_SCHEMA` if the dict contains recognised JSON Schema keywords
+       (any of: `$schema`, `$defs`, `definitions`, `type`, `properties`, `allOf`, `anyOf`, `oneOf`, `items`)
+    - `None`  if the bytes are unparseable or look like neither
     """
     data = _try_parse(content)
     if not isinstance(data, dict):

@@ -1,9 +1,10 @@
 """Parameterised PostgreSQL query builders for REST collection/item operations.
 
-Each builder returns ``(query, params)`` where ``query`` is a ``psycopg.sql``
-composable and ``params`` is the bound-parameter mapping, ready to pass straight
-to ``cursor.execute``.  The list builder interprets the ``select``/``where``/
-``sort``/``limit``/``offset`` query strings; the others act on a primary key.
+Each builder returns `(query, params)`,
+where `query` is a `psycopg.sql` composable and `params` is the bound-parameter mapping,
+ready to pass straight to `cursor.execute`.
+The list builder interprets the `select`/`where`/`sort`/`limit`/`offset` query strings;
+the others act on a primary key.
 """
 
 
@@ -37,7 +38,7 @@ def build_list_query(
     offset: int | None = None,
     json_columns: Sequence[str] = (),
 ) -> tuple[sql.Composable, Mapping[str, Bound]]:
-    """Build a parameterised ``SELECT`` for a list operation."""
+    """Build a parameterised `SELECT` for a list operation."""
     params = Params()
     json_cols = frozenset(json_columns)
     query = sql.SQL("SELECT {} FROM {}.{}").format(
@@ -57,7 +58,7 @@ def build_list_query(
 def build_get_query(
     *, schema: str, table: str, pk_column: str, pk_value: Value
 ) -> tuple[sql.Composable, Mapping[str, Bound]]:
-    """Build a parameterised single-row ``SELECT`` by primary key."""
+    """Build a parameterised single-row `SELECT` by primary key."""
     params = Params()
     query = sql.SQL("SELECT * FROM {}.{} WHERE {} = {}").format(
         sql.Identifier(schema),
@@ -71,7 +72,7 @@ def build_get_query(
 def build_delete_query(
     *, schema: str, table: str, pk_column: str, pk_value: Value
 ) -> tuple[sql.Composable, Mapping[str, Bound]]:
-    """Build a parameterised ``DELETE`` by primary key."""
+    """Build a parameterised `DELETE` by primary key."""
     params = Params()
     query = sql.SQL("DELETE FROM {}.{} WHERE {} = {}").format(
         sql.Identifier(schema),
@@ -85,7 +86,7 @@ def build_delete_query(
 def build_replace_query(
     *, schema: str, table: str, pk_column: str, pk_value: Value, data: Mapping[str, Value]
 ) -> tuple[sql.Composable, Mapping[str, Bound]]:
-    """Build a parameterised upsert (``INSERT ... ON CONFLICT DO UPDATE``)."""
+    """Build a parameterised upsert (`INSERT ... ON CONFLICT DO UPDATE`)."""
     params = Params()
     payload = {**dict(data), pk_column: pk_value}
     columns = list(payload)
@@ -112,7 +113,7 @@ def build_replace_query(
 def build_merge_patch_query(
     *, schema: str, table: str, pk_column: str, pk_value: Value, patch: Mapping[str, Value]
 ) -> tuple[sql.Composable, Mapping[str, Bound]]:
-    """Build a parameterised RFC 7396 merge-patch ``UPDATE`` by primary key."""
+    """Build a parameterised RFC 7396 merge-patch `UPDATE` by primary key."""
     params = Params()
     assignments = [
         sql.SQL("{} = {}").format(sql.Identifier(key), params.add(adapt(value)))

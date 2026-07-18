@@ -1,16 +1,16 @@
 """Pluggable backends that fill FastAPI route bodies.
 
-The FastAPI generator produces route *signatures* (`generate/fastapi.py`); the
-*bodies* are delegated to an `EndpointBodyBackend`, mirroring the way
-`FastApiTransformer` already embeds `PydanticTransformer` for models.  This keeps
-the FastAPI generator agnostic of any particular persistence layer.
+The FastAPI generator produces route *signatures* (`generate/fastapi.py`);
+the *bodies* are delegated to an `EndpointBodyBackend`, mirroring the way
+`FastApiTransformer` already embeds `PydanticTransformer` for models.
+This keeps the FastAPI generator agnostic of any particular persistence layer.
 
-A backend receives an `EndpointContext` — the operation's method, path, resolved
-parameters, security, merged `x-` extensions, and resource schema — and returns
-an `EndpointBody` (rendered statement lines, the imports and extra signature
-parameters those lines need, and any warnings).  The context carries no
-persistence-specific fields; a backend that wants e.g. a table name reads it
-from the extensions.
+A backend receives an `EndpointContext` —
+the operation's method, path, resolved parameters, security, merged `x-` extensions, and resource schema —
+and returns an `EndpointBody`,
+which includes rendered statement lines, the imports and extra signature parameters those lines need, and any warnings.
+The context carries no persistence-specific fields;
+a backend that wants e.g. a table name reads it from the extensions.
 """
 
 
@@ -49,8 +49,8 @@ __all__ = [
 class RouteParam:
     """A resolved route parameter, linking the OpenAPI name to its Python name.
 
-    A template selects parameters by name (and, if it cares, by location); core
-    attaches no query-specific meaning to them.
+    A template selects parameters by name (and, if it cares, by location);
+    core attaches no query-specific meaning to them.
 
     Attributes:
         name: The original OpenAPI parameter name (or `"body"` for the body).
@@ -96,8 +96,9 @@ class EndpointBody:
 
     Attributes:
         lines: Body statement lines, each without leading indentation.
-        parameters: Extra route parameters the body needs (e.g. an injected
-            database connection); appended to the route signature.
+        parameters: Extra route parameters the body needs
+          (e.g. an injected database connection);
+          appended to the route signature.
         imports: Imports the body statements require.
         warnings: Non-fatal diagnostics raised while rendering.
     """
@@ -132,7 +133,7 @@ class NullBodyBackend(EndpointBodyBackend):
     for operations that declare no body extension.
     """
 
-    def render(self, ctx: EndpointContext) -> EndpointBody:  # ruff:ignore[unused-method-argument]
+    def render(self, ctx: EndpointContext) -> EndpointBody:  # ruff:ignore[unused-method-argument]  # Subclasses might use it.
         return EndpointBody()
 
 

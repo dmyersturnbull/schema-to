@@ -1,9 +1,9 @@
 """Target AST for PostgreSQL DDL output.
 
-Nodes represent SQL statements emitted by the transpiler.  Reification produces
-a `.sql` migration script compatible with PostgreSQL 14+ and optionally
-[pg_jsonschema](https://github.com/supabase/pg_jsonschema) for inline JSON
-validation constraints.
+Nodes represent SQL statements emitted by the transpiler.
+Reification produces a `.sql` migration script compatible with PostgreSQL 14+ and optionally
+[pg_jsonschema](https://github.com/supabase/pg_jsonschema)
+for inline JSON validation constraints.
 
 Custom extension keywords supported by the generator:
 - `x-is-table` — emit a `CREATE TABLE` rather than a bare type definition.
@@ -52,9 +52,8 @@ class _SqlEnum(StrEnum):
 class PgDataType(_SqlEnum):
     """PostgreSQL built-in data types used by the code generator.
 
-    This list covers the types reachable from JSON Schema primitives plus
-    common extensions.  The `CUSTOM` variant allows generators to fall back
-    to a literal type string via `DataType.custom`.
+    This list covers the types reachable from JSON Schema primitives plus common extensions.
+    The `CUSTOM` variant allows generators to fall back to a literal type string via `DataType.custom`.
     """
 
     # Numeric
@@ -265,8 +264,8 @@ class CreateTableStmt(AstNode):
         columns: Column definitions in declaration order.
         table_constraints: Table-level constraints appended after columns.
         if_not_exists: Emits `IF NOT EXISTS`.
-        jsonschema_constraint: When set, emits a `pg_jsonschema` `CHECK` constraint
-            validating the table's JSONB column against this JSON Schema string.
+        jsonschema_constraint: When set, emits a `pg_jsonschema` `CHECK` constraint.
+            This will validate the table's JSONB column against this JSON Schema string.
         doc: Text for a `COMMENT ON TABLE` statement.
         source_ids: Source `RawDoc` identifiers that produced this statement.
     """

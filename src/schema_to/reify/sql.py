@@ -1,13 +1,14 @@
 """Reifier: SQL AST → `.sql` bytes.
 
 Emits PostgreSQL-compatible DDL that can be executed directly by `psql`.
+
 Output style:
 
-* `CREATE TABLE IF NOT EXISTS name (` with one column per line.
-* Column constraints inline: `NOT NULL`, `CHECK (...)`, `REFERENCES`.
-* Table-level constraints after all column lines.
-* `COMMENT ON TABLE` and `COMMENT ON COLUMN` immediately after each table.
-* `CREATE INDEX` and standalone `COMMENT ON` in statement order.
+- `CREATE TABLE IF NOT EXISTS name (` with one column per line.
+- Column constraints inline: `NOT NULL`, `CHECK (...)`, `REFERENCES`.
+- Table-level constraints after all column lines.
+- `COMMENT ON TABLE` and `COMMENT ON COLUMN` immediately after each table.
+- `CREATE INDEX` and standalone `COMMENT ON` in statement order.
 """
 
 
