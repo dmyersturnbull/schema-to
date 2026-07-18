@@ -128,7 +128,7 @@ class ObjectSchema(_JsonSchema):
     core, metadata, validation, numeric, string, array, object, applicator, unevaluated, content, format.
     Each field maps 1-to-1 to the corresponding JSON Schema keyword.
 
-    Fields `not_`, `if_`, and `else_` have `_` suffixes.
+    Fields `not_`, `if_`, `else_`, and `then_` have `_` suffixes.
     (`not`, `if`, and `else` are Python reserved words; `then` has a suffix for symmetry.)
     """
 
@@ -206,7 +206,7 @@ class ObjectSchema(_JsonSchema):
     one_of: Sequence[JsonSchema] | None = field(default=None, metadata={"key": "oneOf"})
     not_: JsonSchema | None = field(default=None, metadata={"key": "not"})
     if_: JsonSchema | None = field(default=None, metadata={"key": "if"})
-    then: JsonSchema | None = field(default=None, metadata={"key": "then"})
+    then_: JsonSchema | None = field(default=None, metadata={"key": "then"})
     else_: JsonSchema | None = field(default=None, metadata={"key": "else"})
 
     # -- Unevaluated vocabulary -------------------------------------------

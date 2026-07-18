@@ -89,8 +89,8 @@ def _iter_sub_schemas(schema: ObjectSchema, pointer: str) -> Iterator[tuple[str,
         yield _single("not", schema.not_)
     if schema.if_ is not None:
         yield _single("if", schema.if_)
-    if schema.then is not None:
-        yield _single("then", schema.then)
+    if schema.then_ is not None:
+        yield _single("then", schema.then_)
     if schema.else_ is not None:
         yield _single("else", schema.else_)
     if schema.unevaluated_items is not None:

@@ -74,7 +74,7 @@ _SCHEMA_KEYS: dict[str, str] = {
     "one_of": "oneOf",
     "not_": "not",
     "if_": "if",
-    "then": "then",
+    "then_": "then",
     "else_": "else",
     "unevaluated_items": "unevaluatedItems",
     "unevaluated_properties": "unevaluatedProperties",
