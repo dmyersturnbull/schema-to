@@ -1,13 +1,12 @@
 """Tests for the JSON Schema → Pydantic transpiler pipeline.
 
 Covers:
-* Property: generated Python source is always syntactically valid.
-* Smoke tests: specific schemas produce expected class / field shapes.
-* Integration: full parse → resolve → generate → reify pipeline.
-* Failure: boolean root schema cannot be transpiled.
+- Property: generated Python source is always syntactically valid.
+- Smoke tests: specific schemas produce expected class / field shapes.
+- Integration: full parse → resolve → generate → reify pipeline.
+- Failure: boolean root schema cannot be transpiled.
 """
 
-from __future__ import annotations
 
 import ast
 import re
@@ -229,6 +228,159 @@ def test_defs_classes_generated_before_root() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Smoke: readOnly / writeOnly split into Read/Write classes
+# ---------------------------------------------------------------------------
+
+
+def _split_slices(src: str, name: str) -> tuple[str, str]:
+    """Return the (Read body, Write body) source slices for *name*."""
+    read_pos = src.find(f"class {name}Read(BaseModel):")
+    write_pos = src.find(f"class {name}Write(BaseModel):")
+    assert read_pos != -1
+    assert write_pos != -1
+    if read_pos < write_pos:
+        return src[read_pos:write_pos], src[write_pos:]
+    return src[read_pos:], src[write_pos:read_pos]
+
+
+def test_no_split_when_no_readonly_writeonly() -> None:
+    schema = {"type": "object", "title": "Foo", "properties": {"name": {"type": "string"}}}
+    src = _transpile(schema)
+    assert "class Foo(BaseModel):" in src
+    assert "FooRead" not in src
+    assert "FooWrite" not in src
+
+
+def test_readonly_writeonly_splits_into_two_classes() -> None:
+    schema = {
+        "type": "object",
+        "title": "Foo",
+        "properties": {
+            "id": {"type": "string", "readOnly": True},
+            "password": {"type": "string", "writeOnly": True},
+            "name": {"type": "string"},
+        },
+    }
+    src = _transpile(schema)
+    assert "class FooRead(BaseModel):" in src
+    assert "class FooWrite(BaseModel):" in src
+    assert "class Foo(BaseModel):" not in src
+
+
+def test_readonly_excluded_from_write_writeonly_excluded_from_read() -> None:
+    schema = {
+        "type": "object",
+        "title": "Foo",
+        "properties": {
+            "id": {"type": "string", "readOnly": True},
+            "password": {"type": "string", "writeOnly": True},
+        },
+    }
+    src = _transpile(schema)
+    read_body, write_body = _split_slices(src, "Foo")
+    assert "id" in read_body
+    assert "password" not in read_body
+    assert "password" in write_body
+    assert "id" not in write_body
+
+
+def test_plain_properties_appear_in_both_variants() -> None:
+    schema = {
+        "type": "object",
+        "title": "Foo",
+        "properties": {"id": {"type": "string", "readOnly": True}, "name": {"type": "string"}},
+    }
+    src = _transpile(schema)
+    read_body, write_body = _split_slices(src, "Foo")
+    assert "name" in read_body
+    assert "name" in write_body
+
+
+def test_split_applies_to_defs_and_root() -> None:
+    schema = {
+        "type": "object",
+        "title": "Root",
+        "$defs": {
+            "Item": {"type": "object", "properties": {"sku": {"type": "string", "readOnly": True}}}
+        },
+        "properties": {"secret": {"type": "string", "writeOnly": True}},
+    }
+    src = _transpile(schema)
+    for name in ("ItemRead", "ItemWrite", "RootRead", "RootWrite"):
+        assert f"class {name}(BaseModel):" in src
+
+
+def test_read_variant_emitted_before_write_variant() -> None:
+    schema = {
+        "type": "object",
+        "title": "Foo",
+        "properties": {"id": {"type": "string", "readOnly": True}},
+    }
+    src = _transpile(schema)
+    assert src.find("class FooRead(BaseModel):") < src.find("class FooWrite(BaseModel):")
+
+
+def test_ref_to_split_def_resolves_to_matching_variant() -> None:
+    schema = {
+        "type": "object",
+        "title": "Root",
+        "$defs": {
+            "Bar": {
+                "type": "object",
+                "properties": {"secret": {"type": "string", "writeOnly": True}},
+            }
+        },
+        "properties": {"bar": {"$ref": "#/$defs/Bar", "writeOnly": True}},
+        "required": ["bar"],
+    }
+    src = _transpile(schema)
+    _, write_body = _split_slices(src, "Root")
+    assert "bar: BarWrite" in write_body
+
+
+def test_ref_from_nonsplit_class_to_split_def_defaults_to_read() -> None:
+    schema = {
+        "type": "object",
+        "title": "Root",
+        "$defs": {
+            "Bar": {
+                "type": "object",
+                "properties": {"secret": {"type": "string", "writeOnly": True}},
+            }
+        },
+        "properties": {"bar": {"$ref": "#/$defs/Bar"}},
+        "required": ["bar"],
+    }
+    src = _transpile(schema)
+    assert "bar: BarRead" in src
+
+
+def test_all_properties_writeonly_yields_empty_read_class() -> None:
+    schema = {
+        "type": "object",
+        "title": "Foo",
+        "properties": {"secret": {"type": "string", "writeOnly": True}},
+    }
+    src = _transpile(schema)
+    read_body, _ = _split_slices(src, "Foo")
+    assert "secret" not in read_body
+    ast.parse(src)
+
+
+def test_required_writeonly_field_absent_from_read_variant() -> None:
+    schema = {
+        "type": "object",
+        "title": "Foo",
+        "properties": {"secret": {"type": "string", "writeOnly": True}},
+        "required": ["secret"],
+    }
+    src = _transpile(schema)
+    read_body, write_body = _split_slices(src, "Foo")
+    assert "secret" not in read_body
+    assert "secret: str" in write_body
+
+
+# ---------------------------------------------------------------------------
 # Smoke: anyOf / oneOf nullable union
 # ---------------------------------------------------------------------------
 
@@ -443,7 +595,6 @@ def test_integration_full_pipeline() -> None:
     ast.parse(src)
 
     # --- Boilerplate ---
-    assert "from __future__ import annotations" in src
     assert "from pydantic import BaseModel" in src
     assert "from typing import" in src
     assert "Literal" in src

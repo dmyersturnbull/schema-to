@@ -1,11 +1,9 @@
 """Tests for the Python reifier, focused on the `FunctionDef.body` feature.
 
-A `FunctionDef` with no `body` emits an `...` stub (existing behavior); a
-`FunctionDef` with `body` lines emits those lines, indented, after the optional
-docstring.
+A `FunctionDef` with no `body` emits an `...` stub (existing behavior);
+a `FunctionDef` with `body` lines emits those lines, indented, after the optional docstring.
 """
 
-from __future__ import annotations
 
 import ast
 
@@ -39,9 +37,7 @@ def test_body_lines_are_indented_and_emitted() -> None:
 
 
 def test_body_follows_docstring() -> None:
-    fn = FunctionDef(
-        name="f", doc=PythonDocString(summary="Do it."), body=["return 1"]
-    )
+    fn = FunctionDef(name="f", doc=PythonDocString(summary="Do it."), body=["return 1"])
     src = _emit(fn)
     lines = src.splitlines()
     doc_idx = next(i for i, ln in enumerate(lines) if '"""Do it."""' in ln)

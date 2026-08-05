@@ -1,6 +1,5 @@
 """Tests for the OpenAPI → JSON Schema extraction transpiler."""
 
-from __future__ import annotations
 
 import orjson
 from hypothesis import HealthCheck, given, settings

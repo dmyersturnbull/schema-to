@@ -1,13 +1,12 @@
 """Tests for the OpenAPI 3.1 → FastAPI generator pipeline.
 
 Covers:
-* Unit: pure helper functions (_esc, _ref_to_class_name, _annotation_str, _nullable, _op_fn_name).
-* Property: any parsed OpenAPI document always produces syntactically valid Python.
-* Property: generated module always contains an ``app`` variable and one route per operation.
-* Integration: curated petstore-style document — models, routes, parameters, imports.
+- Unit: pure helper functions (_esc, _ref_to_class_name, _annotation_str, _nullable, _op_fn_name).
+- Property: any parsed OpenAPI document always produces syntactically valid Python.
+- Property: generated module always contains an ``app`` variable and one route per operation.
+- Integration: curated petstore-style document — models, routes, parameters, imports.
 """
 
-from __future__ import annotations
 
 import ast
 
@@ -380,7 +379,6 @@ def test_integration_petstore() -> None:
     ast.parse(src)
 
     # --- Boilerplate ---
-    assert "from __future__ import annotations" in src
     assert "from fastapi import" in src
     assert "FastAPI" in src
     assert "from pydantic import BaseModel" in src

@@ -2,10 +2,10 @@
 
 Mapping rules
 -------------
-* An `object`-typed root schema becomes a `CREATE TABLE` statement.
-* Each `$defs` entry that is `object`-typed becomes its own table.
-* Required properties get `NOT NULL`; optional properties are nullable.
-* Type mapping follows format-then-type priority with `x-pg-type` overrides:
+- An `object`-typed root schema becomes a `CREATE TABLE` statement.
+- Each `$defs` entry that is `object`-typed becomes its own table.
+- Required properties get `NOT NULL`; optional properties are nullable.
+- Type mapping follows format-then-type priority with `x-pg-type` overrides:
   - `string` + `format: date-time` → `TIMESTAMPTZ`
   - `string` + `format: date` → `DATE`
   - `string` + `format: time` → `TIME`
@@ -18,14 +18,13 @@ Mapping rules
   - `boolean` → `BOOLEAN`
   - `array` of simple type → `element_type[]`
   - `object` / complex `array` → `JSONB`
-* Numeric constraints map to `CHECK` expressions; `pattern` maps to `~`.
-* `enum` values produce `CHECK (col IN (...))`.
-* `title` / `description` populate `doc` for `COMMENT ON` emission.
-* `x-pg-type` overrides the inferred type with a literal type string.
-* Unsupported constructs emit `TranspilationWarning` and fall back to `JSONB`.
+- Numeric constraints map to `CHECK` expressions; `pattern` maps to `~`.
+- `enum` values produce `CHECK (col IN (...))`.
+- `title` / `description` populate `doc` for `COMMENT ON` emission.
+- `x-pg-type` overrides the inferred type with a literal type string.
+- Unsupported constructs emit `TranspilationWarning` and fall back to `JSONB`.
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -133,7 +132,8 @@ def _join_checks(exprs: list[str]) -> str | None:
     return " AND ".join(f"({e})" for e in exprs)
 
 
-def _string_type(schema: ObjectSchema) -> DataType:  # noqa: PLR0911 # all `return`s are in the `match`
+# ruff:ignore[too-many-return-statements]  # All `return`s are in the `match`.
+def _string_type(schema: ObjectSchema) -> DataType:
     """Map a `type: string` schema (with format / maxLength) to a `DataType`."""
     match schema.format:
         case "date-time":
@@ -166,9 +166,9 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
 
     Attributes:
         resolver: Optional resolver for cross-document `$ref` lookup.
-        validate_json: When `True`, emit `pg_jsonschema` `CHECK` constraints
-            validating each JSON/JSONB column against its sub-schema, and a
-            `CREATE EXTENSION IF NOT EXISTS pg_jsonschema;` preamble.
+        validate_json: When `True`, emit  `pg_jsonschema` `CHECK` constraints,
+          which validate each JSON/JSONB column against its sub-schema,
+          and a `CREATE EXTENSION IF NOT EXISTS pg_jsonschema;` preamble.
     """
 
     resolver: JsonSchemaRefResolver | None = None
@@ -271,7 +271,8 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
         json_check = f"{fn}('{escaped}', {col_name})"
         return f"{base} AND {json_check}" if base else json_check
 
-    def _schema_to_data_type(self, schema: JsonSchema, col_name: str) -> DataType:  # noqa: PLR0911 # No helpful way to consolidate return statements
+    # ruff:ignore[too-many-return-statements]  # There's no helpful way to consolidate return statements.
+    def _schema_to_data_type(self, schema: JsonSchema, col_name: str) -> DataType:
         # Boolean schema.
         if isinstance(schema, BooleanSchema):
             return DataType.jsonb()
@@ -341,7 +342,8 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
         )
         return DataType.jsonb()
 
-    def _check_exprs(  # noqa: C901  # Mostly shared structure
+    # ruff:ignore[complex-structure]  # Mostly shared structure
+    def _check_exprs(
         self, schema: ObjectSchema, col_name: str, data_type: DataType
     ) -> ColumnConstraint:
         exprs: list[str] = []

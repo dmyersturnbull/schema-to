@@ -1,12 +1,11 @@
 """Static resource information drawn from a resolved object schema.
 
-Endpoint-body templates sometimes need to know a resource's property names, or
-which properties hold structured JSON (so dotted query paths can address into
-them).  This is plain JSON Schema introspection — no persistence layer is
-assumed; property names are returned verbatim, not sanitised for any target.
+Endpoint-body templates sometimes need to know a resource's property names,
+or which properties hold structured JSON so dotted query paths can address into them.
+This is plain JSON Schema introspection — no persistence layer is assumed;
+property names are returned verbatim, not sanitised for any target.
 """
 
-from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
@@ -19,14 +18,8 @@ if TYPE_CHECKING:
 
 __all__ = ["json_properties", "property_names"]
 
-# A property holding structured JSON addressable by a dotted query path.
-_JSON_TYPES = frozenset({JsonSchemaType.OBJECT, JsonSchemaType.ARRAY})
-
-
-def _properties(schema: ObjectSchema | None) -> Mapping[str, JsonSchema]:
-    if schema is None:
-        return {}
-    return schema.properties or {}
+# Property types holding structured JSON addressable by a dotted query path.
+_COMPOSITE_JSON_TYPES = frozenset({JsonSchemaType.OBJECT, JsonSchemaType.ARRAY})
 
 
 def property_names(schema: ObjectSchema | None) -> tuple[str, ...]:
@@ -37,7 +30,11 @@ def property_names(schema: ObjectSchema | None) -> tuple[str, ...]:
 def json_properties(schema: ObjectSchema | None) -> tuple[str, ...]:
     """Return the names of properties whose schema is `object`- or `array`-typed."""
     return tuple(
-        name
-        for name, prop in _properties(schema).items()
-        if prop.get_types() & _JSON_TYPES
+        name for name, prop in _properties(schema).items() if prop.get_types() & _COMPOSITE_JSON_TYPES
     )
+
+
+def _properties(schema: ObjectSchema | None) -> Mapping[str, JsonSchema]:
+    if schema is None:
+        return {}
+    return schema.properties or {}

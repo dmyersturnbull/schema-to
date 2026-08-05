@@ -1,34 +1,44 @@
 """Low-level SQL composition shared by the query builders.
 
-Holds the bound-parameter accumulator, the JSON value adapter, and helpers that
-turn dotted paths, ``select`` lists, and ``sort`` lists into ``psycopg.sql``
-fragments.  Everything here is injection-safe: identifiers are quoted and every
-literal value is bound as a parameter.
+Holds
+the bound-parameter accumulator;
+the JSON value adapter;
+and helpers that turn dotted paths, `select` lists, and `sort` lists into `psycopg.sql` fragments.
+Everything here is injection-safe:
+Identifiers are quoted and every literal value is bound as a parameter.
 """
 
-from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 
 from psycopg import sql
 from psycopg.types.json import Jsonb
 
-__all__ = ["Bound", "Params", "QueryError", "Value", "adapt", "column_ref", "order_by", "select_list"]
+__all__ = [
+    "Bound",
+    "Params",
+    "QueryError",
+    "Value",
+    "adapt",
+    "column_ref",
+    "order_by",
+    "select_list",
+]
 
 # A JSON-shaped value accepted from a request and bound into a query.
 type Value = str | int | float | bool | Sequence[Value] | Mapping[str, Value] | None
-# A value after JSON adaptation, as stored for ``cursor.execute``.
+# A value after JSON adaptation, as stored for `cursor.execute`.
 type Bound = Value | Jsonb
 
 
 class QueryError(ValueError):
-    """Raised when a ``where``/``select``/``sort`` expression is malformed.
+    """Raised when a `where`/`select`/`sort` expression is malformed.
 
-    Subclasses ``ValueError`` so callers may catch either.
+    Subclasses `ValueError` so callers may catch either.
     """
 
 
-# Comparison operators accepted in a ``where`` expression, each mapped to its
+# Comparison operators accepted in a `where` expression, each mapped to its
 # SQL spelling as a composable (built from a literal, so it is injection-safe).
 OPERATORS: dict[str, sql.SQL] = {
     "eq": sql.SQL("="),
@@ -42,7 +52,7 @@ OPERATORS: dict[str, sql.SQL] = {
 
 
 def adapt(value: Value) -> Bound:
-    """Wrap JSON-shaped values so psycopg adapts them to ``jsonb``."""
+    """Wrap JSON-shaped values so psycopg adapts them to `jsonb`."""
     if isinstance(value, (dict, list)):
         return Jsonb(value)
     return value
@@ -68,7 +78,7 @@ def column_ref(path: str, json_columns: frozenset[str], params: Params) -> sql.C
     """Build a column or JSON-extraction reference from a dotted path.
 
     A dotted path whose head names a JSON column addresses into the JSON value:
-    ``meta.theme`` becomes ``"meta" #>> '{theme}'``.
+    `meta.theme` becomes `"meta" #>> '{theme}'`.
     """
     parts = _split_path(path)
     head = parts[0]
@@ -80,10 +90,8 @@ def column_ref(path: str, json_columns: frozenset[str], params: Params) -> sql.C
     return sql.SQL("{} #>> {}").format(sql.Identifier(head), params.add(parts[1:]))
 
 
-def select_list(
-    select: str | None, json_columns: frozenset[str], params: Params
-) -> sql.Composable:
-    """Compile a comma-separated ``select`` list, defaulting to ``*``."""
+def select_list(select: str | None, json_columns: frozenset[str], params: Params) -> sql.Composable:
+    """Compile a comma-separated `select` list, defaulting to `*`."""
     if not select:
         return sql.SQL("*")
     items: list[sql.Composable] = list(_select_items(select, json_columns, params))
@@ -104,7 +112,7 @@ def _select_items(
 
 
 def order_by(sort: str, json_columns: frozenset[str], params: Params) -> sql.Composable:
-    """Compile a comma-separated ``sort`` list (``-`` prefix means descending)."""
+    """Compile a comma-separated `sort` list (`-` prefix means descending)."""
     return sql.SQL(", ").join(_order_items(sort, json_columns, params))
 
 

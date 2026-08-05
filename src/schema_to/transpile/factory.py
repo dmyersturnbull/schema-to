@@ -18,12 +18,11 @@ Supported targets:
     JSON/JSONB column against its sub-schema.
   - `fastapi`
     OpenAPI 3.1 → FastAPI application module (route stubs + security wiring).
-    Route bodies are filled from each operation's `x-fastapi-body` Jinja
-    extension when present, and left as `...` stubs otherwise; see
-    `examples/postgres/` for a worked PostgreSQL set built on `query-dsl`.
+    Route bodies are filled from each operation's `x-fastapi-body` Jinja extension when present,
+    and left as `...` stubs otherwise;
+    see `examples/postgres/` for a worked PostgreSQL set built on `query-dsl`.
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
@@ -83,7 +82,9 @@ class TranspilerRouter:
         match target_name:
             case "fastapi":
                 backend = TemplateBodyBackend(named_templates=templates or {})
-                return [OpenApiToFastApiTranspiler(generator=FastApiTransformer(body_backend=backend))]
+                return [
+                    OpenApiToFastApiTranspiler(generator=FastApiTransformer(body_backend=backend))
+                ]
             case "pass-thru":
                 return [
                     OpenApiPassThruTranspiler(),

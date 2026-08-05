@@ -1,4 +1,5 @@
-from __future__ import annotations
+"""Defines abstract and concrete classes for reading and writing JSON-compatible formats."""
+
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass

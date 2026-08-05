@@ -1,9 +1,8 @@
 """End-to-end tests for pass-through transpilation.
 
-Verifies invertibility: transpile(transpile(doc)) == transpile(doc).
+Verifies invertibility: `transpile(transpile(doc)) == transpile(doc)`.
 """
 
-from __future__ import annotations
 
 import orjson
 from hypothesis import HealthCheck, given, settings

@@ -1,4 +1,5 @@
-from __future__ import annotations
+"""Thin wrapper around [IANA media types](https://www.iana.org/assignments/media-types/)."""
+
 
 from collections import defaultdict
 from dataclasses import dataclass, field

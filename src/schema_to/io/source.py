@@ -6,7 +6,6 @@ an HTTP endpoint, an in-memory buffer, or any other origin — the pipeline
 never assumes a filesystem is present.
 """
 
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import KW_ONLY, dataclass
@@ -24,8 +23,9 @@ __all__ = ["DataSource", "JsonSchemaRawDoc", "OpenApiRawDoc", "RawDoc"]
 class RawDoc:
     """An unparsed document together with its provenance metadata.
 
-    The pipeline never reads files directly; every document arrives through
-    a `DataSource` as a `RawDoc`, decoupling I/O from transformation.
+    The pipeline never reads files directly:
+    Every document arrives through a `DataSource` as a `RawDoc`.
+    This decouples I/O from transformation.
 
     Attributes:
         doc_id: Globally unique, opaque identifier

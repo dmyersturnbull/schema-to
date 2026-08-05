@@ -1,12 +1,10 @@
 """Abstract data-sink types.
 
-A `DataSink` is the write-side dual of `DataSource`: it accepts `Artifact`s
-produced by the pipeline without exposing how or where they are stored.  Concrete
-implementations may write to a directory, accumulate in memory, upload to an
-object store, etc.
+A `DataSink` is the write-side dual of `DataSource`:
+It accepts `Artifact`s produced by the pipeline without exposing how or where they are stored.
+Concrete implementations may write to a directory, accumulate in memory, upload to an object store, etc.
 """
 
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass

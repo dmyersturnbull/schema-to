@@ -1,20 +1,17 @@
 """OpenAPI 3.1 document parser.
 
 Converts a `RawDoc` (JSON or YAML bytes) into an `OpenApiDocument` CST.
-Like the JSON Schema parser, this is **non-resolving**: `$ref` values are stored
-as raw strings for a later `RefResolver` stage.
+Like the JSON Schema parser, this is **non-resolving**:
+`$ref` values are stored as raw strings for a later `RefResolver` stage.
 
-Errors are accumulated across all object builders so a single parse call yields
-the complete diagnostic set.
+Errors are accumulated across all object builders so a single parse call yields the complete diagnostic set.
 """
 
-from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping, MutableSequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
-from schema_to import DefaultJsonLikeReader
 from schema_to.cst.base import SourceRef
 from schema_to.cst.openapi import (
     ApiKeyLocation,
@@ -41,6 +38,7 @@ from schema_to.cst.openapi import (
     Tag,
 )
 from schema_to.errors import ParseError, SchemaValidationError, SourceLocation, TranspilationError
+from schema_to.io.core import DefaultJsonLikeReader
 from schema_to.io.source import OpenApiRawDoc
 from schema_to.parse._utils import (
     as_json_dict,
@@ -59,7 +57,7 @@ from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
     from schema_to.core import JsonValue
-    from schema_to.cst.json_schema import JsonSchema
+    from schema_to.cst.json_schema import BooleanSchema, JsonSchema, ObjectSchema
     from schema_to.io.core import JsonLikeReader
 
 __all__ = ["OpenApiParser"]
@@ -104,7 +102,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         data: dict[str, JsonValue],
         *,
         source_id: str,
-        display_name: str | None,  # noqa: ARG002  # OpenApiDocument derives its name from `info.title`; kept for symmetry with other parsers
+        display_name: str | None,  # ruff:ignore[unused-method-argument]  # OpenApiDocument derives its name from `info.title`; kept for symmetry with other parsers
     ) -> Result[OpenApiDocument]:
         errors: list[TranspilationError] = []
 
@@ -630,22 +628,29 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         description = data.get("description", "")
         if not isinstance(description, str):
             description = ""
+        headers = self._build_response_headers(data, errors, pointer, source_id)
+        content = self._build_response_content(data, errors, pointer, source_id)
+        if errors:
+            return Err(tuple(errors))
+        return Ok(
+            Response(
+                description=description,
+                headers=headers,
+                content=content,
+                extensions={k: v for k, v in data.items() if k.startswith("x-")},
+                source_ref=SourceRef(source_id, pointer),
+            )
+        )
 
-        headers: dict[str, Header] = {}
-        if isinstance(data.get("headers"), dict):
-            for hname, hdata in cast("dict[str, JsonValue]", data["headers"]).items():
-                if isinstance(hdata, dict):
-                    h = extract(
-                        self._build_header(
-                            cast("dict[str, JsonValue]", hdata),
-                            source_id=source_id,
-                            pointer=ptr(pointer, "headers", hname),
-                        ),
-                        errors,
-                    )
-                    if h is not None:
-                        headers[hname] = h
-
+    def _build_response_content(
+        self,
+        data: dict[
+            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
+        ],
+        errors: list[TranspilationError],
+        pointer: str,
+        source_id: str,
+    ) -> dict[str, MediaTypeObject]:
         content: dict[str, MediaTypeObject] = {}
         if isinstance(data.get("content"), dict):
             for media_type_str, mt_data in cast("dict[str, JsonValue]", data["content"]).items():
@@ -660,18 +665,32 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                     )
                     if mt is not None:
                         content[media_type_str] = mt
+        return content
 
-        if errors:
-            return Err(tuple(errors))
-        return Ok(
-            Response(
-                description=description,
-                headers=headers,
-                content=content,
-                extensions={k: v for k, v in data.items() if k.startswith("x-")},
-                source_ref=SourceRef(source_id, pointer),
-            )
-        )
+    def _build_response_headers(
+        self,
+        data: dict[
+            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
+        ],
+        errors: list[TranspilationError],
+        pointer: str,
+        source_id: str,
+    ) -> dict[str, Header]:
+        headers: dict[str, Header] = {}
+        if isinstance(data.get("headers"), dict):
+            for hname, hdata in cast("dict[str, JsonValue]", data["headers"]).items():
+                if isinstance(hdata, dict):
+                    h = extract(
+                        self._build_header(
+                            cast("dict[str, JsonValue]", hdata),
+                            source_id=source_id,
+                            pointer=ptr(pointer, "headers", hname),
+                        ),
+                        errors,
+                    )
+                    if h is not None:
+                        headers[hname] = h
+        return headers
 
     def _build_header(
         self, data: dict[str, JsonValue], *, source_id: str, pointer: str
@@ -732,64 +751,50 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
             return Ok(Components())
 
         errors: list[TranspilationError] = []
+        schemas = self._build_schemas(data, errors, pointer, source_id)
+        parameters = self._build_parameters(data, errors, pointer, source_id)
+        responses = self._build_responses(data, errors, pointer, source_id)
+        request_bodies = self._build_request_bodies(data, errors, pointer, source_id)
+        headers = self._build_headers(data, errors, pointer, source_id)
+        security_schemes = self._build_security_schemes(data)
+        if errors:
+            return Err(tuple(errors))
+        return Ok(
+            Components(
+                schemas=schemas,
+                responses=responses,
+                parameters=parameters,
+                request_bodies=request_bodies,
+                headers=headers,
+                security_schemes=security_schemes,
+                extensions={k: v for k, v in data.items() if k.startswith("x-")},
+            )
+        )
 
-        schemas: dict[str, JsonSchema] = {}
-        if isinstance(data.get("schemas"), dict):
-            for name, s_data in cast("dict[str, JsonValue]", data["schemas"]).items():
-                s = extract(
-                    self.js._build_schema(
-                        s_data, source_id=source_id, pointer=ptr(pointer, "schemas", name)
-                    ),
-                    errors,
-                )
-                if s is not None:
-                    schemas[name] = s
+    def _build_security_schemes(
+        self,
+        data: dict[
+            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
+        ],
+    ) -> dict[str, SecurityScheme]:
+        security_schemes: dict[str, SecurityScheme] = {}
+        if isinstance(data.get("securitySchemes"), dict):
+            for name, ss_data in cast("dict[str, JsonValue]", data["securitySchemes"]).items():
+                if isinstance(ss_data, dict):
+                    scheme = self._build_security_scheme(cast("dict[str, JsonValue]", ss_data))
+                    if scheme is not None:
+                        security_schemes[name] = scheme
+        return security_schemes
 
-        parameters: dict[str, Parameter] = {}
-        if isinstance(data.get("parameters"), dict):
-            for name, p_data in cast("dict[str, JsonValue]", data["parameters"]).items():
-                if isinstance(p_data, dict):
-                    p = extract(
-                        self._build_parameter(
-                            cast("dict[str, JsonValue]", p_data),
-                            source_id=source_id,
-                            pointer=ptr(pointer, "parameters", name),
-                        ),
-                        errors,
-                    )
-                    if p is not None:
-                        parameters[name] = p
-
-        responses: dict[str, Response] = {}
-        if isinstance(data.get("responses"), dict):
-            for name, r_data in cast("dict[str, JsonValue]", data["responses"]).items():
-                if isinstance(r_data, dict):
-                    r = extract(
-                        self._build_response(
-                            cast("dict[str, JsonValue]", r_data),
-                            source_id=source_id,
-                            pointer=ptr(pointer, "responses", name),
-                        ),
-                        errors,
-                    )
-                    if r is not None:
-                        responses[name] = r
-
-        request_bodies: dict[str, RequestBody] = {}
-        if isinstance(data.get("requestBodies"), dict):
-            for name, rb_data in cast("dict[str, JsonValue]", data["requestBodies"]).items():
-                if isinstance(rb_data, dict):
-                    rb = extract(
-                        self._build_request_body(
-                            cast("dict[str, JsonValue]", rb_data),
-                            source_id=source_id,
-                            pointer=ptr(pointer, "requestBodies", name),
-                        ),
-                        errors,
-                    )
-                    if rb is not None:
-                        request_bodies[name] = rb
-
+    def _build_headers(
+        self,
+        data: dict[
+            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
+        ],
+        errors: list[TranspilationError],
+        pointer: str,
+        source_id: str,
+    ) -> dict[str, Header]:
         headers: dict[str, Header] = {}
         if isinstance(data.get("headers"), dict):
             for name, h_data in cast("dict[str, JsonValue]", data["headers"]).items():
@@ -804,29 +809,104 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                     )
                     if h is not None:
                         headers[name] = h
+        return headers
 
-        security_schemes: dict[str, SecurityScheme] = {}
-        if isinstance(data.get("securitySchemes"), dict):
-            for name, ss_data in cast("dict[str, JsonValue]", data["securitySchemes"]).items():
-                if isinstance(ss_data, dict):
-                    scheme = self._build_security_scheme(cast("dict[str, JsonValue]", ss_data))
-                    if scheme is not None:
-                        security_schemes[name] = scheme
+    def _build_request_bodies(
+        self,
+        data: dict[
+            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
+        ],
+        errors: list[TranspilationError],
+        pointer: str,
+        source_id: str,
+    ) -> dict[str, RequestBody]:
+        request_bodies: dict[str, RequestBody] = {}
+        if isinstance(data.get("requestBodies"), dict):
+            for name, rb_data in cast("dict[str, JsonValue]", data["requestBodies"]).items():
+                if isinstance(rb_data, dict):
+                    rb = extract(
+                        self._build_request_body(
+                            cast("dict[str, JsonValue]", rb_data),
+                            source_id=source_id,
+                            pointer=ptr(pointer, "requestBodies", name),
+                        ),
+                        errors,
+                    )
+                    if rb is not None:
+                        request_bodies[name] = rb
+        return request_bodies
 
-        if errors:
-            return Err(tuple(errors))
+    def _build_responses(
+        self,
+        data: dict[
+            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
+        ],
+        errors: list[TranspilationError],
+        pointer: str,
+        source_id: str,
+    ) -> dict[str, Response]:
+        responses: dict[str, Response] = {}
+        if isinstance(data.get("responses"), dict):
+            for name, r_data in cast("dict[str, JsonValue]", data["responses"]).items():
+                if isinstance(r_data, dict):
+                    r = extract(
+                        self._build_response(
+                            cast("dict[str, JsonValue]", r_data),
+                            source_id=source_id,
+                            pointer=ptr(pointer, "responses", name),
+                        ),
+                        errors,
+                    )
+                    if r is not None:
+                        responses[name] = r
+        return responses
 
-        return Ok(
-            Components(
-                schemas=schemas,
-                responses=responses,
-                parameters=parameters,
-                request_bodies=request_bodies,
-                headers=headers,
-                security_schemes=security_schemes,
-                extensions={k: v for k, v in data.items() if k.startswith("x-")},
-            )
-        )
+    def _build_parameters(
+        self,
+        data: dict[
+            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
+        ],
+        errors: list[TranspilationError],
+        pointer: str,
+        source_id: str,
+    ) -> dict[str, Parameter]:
+        parameters: dict[str, Parameter] = {}
+        if isinstance(data.get("parameters"), dict):
+            for name, p_data in cast("dict[str, JsonValue]", data["parameters"]).items():
+                if isinstance(p_data, dict):
+                    p = extract(
+                        self._build_parameter(
+                            cast("dict[str, JsonValue]", p_data),
+                            source_id=source_id,
+                            pointer=ptr(pointer, "parameters", name),
+                        ),
+                        errors,
+                    )
+                    if p is not None:
+                        parameters[name] = p
+        return parameters
+
+    def _build_schemas(
+        self,
+        data: dict[
+            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
+        ],
+        errors: list[TranspilationError],
+        pointer: str,
+        source_id: str,
+    ) -> dict[str, BooleanSchema | ObjectSchema]:
+        schemas: dict[str, JsonSchema] = {}
+        if isinstance(data.get("schemas"), dict):
+            for name, s_data in cast("dict[str, JsonValue]", data["schemas"]).items():
+                s = extract(
+                    self.js._build_schema(
+                        s_data, source_id=source_id, pointer=ptr(pointer, "schemas", name)
+                    ),
+                    errors,
+                )
+                if s is not None:
+                    schemas[name] = s
+        return schemas
 
     def _build_security_scheme(self, data: dict[str, JsonValue]) -> SecurityScheme | None:
         scheme_type = enum_member(SecuritySchemeType, data.get("type"))

@@ -1,6 +1,5 @@
 """Serialize JSON Schema 2020-12 CST nodes back to JSON-compatible values."""
 
-from __future__ import annotations
 
 import dataclasses
 from collections.abc import Mapping, Sequence
@@ -24,6 +23,7 @@ __all__ = ["JsonSchemaSerializer"]
 
 # Maps each ObjectSchema Python field name to its JSON Schema keyword.
 # Fields absent from this map (extensions, source_ref) are handled separately.
+# TODO: Build this dynamically from the field `metadata` in `schema_to.json_schema.ObjectSchema`.
 _SCHEMA_KEYS: dict[str, str] = {
     "id": "$id",
     "schema": "$schema",
@@ -74,7 +74,7 @@ _SCHEMA_KEYS: dict[str, str] = {
     "one_of": "oneOf",
     "not_": "not",
     "if_": "if",
-    "then": "then",
+    "then_": "then",
     "else_": "else",
     "unevaluated_items": "unevaluatedItems",
     "unevaluated_properties": "unevaluatedProperties",
@@ -89,9 +89,9 @@ _SCHEMA_KEYS: dict[str, str] = {
 class JsonSchemaSerializer:
     """Convert a `JsonSchema` or `JsonSchemaDocument` CST node to a `JsonValue`.
 
-    The output is a plain Python dict/bool suitable for `orjson.dumps` or
-    `yaml12.format_yaml`.  Only keywords that differ from absent/default state
-    are emitted, so the result is minimal but semantically complete.
+    The output is a plain Python dict/bool suitable for `orjson.dumps` or `yaml12.format_yaml`.
+    Only keywords that differ from absent/default state are emitted,
+    so the result is minimal but semantically complete.
     """
 
     def serialize_document(self, doc: JsonSchemaDocument) -> JsonValue:
@@ -117,7 +117,8 @@ class JsonSchemaSerializer:
         out.update(s.extensions)
         return out
 
-    def _val(self, value: JsonValue) -> JsonValue:  # noqa: PLR0911 # all returns are in the match
+    # ruff:ignore[complex-structure, too-many-return-statements]  # All returns are in the match.
+    def _val(self, value: JsonValue) -> JsonValue:
         match value:
             case BooleanSchema() | ObjectSchema():
                 return self.serialize(value)

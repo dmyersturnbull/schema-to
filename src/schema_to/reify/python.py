@@ -1,17 +1,14 @@
 """Reifier: Python AST → `.py` source bytes.
 
-Emits syntactically valid Python that can be parsed with `ast.parse` and
-formatted by `ruff format` without errors.  The output style is:
+The output style is:
 
-* `from __future__ import annotations` (enables forward references)
-* `from <module> import <names>` collected from the declaration tree
-* PEP 695 `type Name = ...` for `TypeAliasDef`
-* `class Name(BaseModel):` for `ClassDef(style=PYDANTIC)`
-* `class Name:` for plain `ClassDef`
-* Fields as `name: Annotation` or `name: Annotation = default`
+- `from <module> import <names>` collected from the declaration tree
+- PEP 695 `type Name = ...` for `TypeAliasDef`
+- `class Name(BaseModel):` for `ClassDef(style=PYDANTIC)`
+- `class Name:` for plain `ClassDef`
+- Fields as `name: Annotation` or `name: Annotation = default`
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -77,8 +74,6 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
 
         if module.module_doc:
             lines += [f'"""{module.module_doc}"""', ""]
-
-        lines += ["from __future__ import annotations", ""]
 
         for imp in module.imports:
             lines.append(self._emit_import(imp))
@@ -178,28 +173,21 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
         lines.append(f"class {decl.name}{base_str}:")
 
         body: list[str] = []
-
         # Style-specific config (Pydantic frozen)
         if decl.style == ClassStyle.PYDANTIC_FROZEN:
             body.extend([f"{_INDENT}model_config = ConfigDict(frozen=True)", ""])
-
         if decl.doc:
             body += self._emit_docstring(decl.doc, indent=_INDENT)
-
         for f in decl.fields:
             body += self._emit_field(f)
-
         for m in decl.methods:
             body.append("")
             body += [_INDENT + ln for ln in self._emit_method_stub(m)]
-
         for nested in decl.nested:
             body.append("")
             body += [_INDENT + ln for ln in self._emit_class(nested)]
-
         if not body:
             body.append(f"{_INDENT}pass")
-
         lines += body
         return lines
 
@@ -263,5 +251,6 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     # Method stubs (for abstract methods etc.)
     # ------------------------------------------------------------------
 
-    def _emit_method_stub(self, m: FunctionDef) -> list[str]:  # noqa: ARG002 # This method is defined to be overridden.
+    # ruff:ignore[unused-method-argument]  # Defined for overriding.
+    def _emit_method_stub(self, m: FunctionDef) -> list[str]:
         return ["pass"]

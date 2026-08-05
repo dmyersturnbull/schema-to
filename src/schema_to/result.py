@@ -1,12 +1,10 @@
 """Minimal `Result[T]` sum type for error-accumulating computations.
 
 A `Result[T]` is either `Ok[T]` (success) or `Err` (one or more fatal errors).
-It models the same concept as `Either[NonEmptyList[TranspilationError], T]` in
-Haskell/Scala, providing `map` and `flat_map` for sequential composition that
-short-circuits on the first failure.
+It models the same concept as `Either[NonEmptyList[TranspilationError], T]` in Haskell/Scala,
+providing `map` and `flat_map` for sequential composition that short-circuits on the first failure.
 """
 
-from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -58,9 +56,6 @@ class Ok[T](_Result):
 class Err(_Result):
     """Failed result carrying at least one `TranspilationError`.
 
-    Multiple errors are accumulated so callers receive a complete diagnostic
-    report rather than stopping at the first problem.
-
     Attributes:
         errors: Non-empty tuple of accumulated errors.
     """
@@ -71,10 +66,12 @@ class Err(_Result):
     def of(cls, *errors: TranspilationError) -> Self:
         return cls(tuple(errors))
 
-    def map[T, U](self, f: Callable[[T], U]) -> Err:  # noqa: ARG002  # Err propagates unchanged; f is part of the Result[T] interface
+    # ruff:ignore[unused-method-argument]  # Err propagates unchanged; f is part of the Result[T] interface
+    def map[T, U](self, f: Callable[[T], U]) -> Err:
         return self
 
-    def flat_map[T, U](self, f: Callable[[T], Ok[U] | Err]) -> Err:  # noqa: ARG002  # same — Err short-circuits
+    # ruff:ignore[unused-method-argument]  # same — Err short-circuits
+    def flat_map[T, U](self, f: Callable[[T], Ok[U] | Err]) -> Err:
         return self
 
     @property

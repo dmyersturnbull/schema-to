@@ -1,6 +1,5 @@
 """Transpilers that extract sub-documents from a larger document."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, override

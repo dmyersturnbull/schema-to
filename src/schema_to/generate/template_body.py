@@ -1,25 +1,26 @@
 """Generic endpoint-body backend driven by OpenAPI extensions.
 
-This backend keeps schema-to free of any persistence layer.  Each operation
-chooses its route body through `x-` extensions; the backend renders it with a
-neutral context and returns the resulting statements plus the imports and extra
-signature parameters the operation declares:
+This backend keeps schema-to free of any persistence layer.
+Each operation chooses its route body through `x-` extensions.
+The backend renders it with a neutral context,
+returning the statements plus the imports and extra signature parameters the operation declares.
 
-* `x-fastapi-template`: the *name* of a Jinja template registered on the CLI with
+- `x-fastapi-template`: the *name* of a Jinja template registered on the CLI with
   `--template <name>=<path>` (the recommended mechanism).
-* `x-fastapi-body`: an inline Jinja template (string), as an alternative.
-* `x-fastapi-imports`: a list of import statements the body needs, e.g.
+- `x-fastapi-body`: an inline Jinja template (string), as an alternative.
+- `x-fastapi-imports`: a list of import statements the body needs, e.g.
   `["from fastapi import Depends", "from query_dsl import build_get_query"]`.
-* `x-fastapi-params`: a list of extra signature parameters, each a mapping with
+- `x-fastapi-params`: a list of extra signature parameters, each a mapping with
   `name` and optional `annotation`, `default`, and `kind`.
 
-The template context is documented in `examples/postgres/README.md`: the
-operation (`method`, `path`, `operation_id`, `operation`), its resolved `params`
-(plus `param(name)` and `params_by_name`), the merged `ext` mapping, the
-resource's `json_properties`, and the REST helpers from `schema_to.generate.rest`.
+The template context is documented in `examples/postgres/README.md`:
+the operation (`method`, `path`, `operation_id`, `operation`),
+its resolved `params` (plus `param(name)` and `params_by_name`),
+the merged `ext` mapping,
+the resource's `json_properties`,
+and the REST helpers from `schema_to.generate.rest`.
 """
 
-from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field

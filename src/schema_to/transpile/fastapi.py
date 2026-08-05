@@ -1,6 +1,5 @@
 """Transpiler: OpenAPI 3.1 → FastAPI application Python module."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, override
@@ -29,16 +28,17 @@ class OpenApiToFastApiTranspiler(Transpiler[OpenApiRawDoc, PythonArtifact]):
 
     The four pipeline stages are:
 
-    1. **Parse** – `OpenApiParser` decodes JSON/YAML bytes into an `OpenApiDocument` CST.
-       Embedded JSON Schemas are parsed via the same `JsonSchemaParser` used by the
-       JSON Schema → Pydantic pipeline.
-    2. **Generate** – `FastApiTransformer` converts the `OpenApiDocument` into a
-       `PythonModule` AST containing Pydantic model classes and async route functions.
+    1. **Parse**:
+       `OpenApiParser` decodes JSON/YAML bytes into an `OpenApiDocument` CST.
+       Embedded JSON Schemas are parsed via the same `JsonSchemaParser`
+       used by the JSON Schema → Pydantic pipeline.
+    2. **Generate** – `FastApiTransformer` converts the `OpenApiDocument` into a `PythonModule` AST
+       containing Pydantic model classes and async route functions.
        Component schemas are routed through `PydanticTransformer` internally.
     3. **Reify** – `PythonReifier` serialises the `PythonModule` to a `.py` artifact.
 
-    There is no dedicated resolve stage: `$ref` values within component schemas are
-    resolved at generation time by the embedded `PydanticTransformer`.
+    There is no dedicated resolve stage:
+    `$ref` values within component schemas are resolved at generation time by the embedded `PydanticTransformer`.
     """
 
     parser: OpenApiParser = field(

@@ -14,7 +14,6 @@ The grammar::
                   | "[" value ( "," value )* "]"
 """
 
-from __future__ import annotations
 
 import re
 
