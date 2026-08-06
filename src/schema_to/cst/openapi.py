@@ -7,7 +7,6 @@ The hierarchy follows the object model of the
 [OAS 3.1 spec](https://spec.openapis.org/oas/v3.1.0#schema).
 """
 
-
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
@@ -100,7 +99,7 @@ class ApiKeyLocation(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
-class Contact:
+class Contact(CstNode):
     """[Contact Object](https://spec.openapis.org/oas/v3.1.0#contact-object).
 
     Attributes:
@@ -108,16 +107,18 @@ class Contact:
         url: URL pointing to contact information.
         email: Email address of the contact person/organisation.
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     name: str | None = None
     url: str | None = None
     email: str | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class License:
+class License(CstNode):
     """[License Object](https://spec.openapis.org/oas/v3.1.0#license-object).
 
     Attributes:
@@ -125,16 +126,18 @@ class License:
         identifier: An [SPDX](https://spdx.org/licenses/) identifier, e.g. `"MIT"`.
         url: URL to the license text.
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     name: str
     identifier: str | None = None
     url: str | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class Info:
+class Info(CstNode):
     """[Info Object](https://spec.openapis.org/oas/v3.1.0#info-object).
 
     Attributes:
@@ -146,6 +149,7 @@ class Info:
         contact: Contact information for the API.
         license_: License information for the API.
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     title: str
@@ -156,10 +160,11 @@ class Info:
     contact: Contact | None = None
     license_: License | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class ServerVariable:
+class ServerVariable(CstNode):
     """[Server Variable Object](https://spec.openapis.org/oas/v3.1.0#server-variable-object).
 
     Attributes:
@@ -167,16 +172,18 @@ class ServerVariable:
         enum: An enumeration of allowable string values.
         description: Optional description; CommonMark allowed.
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     default: str
     enum: Sequence[str] | None = None
     description: str | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class Server:
+class Server(CstNode):
     """[Server Object](https://spec.openapis.org/oas/v3.1.0#server-object).
 
     Attributes:
@@ -184,31 +191,35 @@ class Server:
         description: Optional description; CommonMark allowed.
         variables: Map from variable name to `ServerVariable`.
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     url: str
     description: str | None = None
     variables: Mapping[str, ServerVariable] = field(default_factory=dict)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class ExternalDocumentation:
+class ExternalDocumentation(CstNode):
     """[External Documentation Object](https://spec.openapis.org/oas/v3.1.0#external-documentation-object).
 
     Attributes:
         url: URL for the target documentation (required).
         description: Short description; CommonMark allowed.
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     url: str
     description: str | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class Tag:
+class Tag(CstNode):
     """[Tag Object](https://spec.openapis.org/oas/v3.1.0#tag-object).
 
     Attributes:
@@ -216,12 +227,14 @@ class Tag:
         description: Short description; CommonMark allowed.
         external_docs: Additional external documentation.
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     name: str
     description: str | None = None
     external_docs: ExternalDocumentation | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -230,26 +243,30 @@ class Tag:
 
 
 @dataclass(frozen=True, slots=True)
-class Header:
+class Header(CstNode):
     """[Header Object](https://spec.openapis.org/oas/v3.1.0#header-object).
 
     Attributes:
         schema: JSON Schema for the header value.
+        content: Per-media-type serialization, mutually exclusive with `schema`.
         description: CommonMark description.
         required: Defaults to `False`.
         deprecated: Marks the header as deprecated.
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     schema: JsonSchema | None = None
+    content: Mapping[str, MediaTypeObject] = field(default_factory=dict)
     description: str | None = None
     required: bool = False
     deprecated: bool = False
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class Encoding:
+class Encoding(CstNode):
     """[Encoding Object](https://spec.openapis.org/oas/v3.1.0#encoding-object).
 
     Attributes:
@@ -259,6 +276,7 @@ class Encoding:
         explode: Whether arrays/objects generate separate parameters.
         allow_reserved: Allow reserved characters without percent-encoding.
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     content_type: str | None = None
@@ -267,10 +285,11 @@ class Encoding:
     explode: bool = False
     allow_reserved: bool = False
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class MediaTypeObject:
+class MediaTypeObject(CstNode):
     """[Media Type Object](https://spec.openapis.org/oas/v3.1.0#media-type-object).
 
     Attributes:
@@ -279,6 +298,7 @@ class MediaTypeObject:
         examples: Named example objects (mutually exclusive with `example`).
         encoding: Per-property encoding hints for `multipart` and `form` bodies.
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     schema: JsonSchema | None = None
@@ -286,16 +306,18 @@ class MediaTypeObject:
     examples: Mapping[str, JsonValue] = field(default_factory=dict)
     encoding: Mapping[str, Encoding] = field(default_factory=dict)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class Parameter:
+class Parameter(CstNode):
     """[Parameter Object](https://spec.openapis.org/oas/v3.1.0#parameter-object).
 
     Attributes:
         name: Parameter name (required).
         in_: Location of the parameter (required).
         schema: JSON Schema for the parameter value.
+        content: Per-media-type serialization, mutually exclusive with `schema`.
         description: CommonMark description.
         required: Must be `True` for path parameters.
         deprecated: Marks the parameter as deprecated.
@@ -309,6 +331,7 @@ class Parameter:
     name: str
     in_: ParameterLocation
     schema: JsonSchema | None = None
+    content: Mapping[str, MediaTypeObject] = field(default_factory=dict)
     description: str | None = None
     required: bool = False
     deprecated: bool = False
@@ -320,7 +343,7 @@ class Parameter:
 
 
 @dataclass(frozen=True, slots=True)
-class RequestBody:
+class RequestBody(CstNode):
     """[Request Body Object](https://spec.openapis.org/oas/v3.1.0#request-body-object).
 
     Attributes:
@@ -339,7 +362,7 @@ class RequestBody:
 
 
 @dataclass(frozen=True, slots=True)
-class Response:
+class Response(CstNode):
     """[Response Object](https://spec.openapis.org/oas/v3.1.0#response-object).
 
     Attributes:
@@ -360,7 +383,7 @@ class Response:
 
 
 @dataclass(frozen=True, slots=True)
-class Link:
+class Link(CstNode):
     """[Link Object](https://spec.openapis.org/oas/v3.1.0#link-object).
 
     Attributes:
@@ -371,6 +394,7 @@ class Link:
         description: CommonMark description.
         server: Target server for this link.
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     operation_ref: str | None = None
@@ -380,6 +404,7 @@ class Link:
     description: str | None = None
     server: Server | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -388,7 +413,7 @@ class Link:
 
 
 @dataclass(frozen=True, slots=True)
-class Operation:
+class Operation(CstNode):
     """[Operation Object](https://spec.openapis.org/oas/v3.1.0#operation-object).
 
     Attributes:
@@ -426,7 +451,7 @@ type SecurityRequirement = Mapping[str, Sequence[str]]
 
 
 @dataclass(frozen=True, slots=True)
-class PathItem:
+class PathItem(CstNode):
     """[Path Item Object](https://spec.openapis.org/oas/v3.1.0#path-item-object).
 
     Each HTTP method is a separate optional field mirroring the spec.
@@ -463,7 +488,7 @@ class PathItem:
 
 
 @dataclass(frozen=True, slots=True)
-class OAuthFlow:
+class OAuthFlow(CstNode):
     """A single [OAuth Flow Object](https://spec.openapis.org/oas/v3.1.0#oauth-flow-object).
 
     Attributes:
@@ -472,6 +497,7 @@ class OAuthFlow:
         token_url: URL for `password`, `clientCredentials`, and `authorizationCode`.
         refresh_url: URL for obtaining refresh tokens.
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     scopes: Mapping[str, str]
@@ -479,10 +505,11 @@ class OAuthFlow:
     token_url: str | None = None
     refresh_url: str | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class OAuthFlows:
+class OAuthFlows(CstNode):
     """[OAuth Flows Object](https://spec.openapis.org/oas/v3.1.0#oauth-flows-object).
 
     Attributes:
@@ -491,6 +518,7 @@ class OAuthFlows:
         client_credentials: Configuration for the Client Credentials flow.
         authorization_code: Configuration for the Authorization Code flow.
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     implicit: OAuthFlow | None = None
@@ -498,10 +526,11 @@ class OAuthFlows:
     client_credentials: OAuthFlow | None = None
     authorization_code: OAuthFlow | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 @dataclass(frozen=True, slots=True)
-class SecurityScheme:
+class SecurityScheme(CstNode):
     """[Security Scheme Object](https://spec.openapis.org/oas/v3.1.0#security-scheme-object).
 
     Attributes:
@@ -514,6 +543,7 @@ class SecurityScheme:
         flows: OAuth flow definitions (`oauth2` type only).
         open_id_connect_url: OpenID Connect Discovery URL.
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     type_: SecuritySchemeType
@@ -525,6 +555,7 @@ class SecurityScheme:
     flows: OAuthFlows | None = None
     open_id_connect_url: str | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -533,7 +564,7 @@ class SecurityScheme:
 
 
 @dataclass(frozen=True, slots=True)
-class Components:
+class Components(CstNode):
     """[Components Object](https://spec.openapis.org/oas/v3.1.0#components-object).
 
     A registry of reusable objects referenced via `$ref` elsewhere in the document.
@@ -548,6 +579,7 @@ class Components:
         links: Reusable link objects.
         path_items: Reusable path item objects (OAS 3.1 addition).
         extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
     """
 
     schemas: Mapping[str, JsonSchema] = field(default_factory=dict)
@@ -559,6 +591,7 @@ class Components:
     links: Mapping[str, Link] = field(default_factory=dict)
     path_items: Mapping[str, PathItem] = field(default_factory=dict)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
+    source_ref: SourceRef | None = None
 
 
 @dataclass(frozen=True, slots=True)

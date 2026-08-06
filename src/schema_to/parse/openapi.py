@@ -7,7 +7,6 @@ Like the JSON Schema parser, this is **non-resolving**:
 Errors are accumulated across all object builders so a single parse call yields the complete diagnostic set.
 """
 
-
 from collections.abc import Mapping, MutableMapping, MutableSequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
@@ -141,8 +140,8 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
             errors,
         )
 
-        servers = self._build_server_list(data)
-        tags = self._build_tags(data)
+        servers = self._build_server_list(data, source_id=source_id, pointer="")
+        tags = self._build_tags(data, source_id=source_id, pointer="")
 
         security: list[dict] = []
         raw_security = data.get("security")
@@ -257,6 +256,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 url=str_field(c, "url"),
                 email=str_field(c, "email"),
                 extensions={k: v for k, v in c.items() if k.startswith("x-")},
+                source_ref=SourceRef(source_id, ptr(pointer, "contact")),
             )
 
         license_: License | None = None
@@ -267,6 +267,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 identifier=str_field(lic, "identifier"),
                 url=str_field(lic, "url"),
                 extensions={k: v for k, v in lic.items() if k.startswith("x-")},
+                source_ref=SourceRef(source_id, ptr(pointer, "license")),
             )
 
         return Ok(
@@ -281,22 +282,29 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 contact=contact,
                 license_=license_,
                 extensions={k: v for k, v in data.items() if k.startswith("x-")},
+                source_ref=SourceRef(source_id, pointer),
             )
         )
 
     # -- Servers / tags / external docs -------------------------------------
 
-    def _build_server_list(self, data: dict[str, JsonValue]) -> list[Server]:
+    def _build_server_list(
+        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
+    ) -> list[Server]:
         raw = data.get("servers")
         if not isinstance(raw, list):
             return []
         return [
-            self._extract_server(cast("dict[str, JsonValue]", s))
-            for s in raw
+            self._extract_server(
+                cast("dict[str, JsonValue]", s),
+                source_id=source_id,
+                pointer=ptr(pointer, "servers", i),
+            )
+            for i, s in enumerate(raw)
             if isinstance(s, dict)
         ]
 
-    def _extract_server(self, s: dict[str, JsonValue]) -> Server:
+    def _extract_server(self, s: dict[str, JsonValue], *, source_id: str, pointer: str) -> Server:
         variables: dict[str, ServerVariable] = {}
         if isinstance(s.get("variables"), dict):
             for vname, vdata in cast("dict[str, JsonValue]", s["variables"]).items():
@@ -310,23 +318,26 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                         else None,
                         description=str_field(vd, "description"),
                         extensions={k: v for k, v in vd.items() if k.startswith("x-")},
+                        source_ref=SourceRef(source_id, ptr(pointer, "variables", vname)),
                     )
         return Server(
             url=str_or(s, "url"),
             description=str_field(s, "description"),
             variables=variables,
             extensions={k: v for k, v in s.items() if k.startswith("x-")},
+            source_ref=SourceRef(source_id, pointer),
         )
 
-    def _build_tags(self, data: dict[str, JsonValue]) -> list[Tag]:
+    def _build_tags(self, data: dict[str, JsonValue], *, source_id: str, pointer: str) -> list[Tag]:
         tags: list[Tag] = []
         raw = data.get("tags")
         if not isinstance(raw, list):
             return tags
-        for t in as_json_list(raw):
+        for i, t in enumerate(as_json_list(raw)):
             if not isinstance(t, dict):
                 continue
             td = cast("dict[str, JsonValue]", t)
+            tag_ptr = ptr(pointer, "tags", i)
             ext_docs: ExternalDocumentation | None = None
             if isinstance(td.get("externalDocs"), dict):
                 ed = cast("dict[str, JsonValue]", td["externalDocs"])
@@ -334,6 +345,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                     url=str_or(ed, "url"),
                     description=str_field(ed, "description"),
                     extensions={k: v for k, v in ed.items() if k.startswith("x-")},
+                    source_ref=SourceRef(source_id, ptr(tag_ptr, "externalDocs")),
                 )
             tags.append(
                 Tag(
@@ -341,6 +353,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                     description=str_field(td, "description"),
                     external_docs=ext_docs,
                     extensions={k: v for k, v in td.items() if k.startswith("x-")},
+                    source_ref=SourceRef(source_id, tag_ptr),
                 )
             )
         return tags
@@ -363,6 +376,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 url=url,
                 description=str_field(data, "description"),
                 extensions={k: v for k, v in data.items() if k.startswith("x-")},
+                source_ref=SourceRef(source_id, pointer),
             )
         )
 
@@ -389,7 +403,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         parameters = self._build_parameter_list(
             data, source_id=source_id, pointer=pointer, errors=errors
         )
-        servers = self._build_server_list(data)
+        servers = self._build_server_list(data, source_id=source_id, pointer=pointer)
 
         if errors:
             return Err(tuple(errors))
@@ -468,7 +482,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 errors,
             )
 
-        servers = self._build_server_list(data)
+        servers = self._build_server_list(data, source_id=source_id, pointer=pointer)
 
         security: list[dict] | None = None
         raw_sec = data.get("security")
@@ -570,6 +584,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 ),
                 errors,
             )
+        content = self._build_content_map(data, source_id=source_id, pointer=pointer, errors=errors)
 
         if errors:
             return Err(tuple(errors))
@@ -579,6 +594,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 name=name,
                 in_=in_loc,
                 schema=schema,
+                content=content,
                 description=str_field(data, "description"),
                 required=bool(data.get("required")),
                 deprecated=bool(data.get("deprecated")),
@@ -590,25 +606,38 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
             )
         )
 
+    def _build_content_map(
+        self,
+        data: dict[str, JsonValue],
+        *,
+        source_id: str,
+        pointer: str,
+        errors: list[TranspilationError],
+    ) -> dict[str, MediaTypeObject]:
+        """Parse a `content` map (media-type string → `MediaTypeObject`)."""
+        content_raw = data.get("content")
+        content: dict[str, MediaTypeObject] = {}
+        if not isinstance(content_raw, dict):
+            return content
+        for media_type_str, mt_data in as_json_dict(content_raw).items():
+            if isinstance(mt_data, dict):
+                mt = extract(
+                    self._build_media_type_obj(
+                        cast("dict[str, JsonValue]", mt_data),
+                        source_id=source_id,
+                        pointer=ptr(pointer, "content", media_type_str),
+                    ),
+                    errors,
+                )
+                if mt is not None:
+                    content[media_type_str] = mt
+        return content
+
     def _build_request_body(
         self, data: dict[str, JsonValue], *, source_id: str, pointer: str
     ) -> Result[RequestBody]:
         errors: list[TranspilationError] = []
-        content_raw = data.get("content", {})
-        content: dict[str, MediaTypeObject] = {}
-        if isinstance(content_raw, dict):
-            for media_type_str, mt_data in as_json_dict(content_raw).items():
-                if isinstance(mt_data, dict):
-                    mt = extract(
-                        self._build_media_type_obj(
-                            cast("dict[str, JsonValue]", mt_data),
-                            source_id=source_id,
-                            pointer=ptr(pointer, "content", media_type_str),
-                        ),
-                        errors,
-                    )
-                    if mt is not None:
-                        content[media_type_str] = mt
+        content = self._build_content_map(data, source_id=source_id, pointer=pointer, errors=errors)
         if errors:
             return Err(tuple(errors))
         return Ok(
@@ -629,7 +658,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         if not isinstance(description, str):
             description = ""
         headers = self._build_response_headers(data, errors, pointer, source_id)
-        content = self._build_response_content(data, errors, pointer, source_id)
+        content = self._build_content_map(data, source_id=source_id, pointer=pointer, errors=errors)
         if errors:
             return Err(tuple(errors))
         return Ok(
@@ -641,31 +670,6 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 source_ref=SourceRef(source_id, pointer),
             )
         )
-
-    def _build_response_content(
-        self,
-        data: dict[
-            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
-        ],
-        errors: list[TranspilationError],
-        pointer: str,
-        source_id: str,
-    ) -> dict[str, MediaTypeObject]:
-        content: dict[str, MediaTypeObject] = {}
-        if isinstance(data.get("content"), dict):
-            for media_type_str, mt_data in cast("dict[str, JsonValue]", data["content"]).items():
-                if isinstance(mt_data, dict):
-                    mt = extract(
-                        self._build_media_type_obj(
-                            cast("dict[str, JsonValue]", mt_data),
-                            source_id=source_id,
-                            pointer=ptr(pointer, "content", media_type_str),
-                        ),
-                        errors,
-                    )
-                    if mt is not None:
-                        content[media_type_str] = mt
-        return content
 
     def _build_response_headers(
         self,
@@ -705,15 +709,18 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 ),
                 errors,
             )
+        content = self._build_content_map(data, source_id=source_id, pointer=pointer, errors=errors)
         if errors:
             return Err(tuple(errors))
         return Ok(
             Header(
                 schema=schema,
+                content=content,
                 description=str_field(data, "description"),
                 required=bool(data.get("required")),
                 deprecated=bool(data.get("deprecated")),
                 extensions={k: v for k, v in data.items() if k.startswith("x-")},
+                source_ref=SourceRef(source_id, pointer),
             )
         )
 
@@ -739,6 +746,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 example=data.get("example"),
                 examples=dict(as_json_dict(examples_raw)) if isinstance(examples_raw, dict) else {},
                 extensions={k: v for k, v in data.items() if k.startswith("x-")},
+                source_ref=SourceRef(source_id, pointer),
             )
         )
 
@@ -756,7 +764,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         responses = self._build_responses(data, errors, pointer, source_id)
         request_bodies = self._build_request_bodies(data, errors, pointer, source_id)
         headers = self._build_headers(data, errors, pointer, source_id)
-        security_schemes = self._build_security_schemes(data)
+        security_schemes = self._build_security_schemes(data, source_id=source_id, pointer=pointer)
         if errors:
             return Err(tuple(errors))
         return Ok(
@@ -768,6 +776,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 headers=headers,
                 security_schemes=security_schemes,
                 extensions={k: v for k, v in data.items() if k.startswith("x-")},
+                source_ref=SourceRef(source_id, pointer),
             )
         )
 
@@ -776,12 +785,19 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         data: dict[
             str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
         ],
+        *,
+        source_id: str,
+        pointer: str,
     ) -> dict[str, SecurityScheme]:
         security_schemes: dict[str, SecurityScheme] = {}
         if isinstance(data.get("securitySchemes"), dict):
             for name, ss_data in cast("dict[str, JsonValue]", data["securitySchemes"]).items():
                 if isinstance(ss_data, dict):
-                    scheme = self._build_security_scheme(cast("dict[str, JsonValue]", ss_data))
+                    scheme = self._build_security_scheme(
+                        cast("dict[str, JsonValue]", ss_data),
+                        source_id=source_id,
+                        pointer=ptr(pointer, "securitySchemes", name),
+                    )
                     if scheme is not None:
                         security_schemes[name] = scheme
         return security_schemes
@@ -908,7 +924,9 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                     schemas[name] = s
         return schemas
 
-    def _build_security_scheme(self, data: dict[str, JsonValue]) -> SecurityScheme | None:
+    def _build_security_scheme(
+        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
+    ) -> SecurityScheme | None:
         scheme_type = enum_member(SecuritySchemeType, data.get("type"))
         if scheme_type is None:
             return None
@@ -919,24 +937,44 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
             in_=enum_member(ApiKeyLocation, data.get("in")),
             scheme=str_field(data, "scheme"),
             bearer_format=str_field(data, "bearerFormat"),
-            flows=self._build_oauth_flows(data.get("flows")),
+            flows=self._build_oauth_flows(
+                data.get("flows"), source_id=source_id, pointer=ptr(pointer, "flows")
+            ),
             open_id_connect_url=str_field(data, "openIdConnectUrl"),
             extensions={k: v for k, v in data.items() if k.startswith("x-")},
+            source_ref=SourceRef(source_id, pointer),
         )
 
-    def _build_oauth_flows(self, data: JsonValue) -> OAuthFlows | None:
+    def _build_oauth_flows(
+        self, data: JsonValue, *, source_id: str, pointer: str
+    ) -> OAuthFlows | None:
         if not isinstance(data, Mapping):
             return None
         flows = cast("dict[str, JsonValue]", data)
         return OAuthFlows(
-            implicit=self._build_oauth_flow(flows.get("implicit")),
-            password=self._build_oauth_flow(flows.get("password")),
-            client_credentials=self._build_oauth_flow(flows.get("clientCredentials")),
-            authorization_code=self._build_oauth_flow(flows.get("authorizationCode")),
+            implicit=self._build_oauth_flow(
+                flows.get("implicit"), source_id=source_id, pointer=ptr(pointer, "implicit")
+            ),
+            password=self._build_oauth_flow(
+                flows.get("password"), source_id=source_id, pointer=ptr(pointer, "password")
+            ),
+            client_credentials=self._build_oauth_flow(
+                flows.get("clientCredentials"),
+                source_id=source_id,
+                pointer=ptr(pointer, "clientCredentials"),
+            ),
+            authorization_code=self._build_oauth_flow(
+                flows.get("authorizationCode"),
+                source_id=source_id,
+                pointer=ptr(pointer, "authorizationCode"),
+            ),
             extensions={k: v for k, v in flows.items() if k.startswith("x-")},
+            source_ref=SourceRef(source_id, pointer),
         )
 
-    def _build_oauth_flow(self, data: JsonValue) -> OAuthFlow | None:
+    def _build_oauth_flow(
+        self, data: JsonValue, *, source_id: str, pointer: str
+    ) -> OAuthFlow | None:
         if not isinstance(data, Mapping):
             return None
         flow = cast("dict[str, JsonValue]", data)
@@ -955,4 +993,5 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
             token_url=str_field(flow, "tokenUrl"),
             refresh_url=str_field(flow, "refreshUrl"),
             extensions={k: v for k, v in flow.items() if k.startswith("x-")},
+            source_ref=SourceRef(source_id, pointer),
         )
