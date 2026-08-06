@@ -7,7 +7,7 @@ import orjson
 import pytest
 
 from schema_to import JsonSchemaRawDoc, MediaTypes
-from schema_to.cst.json_schema import ObjectSchema
+from schema_to.cst.json_schema import BooleanSchema, ObjectSchema, is_object_schema
 from schema_to.generate.resource import json_properties, property_names
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.result import Ok
@@ -50,3 +50,13 @@ def test_no_properties(schema: dict[str, Any]) -> None:
     obj = _object_schema(schema)
     assert json_properties(obj) == ()
     assert property_names(obj) == ()
+
+
+def test_is_object_schema() -> None:
+    assert is_object_schema(_object_schema({"type": "object"}))
+    # No explicit type but properties present is treated as an object.
+    assert is_object_schema(_object_schema({"properties": {"a": {"type": "string"}}}))
+    # `object` among a type union still counts.
+    assert is_object_schema(_object_schema({"type": ["object", "null"]}))
+    assert not is_object_schema(_object_schema({"type": "string"}))
+    assert not is_object_schema(BooleanSchema(value=True))

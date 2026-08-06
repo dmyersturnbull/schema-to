@@ -13,7 +13,6 @@ Mapping rules
 - Unsupported constructs emit `TranspilationWarning` and fall back to `Any`.
 """
 
-
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
@@ -33,6 +32,7 @@ from schema_to.cst.json_schema import (
     JsonSchemaDocument,
     JsonSchemaType,
     ObjectSchema,
+    is_object_schema,
 )
 from schema_to.errors import (
     GenerationError,
@@ -201,7 +201,7 @@ class _GenCtx:
         """
         if isinstance(schema, BooleanSchema):
             return []
-        if self._is_object_schema(schema):
+        if is_object_schema(schema):
             if safe_python_class_name(name) in self.split_names:
                 return [
                     self._make_class(schema, name, variant="read"),
@@ -216,14 +216,6 @@ class _GenCtx:
                 description=schema.description if schema.title else None,
             )
         return [TypeAliasDef(name=safe_python_class_name(name), annotation=ann, doc=doc)]
-
-    def _is_object_schema(self, schema: ObjectSchema) -> bool:
-        if schema.type == JsonSchemaType.OBJECT:
-            return True
-        if isinstance(schema.type, frozenset) and JsonSchemaType.OBJECT in schema.type:
-            return True
-        # Schemas with properties but no explicit type are treated as objects.
-        return schema.type is None and schema.properties is not None
 
     def _make_class(
         self, schema: ObjectSchema, name: str, *, variant: Literal["read", "write"] | None

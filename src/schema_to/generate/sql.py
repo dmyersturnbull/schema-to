@@ -27,7 +27,7 @@ Mapping rules
 
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, TypeIs
+from typing import TYPE_CHECKING
 
 import orjson
 
@@ -46,6 +46,7 @@ from schema_to.cst.json_schema import (
     JsonSchemaDocument,
     JsonSchemaType,
     ObjectSchema,
+    is_object_schema,
 )
 from schema_to.errors import GenerationError, SourceLocation, TranspilationWarning
 from schema_to.generate._names import safe_sql_identifier
@@ -99,14 +100,6 @@ def _sql_literal(v: JsonValue) -> str:
 def _num_literal(v: float) -> str:
     """Format a numeric value, dropping the `.0` suffix for whole numbers."""
     return str(v).removesuffix(".0")
-
-
-def _is_object_schema(schema: JsonSchema) -> TypeIs[ObjectSchema]:
-    """Return `True` if the schema should map to a `CREATE TABLE` statement."""
-    if not isinstance(schema, ObjectSchema):
-        return False
-    types = schema.get_types()
-    return JsonSchemaType.OBJECT in types or not types and schema.properties is not None
 
 
 def _unwrap_nullable(schema: ObjectSchema) -> tuple[bool, JsonSchema]:
@@ -201,7 +194,7 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
                 def_schema, safe_sql_identifier(def_schema.title or def_name), sid
             )
             for def_name, def_schema in (root.get_defs()).items()
-            if _is_object_schema(def_schema)
+            if is_object_schema(def_schema)
         ]
         root_stmt = self._schema_to_table(root, safe_sql_identifier(root.title or sid), sid)
         preamble = "CREATE EXTENSION IF NOT EXISTS pg_jsonschema;" if self.validate_json else None
@@ -209,7 +202,7 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
 
     def _get_as_object_schema(self, input: JsonSchemaDocument) -> ObjectSchema:
         root = input.root
-        if not _is_object_schema(root):
+        if not is_object_schema(root):
             # It must be a boolean schema.
             msg = "Root schema is a boolean schema; cannot generate a PostgreSQL DDL."
             raise GenerationError(msg)
