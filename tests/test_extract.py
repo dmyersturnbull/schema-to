@@ -1,6 +1,5 @@
 """Tests for the OpenAPI → JSON Schema extraction transpiler."""
 
-
 import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import openapi_doc_st
@@ -67,9 +66,9 @@ def test_openapi_extract_yaml_output() -> None:
         "info": {"title": "Test", "version": "1.0"},
         "components": {"schemas": {"Foo": {"type": "object"}}},
     }
-    transpiler = OpenApiExtractTranspiler()
+    transpiler = OpenApiExtractTranspiler(output_media_type=MediaTypes.json_schema_yaml)
     result = transpiler.transpile(_make_openapi_doc(openapi))
     assert isinstance(result, Ok)
     artifact = result.value[0]
-    assert artifact.artifact_id.endswith(".schema.yaml")
+    assert artifact.artifact_id == "Foo.schema.yaml"
     assert b"type" in artifact.content

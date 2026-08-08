@@ -1,6 +1,5 @@
 """Transpilers that extract sub-documents from a larger document."""
 
-
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, override
 
@@ -70,6 +69,8 @@ class OpenApiExtractTranspiler(Transpiler[OpenApiRawDoc, JsonSchemaArtifact]):
             source_ref=SourceRef(doc.doc_id, f"/components/schemas/{name}"),
         )
         data = self.js_serializer.serialize_document(doc_cst)
-        filename, artifact_cls = choose_output(doc, self.output_media_type, kind="schema")
+        filename, artifact_cls = choose_output(
+            doc, self.output_media_type, kind="schema", stem=name
+        )
         content = self.writer.write_bytes(data, artifact_cls.media_type)
         return artifact_cls(artifact_id=filename, content=content, source_ids=(doc.doc_id,))

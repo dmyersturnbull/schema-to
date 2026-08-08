@@ -166,8 +166,11 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
 
 
 def _root_class_name(doc: JsonSchemaDocument) -> str:
+    """Name the root model after `title`, then `display_name`, then the source ID's last segment."""
     if isinstance(doc.root, ObjectSchema) and doc.root.title:
         return safe_python_class_name(doc.root.title)
+    if doc.display_name:
+        return safe_python_class_name(doc.display_name)
     return safe_python_class_name(doc.source_id.rstrip("/").rsplit("/", 1)[-1])
 
 

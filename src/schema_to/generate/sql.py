@@ -2,8 +2,10 @@
 
 Mapping rules
 -------------
-- An `object`-typed root schema becomes a `CREATE TABLE` statement.
-- Each `$defs` entry that is `object`-typed becomes its own table.
+- The root schema and each `$defs` entry are flattened (see `generate._compose`)
+  and become a `CREATE TABLE` statement if the result is `object`-typed.
+  Flattening merges `allOf` branches and, given a resolver, follows `$ref`,
+  so a schema composed from several documents still yields one table.
 - Required properties get `NOT NULL`; optional properties are nullable.
 - Type mapping follows format-then-type priority with `x-pg-type` overrides:
   - `string` + `format: date-time` → `TIMESTAMPTZ`
@@ -24,7 +26,6 @@ Mapping rules
 - `x-pg-type` overrides the inferred type with a literal type string.
 - Unsupported constructs emit `TranspilationWarning` and fall back to `JSONB`.
 """
-
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -49,6 +50,7 @@ from schema_to.cst.json_schema import (
     is_object_schema,
 )
 from schema_to.errors import GenerationError, SourceLocation, TranspilationWarning
+from schema_to.generate._compose import SchemaFlattener
 from schema_to.generate._names import safe_sql_identifier
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
@@ -187,26 +189,36 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
             return Err((exc,))
 
     def _apply(self, input: JsonSchemaDocument) -> SqlScript:
-        root: ObjectSchema = self._get_as_object_schema(input)
         sid = input.source_id
+        root: ObjectSchema = self._get_as_object_schema(input)
         def_stmts = [
-            self._schema_to_table(
-                def_schema, safe_sql_identifier(def_schema.title or def_name), sid
-            )
+            self._schema_to_table(flat, safe_sql_identifier(flat.title or def_name), sid)
             for def_name, def_schema in (root.get_defs()).items()
-            if is_object_schema(def_schema)
+            for flat in [self._flatten(def_schema, base_uri=sid)]
+            if is_object_schema(flat)
         ]
         root_stmt = self._schema_to_table(root, safe_sql_identifier(root.title or sid), sid)
         preamble = "CREATE EXTENSION IF NOT EXISTS pg_jsonschema;" if self.validate_json else None
         return SqlScript(statements=(*def_stmts, root_stmt), source_ids=(sid,), preamble=preamble)
 
     def _get_as_object_schema(self, input: JsonSchemaDocument) -> ObjectSchema:
-        root = input.root
-        if not is_object_schema(root):
-            # It must be a boolean schema.
-            msg = "Root schema is a boolean schema; cannot generate a PostgreSQL DDL."
-            raise GenerationError(msg)
-        return root
+        """Return the root as a flattened object schema, or fail with what it is instead."""
+        root = self._flatten(input.root, base_uri=input.source_id)
+        if is_object_schema(root):
+            return root
+        if isinstance(root, BooleanSchema):
+            found = "a boolean schema"
+        else:
+            types = sorted(str(t) for t in root.get_types())
+            found = f"type {', '.join(types)}" if types else "no type and no properties"
+        msg = f"A table requires an object schema at the document root; found {found}."
+        raise GenerationError(msg)
+
+    def _flatten(self, schema: JsonSchema, *, base_uri: str) -> JsonSchema:
+        """Merge `allOf` branches and the `$ref` target into a single schema."""
+        result = SchemaFlattener(resolver=self.resolver).flatten(schema, base_uri=base_uri)
+        self._warnings.extend(result.warnings)
+        return result.schema
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -217,7 +229,11 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
     ) -> CreateTableStmt:
         required_set = schema.get_required()
         columns = [
-            self._prop_to_column(prop_name, prop_schema, required=prop_name in required_set)
+            self._prop_to_column(
+                prop_name,
+                self._flatten(prop_schema, base_uri=source_id),
+                required=prop_name in required_set,
+            )
             for prop_name, prop_schema in (schema.properties or {}).items()
         ]
         return CreateTableStmt(

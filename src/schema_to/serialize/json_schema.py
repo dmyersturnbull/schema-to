@@ -1,6 +1,5 @@
 """Serialize JSON Schema 2020-12 CST nodes back to JSON-compatible values."""
 
-
 import dataclasses
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -14,6 +13,7 @@ from schema_to.cst.json_schema import (
     JsonSchemaDocument,
     JsonSchemaType,
     ObjectSchema,
+    SchemaKeywordValue,
 )
 
 if TYPE_CHECKING:
@@ -22,66 +22,10 @@ if TYPE_CHECKING:
 __all__ = ["JsonSchemaSerializer"]
 
 # Maps each ObjectSchema Python field name to its JSON Schema keyword.
-# Fields absent from this map (extensions, source_ref) are handled separately.
-# TODO: Build this dynamically from the field `metadata` in `schema_to.json_schema.ObjectSchema`.
+# Built from the field metadata so that the two never drift apart;
+# fields with no "key" (extensions, source_ref) are synthetic and handled separately.
 _SCHEMA_KEYS: dict[str, str] = {
-    "id": "$id",
-    "schema": "$schema",
-    "anchor": "$anchor",
-    "dynamic_anchor": "$dynamicAnchor",
-    "ref": "$ref",
-    "dynamic_ref": "$dynamicRef",
-    "defs": "$defs",
-    "comment": "$comment",
-    "vocabulary": "$vocabulary",
-    "title": "title",
-    "description": "description",
-    "default": "default",
-    "deprecated": "deprecated",
-    "read_only": "readOnly",
-    "write_only": "writeOnly",
-    "examples": "examples",
-    "type": "type",
-    "enum": "enum",
-    "const": "const",
-    "multiple_of": "multipleOf",
-    "maximum": "maximum",
-    "exclusive_maximum": "exclusiveMaximum",
-    "minimum": "minimum",
-    "exclusive_minimum": "exclusiveMinimum",
-    "max_length": "maxLength",
-    "min_length": "minLength",
-    "pattern": "pattern",
-    "prefix_items": "prefixItems",
-    "items": "items",
-    "contains": "contains",
-    "min_contains": "minContains",
-    "max_contains": "maxContains",
-    "min_items": "minItems",
-    "max_items": "maxItems",
-    "unique_items": "uniqueItems",
-    "properties": "properties",
-    "pattern_properties": "patternProperties",
-    "additional_properties": "additionalProperties",
-    "property_names": "propertyNames",
-    "required": "required",
-    "dependent_required": "dependentRequired",
-    "dependent_schemas": "dependentSchemas",
-    "min_properties": "minProperties",
-    "max_properties": "maxProperties",
-    "all_of": "allOf",
-    "any_of": "anyOf",
-    "one_of": "oneOf",
-    "not_": "not",
-    "if_": "if",
-    "then_": "then",
-    "else_": "else",
-    "unevaluated_items": "unevaluatedItems",
-    "unevaluated_properties": "unevaluatedProperties",
-    "content_encoding": "contentEncoding",
-    "content_media_type": "contentMediaType",
-    "content_schema": "contentSchema",
-    "format": "format",
+    f.name: f.metadata["key"] for f in dataclasses.fields(ObjectSchema) if "key" in f.metadata
 }
 
 
@@ -117,8 +61,8 @@ class JsonSchemaSerializer:
         out.update(s.extensions)
         return out
 
-    # ruff:ignore[complex-structure, too-many-return-statements]  # All returns are in the match.
-    def _val(self, value: JsonValue) -> JsonValue:
+    # ruff:ignore[too-many-return-statements]  # All returns are in the match.
+    def _val(self, value: SchemaKeywordValue) -> JsonValue:
         match value:
             case BooleanSchema() | ObjectSchema():
                 return self.serialize(value)
@@ -127,24 +71,42 @@ class JsonSchemaSerializer:
             case JsonSchemaType() as t:
                 return str(t)
             case frozenset(types_):
-                # sorted() returns list[str]; list[str] ≤ list[JsonValue] ≤ JsonValue,
-                # but ty can't see that subtype relationship, so we assert it with cast.
+                # `sorted` returns list[str]; list[str] ≤ list[JsonValue] ≤ JsonValue,
+                # but ty cannot see that subtype relationship, so we assert it with `cast`.
                 return cast("JsonValue", sorted(str(t) for t in types_))
             case str():
                 return value
+            # Every scalar member of `SchemaKeywordValue` is matched above, so what reaches
+            # these two arms is a real sequence or mapping.  ty cannot rule out the scalars,
+            # and narrows to intersections like `int & Sequence[object]`; `cast` discards those.
             case Sequence() as seq:
-                items = list(seq)
-                if items and isinstance(items[0], (BooleanSchema, ObjectSchema)):
-                    return [self.serialize(v) for v in items]
-                return items
+                return self._seq(cast("Sequence[SchemaKeywordValue]", seq))
             case Mapping() as mapping:
-                if not mapping:
-                    return {}
-                first_v = next(iter(mapping.values()))
-                if isinstance(first_v, (BooleanSchema, ObjectSchema)):
-                    return {k: self.serialize(v) for k, v in mapping.items()}
-                if isinstance(first_v, frozenset):
-                    return {k: sorted(v) for k, v in mapping.items()}
-                return dict(mapping)
+                return self._map(cast("Mapping[str, SchemaKeywordValue]", mapping))
             case _:
                 return value  # int, float, bool, None — all valid JSON scalars
+
+    def _seq(self, seq: Sequence[SchemaKeywordValue]) -> JsonValue:
+        """Serialize a keyword whose value is an array of schemas or of plain JSON."""
+        items = list(seq)
+        if items and isinstance(items[0], (BooleanSchema, ObjectSchema)):
+            return [
+                self.serialize(v) for v in items if isinstance(v, (BooleanSchema, ObjectSchema))
+            ]
+        # Narrowing every element would cost a full pass; the first element determines the kind.
+        return cast("JsonValue", items)
+
+    def _map(self, mapping: Mapping[str, SchemaKeywordValue]) -> JsonValue:
+        """Serialize a keyword whose value maps names to schemas, sets, or plain JSON."""
+        if not mapping:
+            return {}
+        first = next(iter(mapping.values()))
+        if isinstance(first, (BooleanSchema, ObjectSchema)):
+            return {
+                k: self.serialize(v)
+                for k, v in mapping.items()
+                if isinstance(v, (BooleanSchema, ObjectSchema))
+            }
+        if isinstance(first, frozenset):
+            return {k: sorted(v) for k, v in mapping.items() if isinstance(v, frozenset)}
+        return cast("JsonValue", dict(mapping))
