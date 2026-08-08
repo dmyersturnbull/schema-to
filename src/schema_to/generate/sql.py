@@ -62,7 +62,7 @@ if TYPE_CHECKING:
     from schema_to.core import JsonValue
     from schema_to.resolve.json_schema import JsonSchemaRefResolver
 
-__all__ = ["PostgresTransformer"]
+__all__ = ["ColumnBuilder", "PostgresTransformer"]
 
 # ---------------------------------------------------------------------------
 # Type dispatch table for simple (non-string, non-array) types
@@ -160,17 +160,15 @@ def _string_type(schema: ObjectSchema) -> DataType:
 
 
 @dataclass
-class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
-    """Generates a `SqlScript` with PostgreSQL DDL from a JSON Schema 2020-12 document.
+class ColumnBuilder:
+    """Builds one `ColumnDef` from a property schema.
 
-    Object-typed root and `$defs` entries each become `CREATE TABLE` statements.
-    Column types follow format-then-type mapping with `x-pg-type` extension overrides.
+    Shared by the single-document and table-set generators, which differ in how they
+    choose tables and names but map a property to a column identically.
 
     Attributes:
-        resolver: Optional resolver for cross-document `$ref` lookup.
-        validate_json: When `True`, emit  `pg_jsonschema` `CHECK` constraints,
-          which validate each JSON/JSONB column against its sub-schema,
-          and a `CREATE EXTENSION IF NOT EXISTS pg_jsonschema;` preamble.
+        resolver: Resolver used when a nested `$ref` still needs following.
+        validate_json: Emit a `pg_jsonschema` `CHECK` for JSON and JSONB columns.
     """
 
     resolver: JsonSchemaRefResolver | None = None
@@ -181,72 +179,24 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
     def warnings(self) -> Sequence[TranspilationWarning]:
         return list(self._warnings)
 
-    def apply(self, input: JsonSchemaDocument) -> Result[SqlScript]:
-        self._warnings.clear()
-        try:
-            return Ok(self._apply(input))
-        except GenerationError as exc:
-            return Err((exc,))
+    def build(
+        self,
+        col_name: str,
+        schema: JsonSchema,
+        *,
+        required: bool,
+        force_json: bool = False,
+        sql_type: str | None = None,
+    ) -> ColumnDef:
+        """Build one column from a property schema.
 
-    def _apply(self, input: JsonSchemaDocument) -> SqlScript:
-        sid = input.source_id
-        root: ObjectSchema = self._get_as_object_schema(input)
-        def_stmts = [
-            self._schema_to_table(flat, safe_sql_identifier(flat.title or def_name), sid)
-            for def_name, def_schema in (root.get_defs()).items()
-            for flat in [self._flatten(def_schema, base_uri=sid)]
-            if is_object_schema(flat)
-        ]
-        root_stmt = self._schema_to_table(root, safe_sql_identifier(root.title or sid), sid)
-        preamble = "CREATE EXTENSION IF NOT EXISTS pg_jsonschema;" if self.validate_json else None
-        return SqlScript(statements=(*def_stmts, root_stmt), source_ids=(sid,), preamble=preamble)
-
-    def _get_as_object_schema(self, input: JsonSchemaDocument) -> ObjectSchema:
-        """Return the root as a flattened object schema, or fail with what it is instead."""
-        root = self._flatten(input.root, base_uri=input.source_id)
-        if is_object_schema(root):
-            return root
-        if isinstance(root, BooleanSchema):
-            found = "a boolean schema"
-        else:
-            types = sorted(str(t) for t in root.get_types())
-            found = f"type {', '.join(types)}" if types else "no type and no properties"
-        msg = f"A table requires an object schema at the document root; found {found}."
-        raise GenerationError(msg)
-
-    def _flatten(self, schema: JsonSchema, *, base_uri: str) -> JsonSchema:
-        """Merge `allOf` branches and the `$ref` target into a single schema."""
-        result = SchemaFlattener(resolver=self.resolver).flatten(schema, base_uri=base_uri)
-        self._warnings.extend(result.warnings)
-        return result.schema
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
-    def _schema_to_table(
-        self, schema: ObjectSchema, table_name: str, source_id: str
-    ) -> CreateTableStmt:
-        required_set = schema.get_required()
-        columns = [
-            self._prop_to_column(
-                prop_name,
-                self._flatten(prop_schema, base_uri=source_id),
-                required=prop_name in required_set,
-            )
-            for prop_name, prop_schema in (schema.properties or {}).items()
-        ]
-        return CreateTableStmt(
-            table_name=table_name,
-            columns=tuple(columns),
-            if_not_exists=True,
-            doc=schema.description or schema.title,
-            source_ids=(source_id,),
-        )
-
-    def _prop_to_column(self, prop_name: str, schema: JsonSchema, *, required: bool) -> ColumnDef:
-        col_name = safe_sql_identifier(prop_name)
-
+        Arguments:
+            col_name: The column name, already sanitised.
+            schema: The property schema, already flattened.
+            required: Whether the property is in the schema's `required`.
+            force_json: Store as JSONB whatever the schema's type.
+            sql_type: A literal SQL type overriding the inferred one.
+        """
         if isinstance(schema, BooleanSchema):
             return ColumnDef(
                 name=col_name,
@@ -257,7 +207,9 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
         extra_nullable, eff_schema = _unwrap_nullable(schema)
         nullable = not required or extra_nullable
 
-        data_type = self._schema_to_data_type(eff_schema, col_name)
+        data_type = self._resolve_data_type(
+            eff_schema, col_name, force_json=force_json, sql_type=sql_type
+        )
         check = (
             self._check_exprs(eff_schema, col_name, data_type)
             if isinstance(eff_schema, ObjectSchema)
@@ -399,6 +351,16 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
 
         return ColumnConstraint(check_expr=_join_checks(exprs))
 
+    def _resolve_data_type(
+        self, schema: JsonSchema, col_name: str, *, force_json: bool, sql_type: str | None
+    ) -> DataType:
+        """Apply the type-overriding keywords, else infer from the schema."""
+        if sql_type is not None:
+            return DataType(base=PgDataType.CUSTOM, custom=sql_type)
+        if force_json:
+            return DataType.jsonb()
+        return self._schema_to_data_type(schema, col_name)
+
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:
         loc: SourceLocation | None = None
         if schema.source_ref:
@@ -406,3 +368,91 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
                 doc_id=schema.source_ref.source_id, json_pointer=schema.source_ref.json_pointer
             )
         self._warnings.append(TranspilationWarning(msg, code=code, location=loc))
+
+
+@dataclass
+class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
+    """Generates a `SqlScript` with PostgreSQL DDL from a JSON Schema 2020-12 document.
+
+    Object-typed root and `$defs` entries each become `CREATE TABLE` statements.
+    Column types follow format-then-type mapping with `x-pg-type` extension overrides.
+
+    Attributes:
+        resolver: Optional resolver for cross-document `$ref` lookup.
+        validate_json: When `True`, emit  `pg_jsonschema` `CHECK` constraints,
+          which validate each JSON/JSONB column against its sub-schema,
+          and a `CREATE EXTENSION IF NOT EXISTS pg_jsonschema;` preamble.
+    """
+
+    resolver: JsonSchemaRefResolver | None = None
+    validate_json: bool = False
+    _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
+
+    @property
+    def warnings(self) -> Sequence[TranspilationWarning]:
+        return list(self._warnings)
+
+    def apply(self, input: JsonSchemaDocument) -> Result[SqlScript]:
+        self._warnings.clear()
+        try:
+            return Ok(self._apply(input))
+        except GenerationError as exc:
+            return Err((exc,))
+
+    def _apply(self, input: JsonSchemaDocument) -> SqlScript:
+        sid = input.source_id
+        root: ObjectSchema = self._get_as_object_schema(input)
+        def_stmts = [
+            self._schema_to_table(flat, safe_sql_identifier(flat.title or def_name), sid)
+            for def_name, def_schema in (root.get_defs()).items()
+            for flat in [self._flatten(def_schema, base_uri=sid)]
+            if is_object_schema(flat)
+        ]
+        root_stmt = self._schema_to_table(root, safe_sql_identifier(root.title or sid), sid)
+        preamble = "CREATE EXTENSION IF NOT EXISTS pg_jsonschema;" if self.validate_json else None
+        return SqlScript(statements=(*def_stmts, root_stmt), source_ids=(sid,), preamble=preamble)
+
+    def _get_as_object_schema(self, input: JsonSchemaDocument) -> ObjectSchema:
+        """Return the root as a flattened object schema, or fail with what it is instead."""
+        root = self._flatten(input.root, base_uri=input.source_id)
+        if is_object_schema(root):
+            return root
+        if isinstance(root, BooleanSchema):
+            found = "a boolean schema"
+        else:
+            types = sorted(str(t) for t in root.get_types())
+            found = f"type {', '.join(types)}" if types else "no type and no properties"
+        msg = f"A table requires an object schema at the document root; found {found}."
+        raise GenerationError(msg)
+
+    def _flatten(self, schema: JsonSchema, *, base_uri: str) -> JsonSchema:
+        """Merge `allOf` branches and the `$ref` target into a single schema."""
+        result = SchemaFlattener(resolver=self.resolver).flatten(schema, base_uri=base_uri)
+        self._warnings.extend(result.warnings)
+        return result.schema
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _schema_to_table(
+        self, schema: ObjectSchema, table_name: str, source_id: str
+    ) -> CreateTableStmt:
+        required_set = schema.get_required()
+        builder = ColumnBuilder(resolver=self.resolver, validate_json=self.validate_json)
+        columns = [
+            builder.build(
+                safe_sql_identifier(prop_name),
+                self._flatten(prop_schema, base_uri=source_id),
+                required=prop_name in required_set,
+            )
+            for prop_name, prop_schema in (schema.properties or {}).items()
+        ]
+        self._warnings.extend(builder.warnings)
+        return CreateTableStmt(
+            table_name=table_name,
+            columns=tuple(columns),
+            if_not_exists=True,
+            doc=schema.description or schema.title,
+            source_ids=(source_id,),
+        )
