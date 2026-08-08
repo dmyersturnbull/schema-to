@@ -8,7 +8,6 @@ Errors are accumulated so that a single parse call returns the complete set of
 diagnostics rather than stopping at the first fault.
 """
 
-
 from collections.abc import Mapping, MutableSequence
 from dataclasses import dataclass, field, fields
 from typing import TYPE_CHECKING
@@ -64,33 +63,6 @@ type _SchemaFieldValue = (
 
 
 loc = SourceLocation
-
-# Annotation-string → parse-kind lookup table:
-# Every ObjectSchema field annotation is stored as a literal string at runtime.
-# We map those strings to a dispatch tag.
-# That way, the data-driven loop handles each field automatically,
-# without hard-coding JSON key names or field names in the parser.
-# Synthetic fields (extensions, source_ref) have no "key" metadata entry;
-# they are instead appended after the loop.
-
-_KIND_BY_ANNOTATION: dict[str, str] = {
-    # Scalar kinds
-    "str | None": "str",
-    "float | None": "num",
-    "bool": "bool",
-    "int | None": "int",
-    "Sequence[JsonValue] | None": "json_array",
-    # Complex kinds
-    "SchemaType | None": "schema_type",
-    "DefaultValue | None": "default_value",
-    "ConstValue | None": "const_value",
-    "Mapping[str, JsonSchema] | None": "schema_map",
-    "Mapping[str, bool] | None": "bool_map",
-    "frozenset[str] | None": "str_frozenset",
-    "Mapping[str, frozenset[str]] | None": "dep_required_map",
-    "JsonSchema | None": "optional_schema",
-    "Sequence[JsonSchema] | None": "schema_list",
-}
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -148,18 +120,19 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         A data-driven loop reads `key` and `kind` from each `ObjectSchema`
         field's `metadata` and dispatches to `_parse_field_into`, which
         deposits the parsed value into `kwargs`.  Adding a new field to
-        `ObjectSchema` (with appropriate metadata) requires no change here.
+        `ObjectSchema` (with both metadata entries) requires no change here.
+
+        Synthetic fields (`extensions`, `source_ref`) carry no `key`;
+        they are appended after the loop.
         """
         errors: list[TranspilationError] = []
         kwargs: dict[str, _SchemaFieldValue] = {}
 
         for f in fields(ObjectSchema):
             json_key = f.metadata.get("key")
-            if json_key is None:
+            kind = f.metadata.get("kind")
+            if json_key is None or kind is None:
                 continue  # synthetic field (extensions, source_ref) — handled below
-            kind = f.metadata.get("kind") or _KIND_BY_ANNOTATION.get(f.type, "")
-            if not kind:
-                continue
             self._parse_field_into(
                 data,
                 f.name,
