@@ -17,7 +17,6 @@ The `lookup` / `lookup_anchor` methods are intended for use by generators
 after `apply` has confirmed the document is valid.
 """
 
-
 import urllib.parse
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -26,7 +25,13 @@ from referencing import Registry, Resource
 from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
 
-from schema_to.cst.json_schema import BooleanSchema, JsonSchema, JsonSchemaDocument, ObjectSchema
+from schema_to.cst.json_schema import (
+    BooleanSchema,
+    JsonSchema,
+    JsonSchemaDocument,
+    JsonSchemaMapDocument,
+    ObjectSchema,
+)
 from schema_to.errors import ResolutionError, SourceLocation, TranspilationError
 from schema_to.pipeline import RefResolver
 from schema_to.resolve._resolver import Resolver
@@ -37,6 +42,12 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 __all__ = ["JsonSchemaRefResolver"]
+
+
+def _escape(name: str) -> str:
+    """Escape a name for use as a single JSON Pointer segment (RFC 6901)."""
+    return name.replace("~", "~0").replace("/", "~1")
+
 
 _SERIALIZER = JsonSchemaSerializer()
 
@@ -117,6 +128,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         _cst_by_anchor: Maps `(source_id, anchor_name)` → CST node.
         _id_to_source: Maps absolute `$id` URI → `source_id`.
         _docs: Maps `source_id` → `JsonSchemaDocument`.
+        _map_docs: Maps `source_id` → `JsonSchemaMapDocument`.
     """
 
     _registry: Registry = field(default_factory=Registry)
@@ -124,6 +136,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
     _cst_by_anchor: dict[tuple[str, str], JsonSchema] = field(default_factory=dict)
     _id_to_source: dict[str, str] = field(default_factory=dict)
     _docs: dict[str, JsonSchemaDocument] = field(default_factory=dict)
+    _map_docs: dict[str, JsonSchemaMapDocument] = field(default_factory=dict)
 
     # ------------------------------------------------------------------
     # Public API
@@ -146,6 +159,22 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
                 self._id_to_source[abs_id] = cst.source_id
                 # Also register the $id URI with the referencing library.
                 self._registry = self._registry.with_resource(abs_id, resource)
+
+    def register_map(self, cst: JsonSchemaMapDocument) -> None:
+        """Add a map of named schemas to the registry.
+
+        Each entry is indexed at its own pointer (`/name`), which is where a
+        `$ref` of the form `./that-file.yaml#/name` looks for it.
+        """
+        if cst.source_id in self._map_docs:
+            return
+        self._map_docs[cst.source_id] = cst
+        for name, schema in cst.schemas.items():
+            self._index_cst(schema, source_id=cst.source_id, pointer=f"/{_escape(name)}")
+
+        raw = {name: _SERIALIZER.serialize(schema) for name, schema in cst.schemas.items()}
+        resource = Resource.from_contents(raw, default_specification=DRAFT202012)
+        self._registry = self._registry.with_resource(cst.source_id, resource)
 
     def apply(self, input: JsonSchemaDocument) -> Result[JsonSchemaDocument]:
         """Validate all `$ref` / `$dynamicRef` in *input*.
@@ -191,7 +220,29 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
 
     def registered_source_ids(self) -> frozenset[str]:
         """Return the set of source IDs currently in the registry."""
-        return frozenset(self._docs)
+        return frozenset(self._docs) | frozenset(self._map_docs)
+
+    def apply_map(self, input: JsonSchemaMapDocument) -> Result[JsonSchemaMapDocument]:
+        """Validate every `$ref` / `$dynamicRef` in each named schema of `input`.
+
+        Auto-registers the document if it has not been registered yet.
+        Registering the other documents it references first is the caller's job;
+        a reference into an unregistered file cannot resolve.
+        """
+        if input.source_id not in self._map_docs:
+            self.register_map(input)
+        try:
+            ref_resolver = Resolver(self._registry.resolver(base_uri=input.source_id))
+        except Unresolvable as exc:
+            return Err((ResolutionError(str(exc), location=SourceLocation(input.source_id, "")),))
+        errors: list[TranspilationError] = []
+        for schema in input.schemas.values():
+            self._check_refs(
+                schema, ref_resolver=ref_resolver, source_id=input.source_id, errors=errors
+            )
+        if errors:
+            return Err(tuple(errors))
+        return Ok(input)
 
     # ------------------------------------------------------------------
     # Internals
@@ -280,6 +331,6 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         return doc_uri, fragment
 
     def _find_source_id(self, doc_uri: str) -> str | None:
-        if doc_uri in self._docs:
+        if doc_uri in self._docs or doc_uri in self._map_docs:
             return doc_uri
         return self._id_to_source.get(doc_uri)

@@ -20,12 +20,13 @@ from schema_to.cst.json_schema import (
     DefaultValue,
     JsonSchema,
     JsonSchemaDocument,
+    JsonSchemaMapDocument,
     JsonSchemaType,
     ObjectSchema,
     SchemaType,
 )
 from schema_to.errors import ParseError, SchemaValidationError, SourceLocation, TranspilationError
-from schema_to.io.source import JsonSchemaRawDoc
+from schema_to.io.source import JsonSchemaRawDoc, SchemaMapRawDoc
 from schema_to.parse._utils import as_json_dict, as_json_list, decode_raw_doc, ptr
 from schema_to.pipeline import DocParser
 from schema_to.result import Err, Ok, Result
@@ -34,7 +35,7 @@ if TYPE_CHECKING:
     from schema_to.core import JsonValue
     from schema_to.io.core import JsonLikeReader
 
-__all__ = ["JsonSchemaParser"]
+__all__ = ["JsonSchemaMapParser", "JsonSchemaParser"]
 
 
 # Union of every type that can appear as an ObjectSchema field value.
@@ -84,7 +85,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
     def _build_document(
         self, data: JsonValue, *, document: JsonSchemaRawDoc
     ) -> Result[JsonSchemaDocument]:
-        root_r = self._build_schema(data, source_id=document.doc_id, pointer="")
+        root_r = self.build_schema(data, source_id=document.doc_id, pointer="")
         if isinstance(root_r, Err):
             return root_r
         return Ok(
@@ -96,7 +97,13 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             )
         )
 
-    def _build_schema(self, data: JsonValue, *, source_id: str, pointer: str) -> Result[JsonSchema]:
+    def build_schema(self, data: JsonValue, *, source_id: str, pointer: str) -> Result[JsonSchema]:
+        """Build one schema from already-decoded JSON.
+
+        Exposed for parsers of documents that *contain* schemas — OpenAPI operations,
+        `components/schemas` fragments — which decode their own envelope and then
+        need each embedded schema parsed at a known pointer.
+        """
         if isinstance(data, bool):
             return Ok(BooleanSchema(value=data, source_ref=SourceRef(source_id, pointer)))
         if isinstance(data, Mapping):
@@ -423,7 +430,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
     ) -> JsonSchema | None:
         if key not in data:
             return None
-        r = self._build_schema(data[key], source_id=source_id, pointer=ptr(pointer, key))
+        r = self.build_schema(data[key], source_id=source_id, pointer=ptr(pointer, key))
         if isinstance(r, Err):
             errors.extend(r.errors)
             return None
@@ -450,7 +457,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             return None
         result: list[JsonSchema] = []
         for i, item in enumerate(as_json_list(raw)):
-            r = self._build_schema(item, source_id=source_id, pointer=ptr(pointer, key, i))
+            r = self.build_schema(item, source_id=source_id, pointer=ptr(pointer, key, i))
             if isinstance(r, Err):
                 errors.extend(r.errors)
             else:
@@ -478,9 +485,65 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             return None
         result: dict[str, JsonSchema] = {}
         for name, value in as_json_dict(raw).items():
-            r = self._build_schema(value, source_id=source_id, pointer=ptr(pointer, key, name))
+            r = self.build_schema(value, source_id=source_id, pointer=ptr(pointer, key, name))
             if isinstance(r, Err):
                 errors.extend(r.errors)
             else:
                 result[name] = r.value
         return result
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class JsonSchemaMapParser(DocParser[SchemaMapRawDoc, JsonSchemaMapDocument]):
+    """Parses a map of names to schemas into a `JsonSchemaMapDocument` CST.
+
+    Each entry is parsed at the pointer it occupies in the document — schema `foo`
+    at `/foo` — so that a `$ref` written by a sibling file (`./this.yaml#/foo`)
+    resolves against the same address.
+
+    Errors are accumulated across every entry, so one malformed schema does not
+    hide the rest.
+    """
+
+    schema_parser: JsonSchemaParser = field(default_factory=JsonSchemaParser)
+
+    def apply(self, input: SchemaMapRawDoc) -> Result[JsonSchemaMapDocument]:
+        try:
+            raw = decode_raw_doc(input, self.schema_parser.reader)
+        except TranspilationError as exc:
+            return Err((exc,))
+        if not isinstance(raw, Mapping):
+            return Err(
+                (
+                    ParseError(
+                        f"A schema-map document must be an object mapping names to schemas; "
+                        f"got {type(raw).__name__!r}.",
+                        location=loc(input.doc_id, ""),
+                    ),
+                )
+            )
+        return self._build_document(as_json_dict(raw), document=input)
+
+    def _build_document(
+        self, data: dict[str, JsonValue], *, document: SchemaMapRawDoc
+    ) -> Result[JsonSchemaMapDocument]:
+        errors: list[TranspilationError] = []
+        schemas: dict[str, JsonSchema] = {}
+        for name, value in data.items():
+            result = self.schema_parser.build_schema(
+                value, source_id=document.doc_id, pointer=ptr("", name)
+            )
+            if isinstance(result, Err):
+                errors.extend(result.errors)
+            else:
+                schemas[name] = result.value
+        if errors:
+            return Err(tuple(errors))
+        return Ok(
+            JsonSchemaMapDocument(
+                schemas=schemas,
+                source_id=document.doc_id,
+                display_name=document.display_name,
+                source_ref=SourceRef(document.doc_id, ""),
+            )
+        )

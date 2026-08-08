@@ -1,6 +1,5 @@
 """Filesystem-backed `DataSource` and `DataSink` implementations."""
 
-
 import glob
 from collections.abc import Callable, Mapping
 from dataclasses import KW_ONLY, dataclass, field
@@ -11,7 +10,7 @@ from schema_to.io.media_type import MediaType, MediaTypes
 from schema_to.io.os_errors import PathMissingError, TypedNotADirectoryError
 from schema_to.io.routing import peek_doc_type
 from schema_to.io.sink import Artifact, DataSink
-from schema_to.io.source import DataSource, JsonSchemaRawDoc, OpenApiRawDoc, RawDoc
+from schema_to.io.source import DataSource, JsonSchemaRawDoc, OpenApiRawDoc, RawDoc, SchemaMapRawDoc
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -23,6 +22,7 @@ __all__ = [
     "FileDataSource",
     "FileDataSourceFactory",
     "PeekingDirectorySource",
+    "SchemaMapDirectorySource",
     "SuffixMap",
 ]
 
@@ -139,6 +139,72 @@ class DirectoryDataSource(DataSource):
                 display_name=display_name,
                 base_uri=path.as_uri(),
             )
+
+
+@dataclass(frozen=True, slots=True)
+class SchemaMapDirectorySource(DataSource):
+    """A `DataSource` yielding every file under a directory as a `SchemaMapRawDoc`.
+
+    Use this for a tree of files that each hold several named schemas at the top
+    level — an OpenAPI `components/schemas` fragment split across files, where
+    one file `$ref`s another by relative path (`../base/time.yaml#/timestamp`).
+
+    Unlike `DirectoryDataSource`, this matches on plain `.yaml` / `.yml` / `.json`
+    rather than compound extensions, because such files carry no marker
+    distinguishing them from any other schema file. That is also why the caller
+    selects this source explicitly: content alone cannot identify the shape.
+
+    `doc_id` is each file's URI, so a relative `$ref` resolves by URI math against
+    the referring file, exactly as it does on disk.
+
+    Attributes:
+        root: Path to the directory.
+        recursive: Whether to look in subdirectories.
+        include_hidden: Whether to look in dotted directories.
+        exclude: Filenames, relative to `root`, to skip.
+    """
+
+    suffixes: ClassVar[Mapping[str, MediaType]] = {
+        ".yaml": MediaTypes.yaml,
+        ".yml": MediaTypes.yaml,
+        ".json": MediaTypes.json,
+    }
+
+    root: Path
+    _: KW_ONLY
+    recursive: bool = True
+    include_hidden: bool = False
+    exclude: frozenset[str] = frozenset()
+
+    def __post_init__(self) -> None:
+        if not self.root.is_dir():
+            raise TypedNotADirectoryError(filename=self.root)
+
+    @property
+    def source_id(self) -> str:
+        return self.root.as_uri()
+
+    def documents(self) -> Iterator[SchemaMapRawDoc]:
+        for path in sorted(self._paths()):
+            yield SchemaMapRawDoc(
+                doc_id=path.as_uri(),
+                content=path.read_bytes(),
+                media_type=type(self).suffixes[path.suffix.lower()],
+                display_name=path.stem,
+                base_uri=path.as_uri(),
+            )
+
+    def _paths(self) -> Iterator[Path]:
+        for suffix in type(self).suffixes:
+            # ruff:ignore[glob]  # `glob.glob` can ignore hidden directories.
+            for path_str in glob.glob(
+                f"**/*{suffix}" if self.recursive else f"*{suffix}",
+                root_dir=str(self.root),
+                recursive=True,  # True just means that `**` works.
+                include_hidden=self.include_hidden,
+            ):
+                if path_str not in self.exclude and (self.root / path_str).is_file():
+                    yield self.root / path_str
 
 
 @dataclass(frozen=True, slots=True)

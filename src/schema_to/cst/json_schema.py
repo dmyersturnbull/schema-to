@@ -24,6 +24,7 @@ __all__ = [
     "DefaultValue",
     "JsonSchema",
     "JsonSchemaDocument",
+    "JsonSchemaMapDocument",
     "JsonSchemaType",
     "ObjectSchema",
     "SchemaKeywordValue",
@@ -390,3 +391,27 @@ class JsonSchemaDocument(CstNode):
     source_id: str
     display_name: str | None = None
     source_ref: SourceRef | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class JsonSchemaMapDocument(CstNode):
+    """A document whose root is a map of names to schemas, rather than one schema.
+
+    This is the shape of an OpenAPI `components/schemas` fragment, and of any file
+    that collects several related schemas without nesting them under `$defs`.
+    Each entry sits directly at the document root, so schema `foo` is addressed by
+    the JSON Pointer `/foo` — the form a sibling file's `$ref` uses when it writes
+    `./that-file.yaml#/foo`.
+
+    Attributes:
+        schemas: The named schemas, in document order.
+    """
+
+    schemas: Mapping[str, JsonSchema]
+    source_id: str
+    display_name: str | None = None
+    source_ref: SourceRef | None = None
+
+    def get_schema(self, name: str) -> JsonSchema | None:
+        """Return the schema named `name`, or `None`."""
+        return self.schemas.get(name)
