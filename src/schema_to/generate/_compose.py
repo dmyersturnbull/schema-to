@@ -1,10 +1,20 @@
-"""Flattening of `allOf` composition and `$ref` indirection into a single schema.
+"""Resolution of `allOf` composition and `$ref` indirection into a single schema.
 
 Targets that map one schema to one flat structure — a SQL table, a dataclass —
 cannot act on `allOf` directly:
-the keywords they read (`properties`, `required`) live on the branches, not the composed schema.
-This module merges a composition tree into one `ObjectSchema` carrying every keyword
-the branches contribute.
+the keywords they read (`properties`, `required`) live on the branches, not on the
+schema that composes them.
+
+Three terms, used strictly in this sense throughout the module:
+
+- **Merging** combines exactly two schemas into one, keyword by keyword.
+  It is the primitive the other two are built from, and is never applied recursively.
+- **Flattening** resolves one schema's own composition: it merges in each `allOf`
+  branch and the `$ref` target, recursively, and clears both keywords.
+  Sub-schemas are left as written, so a `$ref` may remain deeper in the tree.
+- **Inlining** flattens a schema *and every sub-schema*, so nothing anywhere in the
+  result is a `$ref`.  Needed only when the result is handed to something that
+  cannot follow a reference, such as `pg_jsonschema`.
 
 Merging follows JSON Schema semantics where a target can express them
 and falls back to a documented choice where it cannot:
@@ -13,7 +23,9 @@ and falls back to a documented choice where it cannot:
   definition and raises a warning, since a column has exactly one type.
 - `required` is unioned, matching `allOf` exactly.
 - `type` is intersected across the branches that declare it, matching `allOf` exactly.
-- Single-valued keywords (`description`, `propertyNames`, …) take the first branch that sets one.
+- A singular keyword (`description`, `propertyNames`, …) is taken from the first branch
+  that sets one.  Two branches setting it *identically* is fine and silent; two branches
+  disagreeing warns, because only one of the two assertions survives into the output.
 - Extensions merge with the outer schema winning, so a `$ref`ed schema cannot
   override an `x-pg-*` keyword written at the point of use.
 """
@@ -21,7 +33,7 @@ and falls back to a documented choice where it cannot:
 from dataclasses import dataclass, field, fields, replace
 from typing import TYPE_CHECKING
 
-from schema_to.cst.json_schema import BooleanSchema, JsonSchema, ObjectSchema
+from schema_to.cst.json_schema import SINGULAR_KEYWORDS, BooleanSchema, JsonSchema, ObjectSchema
 from schema_to.errors import SourceLocation, TranspilationWarning
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 
@@ -32,7 +44,7 @@ if TYPE_CHECKING:
     from schema_to.cst.json_schema import ConstValue, JsonSchemaType, SchemaType
     from schema_to.resolve.json_schema import JsonSchemaRefResolver
 
-__all__ = ["FlattenedSchema", "SchemaFlattener"]
+__all__ = ["FlatteningResult", "SchemaFlattener"]
 
 # Guards against a `$ref` cycle that `_seen` cannot catch, e.g. one built from `$dynamicRef`.
 _MAX_DEPTH = 32
@@ -58,7 +70,7 @@ type _KeywordValue = (
 
 
 @dataclass(frozen=True, slots=True)
-class FlattenedSchema:
+class FlatteningResult:
     """A composition tree merged into one schema, with any warnings raised on the way."""
 
     schema: JsonSchema
@@ -77,7 +89,7 @@ class SchemaFlattener:
     resolver: JsonSchemaRefResolver | None = None
     _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
 
-    def flatten(self, schema: JsonSchema, *, base_uri: str) -> FlattenedSchema:
+    def flatten(self, schema: JsonSchema, *, base_uri: str) -> FlatteningResult:
         """Merge `schema`'s `allOf` branches and `$ref` target into one schema.
 
         Only this schema's own composition is resolved; sub-schemas are left as written.
@@ -85,9 +97,9 @@ class SchemaFlattener:
         """
         self._warnings.clear()
         merged = self._flatten(schema, base_uri=base_uri, seen=frozenset(), depth=0)
-        return FlattenedSchema(schema=merged, warnings=tuple(self._warnings))
+        return FlatteningResult(schema=merged, warnings=tuple(self._warnings))
 
-    def inline(self, schema: JsonSchema, *, base_uri: str) -> FlattenedSchema:
+    def inline(self, schema: JsonSchema, *, base_uri: str) -> FlatteningResult:
         """Flatten `schema` and every sub-schema, leaving no `$ref` anywhere in the result.
 
         Needed wherever a schema is handed to something that cannot follow a reference —
@@ -96,7 +108,7 @@ class SchemaFlattener:
         """
         self._warnings.clear()
         merged = self._inline(schema, base_uri=base_uri, seen=frozenset(), depth=0)
-        return FlattenedSchema(schema=merged, warnings=tuple(self._warnings))
+        return FlatteningResult(schema=merged, warnings=tuple(self._warnings))
 
     # ------------------------------------------------------------------
     # Traversal
@@ -196,8 +208,31 @@ class SchemaFlattener:
             properties=self._merge_properties(base, other),
             required=_union_or_none(base.required, other.required),
             extensions={**other.get_extensions(), **base.get_extensions()},
-            **_first_set(base, other),
+            **self._merge_singular(base, other),
         )
+
+    def _merge_singular(self, base: ObjectSchema, other: ObjectSchema) -> dict[str, _KeywordValue]:
+        """Take each singular keyword from the first branch that sets one.
+
+        Setting one twice to the same value is redundant but consistent, so it passes
+        silently.  Setting it to two different values does not: `allOf` means both
+        assertions hold, but only one can survive into a single flat schema.
+        """
+        out: dict[str, _KeywordValue] = {}
+        for name in SINGULAR_KEYWORDS:
+            mine, theirs = getattr(base, name), getattr(other, name)
+            # Identity, not equality: `False` is the unset state for the boolean keywords,
+            # but `0 == False`, and `0` is a real bound for `minimum` and friends.
+            if mine is None or mine is False:
+                out[name] = theirs
+            elif theirs is not None and theirs is not False and mine != theirs:
+                self._warn(
+                    f"Keyword {name!r} is set to conflicting values by more than one "
+                    f"`allOf` branch; keeping the first.",
+                    code="conflicting-keyword",
+                    schema=base,
+                )
+        return out
 
     def _merge_properties(
         self, base: ObjectSchema, other: ObjectSchema
@@ -240,43 +275,6 @@ def _same_schema(a: JsonSchema, b: JsonSchema) -> bool:
     """
     serializer = JsonSchemaSerializer()
     return serializer.serialize(a) == serializer.serialize(b)
-
-
-# Keywords a single branch either sets or leaves alone; the first branch to set one wins.
-# No schema that a table can be generated from sets one of these on two `allOf` branches.
-_FIRST_SET_KEYWORDS = (
-    "title",
-    "description",
-    "format",
-    "pattern",
-    "enum",
-    "const",
-    "minimum",
-    "maximum",
-    "exclusive_minimum",
-    "exclusive_maximum",
-    "min_length",
-    "max_length",
-    "items",
-    "property_names",
-    "additional_properties",
-    "unevaluated_properties",
-    "pattern_properties",
-    "read_only",
-    "write_only",
-)
-
-
-def _first_set(base: ObjectSchema, other: ObjectSchema) -> dict[str, _KeywordValue]:
-    """Return the keywords `base` leaves unset and `other` supplies."""
-    out: dict[str, _KeywordValue] = {}
-    for name in _FIRST_SET_KEYWORDS:
-        value = getattr(base, name)
-        # Identity, not equality: `False` is the unset state for the boolean keywords,
-        # but `0 == False`, and `0` is a real bound for `minimum` and friends.
-        if value is None or value is False:
-            out[name] = getattr(other, name)
-    return out
 
 
 def _intersect_types(base: ObjectSchema, other: ObjectSchema) -> SchemaType | None:

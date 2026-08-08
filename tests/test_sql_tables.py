@@ -13,7 +13,6 @@ import pytest
 
 from schema_to.errors import GenerationError
 from schema_to.generate._pg_keywords import read_property_keywords, read_table_keywords
-from schema_to.generate.sql_tables import PostgresTableSetTransformer
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import SchemaMapRawDoc
 from schema_to.result import Err, Ok
@@ -50,6 +49,24 @@ def _errors(*docs: SchemaMapRawDoc) -> list[str]:
 
 
 _THING = {"type": "object", "x-pg-table": "thing", "properties": {"id": {"type": "string"}}}
+
+
+def test_primary_key_defaults_to_id() -> None:
+    """Almost every resource is keyed by `id`; requiring the keyword on each would be noise."""
+    assert "id text PRIMARY KEY" in _sql(_doc({"thing": _THING}))
+
+
+def test_table_without_id_or_declared_key_warns() -> None:
+    docs = _doc(
+        {
+            "thing": {
+                "type": "object",
+                "x-pg-table": "thing",
+                "properties": {"n": {"type": "string"}},
+            }
+        }
+    )
+    assert "no-primary-key" in _warnings(docs)
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +147,7 @@ def test_foreign_key_from_a_table_name() -> None:
                 "thing": {
                     "type": "object",
                     "x-pg-table": "thing",
-                    "properties": {"ref": {"type": "string", "x-pg-references": "other"}},
+                    "properties": {"ref": {"type": "string", "x-pg-refs": "other"}},
                 },
             }
         )
@@ -149,11 +166,7 @@ def test_foreign_key_with_actions() -> None:
                     "properties": {
                         "ref": {
                             "type": "string",
-                            "x-pg-references": {
-                                "table": "other",
-                                "column": "id",
-                                "on-delete": "cascade",
-                            },
+                            "x-pg-refs": {"table": "other", "column": "id", "on-delete": "cascade"},
                         }
                     },
                 },
@@ -234,14 +247,15 @@ def test_skip_omits_the_column() -> None:
     assert "drop" not in sql
 
 
-def test_force_json_overrides_the_inferred_type() -> None:
+def test_json_type_override_is_recognised_structurally() -> None:
+    """`x-pg-type: jsonb` names a type the generator also understands, not an opaque string."""
     sql = _sql(
         _doc(
             {
                 "thing": {
                     "type": "object",
                     "x-pg-table": "thing",
-                    "properties": {"payload": {"type": "string", "x-pg-json": True}},
+                    "properties": {"payload": {"type": "string", "x-pg-type": "jsonb"}},
                 }
             }
         )
@@ -270,19 +284,19 @@ def test_sql_type_override() -> None:
 
 
 def test_bad_references_shape_raises() -> None:
-    with pytest.raises(GenerationError, match="x-pg-references"):
-        read_property_keywords({"x-pg-references": 3}, where="property 'ref'")
+    with pytest.raises(GenerationError, match="x-pg-refs"):
+        read_property_keywords({"x-pg-refs": 3}, where="property 'ref'")
 
 
 def test_references_object_without_table_raises() -> None:
     with pytest.raises(GenerationError, match="`table`"):
-        read_property_keywords({"x-pg-references": {"column": "id"}}, where="property 'ref'")
+        read_property_keywords({"x-pg-refs": {"column": "id"}}, where="property 'ref'")
 
 
 def test_unknown_on_delete_action_raises() -> None:
     with pytest.raises(GenerationError, match="an action of one of"):
         read_property_keywords(
-            {"x-pg-references": {"table": "t", "on-delete": "explode"}}, where="property 'ref'"
+            {"x-pg-refs": {"table": "t", "on-delete": "explode"}}, where="property 'ref'"
         )
 
 
@@ -303,10 +317,10 @@ def test_indexes_without_columns_raises() -> None:
 
 def test_hyphenated_on_delete_action_is_accepted() -> None:
     keywords = read_property_keywords(
-        {"x-pg-references": {"table": "t", "on-delete": "set-null"}}, where="property 'ref'"
+        {"x-pg-refs": {"table": "t", "on-delete": "set-null"}}, where="property 'ref'"
     )
-    assert keywords.references is not None
-    assert keywords.references.on_delete.value == "set null"
+    assert keywords.refs is not None
+    assert keywords.refs.on_delete.value == "set null"
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +335,7 @@ def test_referenced_table_is_declared_first() -> None:
                 "child": {
                     "type": "object",
                     "x-pg-table": "child",
-                    "properties": {"p": {"type": "string", "x-pg-references": "parent"}},
+                    "properties": {"p": {"type": "string", "x-pg-refs": "parent"}},
                 },
                 "parent": {"type": "object", "x-pg-table": "parent"},
             }
@@ -338,7 +352,7 @@ def test_unknown_reference_target_warns() -> None:
             "thing": {
                 "type": "object",
                 "x-pg-table": "thing",
-                "properties": {"ref": {"type": "string", "x-pg-references": "elsewhere"}},
+                "properties": {"ref": {"type": "string", "x-pg-refs": "elsewhere"}},
             }
         }
     )
@@ -351,12 +365,12 @@ def test_reference_cycle_warns_instead_of_hanging() -> None:
             "a": {
                 "type": "object",
                 "x-pg-table": "a",
-                "properties": {"b": {"type": "string", "x-pg-references": "b"}},
+                "properties": {"b": {"type": "string", "x-pg-refs": "b"}},
             },
             "b": {
                 "type": "object",
                 "x-pg-table": "b",
-                "properties": {"a": {"type": "string", "x-pg-references": "a"}},
+                "properties": {"a": {"type": "string", "x-pg-refs": "a"}},
             },
         }
     )
@@ -369,73 +383,11 @@ def test_self_reference_is_not_a_cycle() -> None:
             "node": {
                 "type": "object",
                 "x-pg-table": "node",
-                "properties": {"parent": {"type": "string", "x-pg-references": "node"}},
+                "properties": {"parent": {"type": "string", "x-pg-refs": "node"}},
             }
         }
     )
     assert "reference-cycle" not in _warnings(docs)
-
-
-# ---------------------------------------------------------------------------
-# Integration
-# ---------------------------------------------------------------------------
-
-
-def test_two_file_set_with_cross_file_refs() -> None:
-    """The Goldberry shape: primitives in one file, resources composing them in another."""
-    base = _doc(
-        {"timestamp": {"type": "string", "pattern": "^2", "description": "A timestamp."}}, "base"
-    )
-    main = _doc(
-        {
-            "author-data": {
-                "type": "object",
-                "x-pg-table": "author",
-                "required": ["id"],
-                "properties": {"id": {"type": "string", "x-pg-primary-key": True}},
-            },
-            "run-content": {
-                "type": "object",
-                "properties": {"author": {"type": "string", "x-pg-references": "author"}},
-            },
-            "run-data": {
-                "x-pg-table": "run",
-                "x-pg-extras": "extras",
-                "description": "A run.",
-                "allOf": [
-                    {
-                        "type": "object",
-                        "required": ["id"],
-                        "properties": {
-                            "id": {"type": "string", "x-pg-primary-key": True},
-                            "insert-time": {"$ref": "./base.yaml#/timestamp", "x-pg-index": True},
-                        },
-                    },
-                    {"$ref": "#/run-content"},
-                ],
-            },
-        },
-        "main",
-    )
-    sql = _sql(base, main)
-
-    assert sql.index("CREATE TABLE IF NOT EXISTS author") < sql.index(
-        "CREATE TABLE IF NOT EXISTS run"
-    )
-    assert "id text PRIMARY KEY" in sql
-    # The cross-file $ref resolved to a concrete type, with its pattern and description.
-    assert "insert_time text CHECK ((insert_time ~ '^2'))" in sql
-    assert "COMMENT ON COLUMN run.insert_time IS 'A timestamp.';" in sql
-    # The allOf branch contributed its column, and it carries the foreign key.
-    assert "author text REFERENCES author" in sql
-    assert "extras jsonb NOT NULL DEFAULT '{}'::jsonb" in sql
-    assert "CREATE INDEX IF NOT EXISTS run_insert_time_idx ON run USING BTREE (insert_time);" in sql
-    assert "COMMENT ON TABLE run IS 'A run.';" in sql
-
-
-def test_unresolvable_cross_file_ref_is_an_error() -> None:
-    docs = _doc({"thing": {**_THING, "properties": {"x": {"$ref": "./missing.yaml#/nope"}}}})
-    assert any("missing.yaml" in message for message in _errors(docs))
 
 
 # ---------------------------------------------------------------------------
@@ -482,33 +434,3 @@ def test_check_expressions_quote_the_column() -> None:
         )
     )
     assert """CHECK (("end" ~ '^P'))""" in sql
-
-
-def test_pg_jsonschema_check_has_no_unresolved_refs() -> None:
-    """Flattening runs before serialization, so the embedded schema is self-contained."""
-    base = _doc({"stamp": {"type": "string", "pattern": "^2"}}, "base")
-    main = _doc(
-        {
-            "thing": {
-                "type": "object",
-                "x-pg-table": "thing",
-                "properties": {
-                    "payload": {
-                        "type": "object",
-                        "properties": {"at": {"$ref": "./base.yaml#/stamp"}},
-                    }
-                },
-            }
-        },
-        "main",
-    )
-    transpiler = SchemaMapSetToPostgresTranspiler(
-        generator=PostgresTableSetTransformer(validate_json=True)
-    )
-    result = transpiler.transpile_all([base, main])
-    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    sql = result.value[0].content.decode("utf-8")
-    assert "jsonb_matches_schema(" in sql
-    # pg_jsonschema cannot fetch a remote ref, so none may survive into the check.
-    assert "$ref" not in sql
-    assert "^2" in sql

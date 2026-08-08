@@ -1,6 +1,5 @@
 """Error and warning types for the transpilation pipeline."""
 
-
 from dataclasses import dataclass
 
 
@@ -67,6 +66,15 @@ class GenerationError(TranspilationError):
 
     Typically raised when the input uses a JSON Schema keyword that is not
     expressible in the requested target language.
+    """
+
+
+class KeywordError(GenerationError):
+    """A target-specific extension keyword carries a value of the wrong shape.
+
+    Distinct from a schema that a target merely cannot express: this is a keyword
+    written for the target, addressed to it, and malformed.  Silently ignoring one
+    would drop the very instruction it was written to give.
     """
 
 

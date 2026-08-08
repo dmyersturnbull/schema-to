@@ -68,6 +68,10 @@ __all__ = ["ColumnBuilder", "PostgresTransformer"]
 # Type dispatch table for simple (non-string, non-array) types
 # ---------------------------------------------------------------------------
 
+# SQL type names that `x-pg-type` may give which the generator also understands
+# structurally, so that an explicit override is not opaque to later decisions.
+_PG_TYPES_BY_NAME: dict[str, PgDataType] = {"json": PgDataType.JSON, "jsonb": PgDataType.JSONB}
+
 _SIMPLE_TYPE_MAP: dict[JsonSchemaType, DataType] = {
     JsonSchemaType.INTEGER: DataType.integer(),
     JsonSchemaType.NUMBER: DataType(base=PgDataType.DOUBLE_PRECISION),
@@ -185,13 +189,7 @@ class ColumnBuilder:
         return list(self._warnings)
 
     def build(
-        self,
-        col_name: str,
-        schema: JsonSchema,
-        *,
-        required: bool,
-        force_json: bool = False,
-        sql_type: str | None = None,
+        self, col_name: str, schema: JsonSchema, *, required: bool, sql_type: str | None = None
     ) -> ColumnDef:
         """Build one column from a property schema.
 
@@ -199,8 +197,7 @@ class ColumnBuilder:
             col_name: The column name, already sanitised.
             schema: The property schema, already flattened.
             required: Whether the property is in the schema's `required`.
-            force_json: Store as JSONB whatever the schema's type.
-            sql_type: A literal SQL type overriding the inferred one.
+            sql_type: A SQL type overriding the inferred one.
         """
         if isinstance(schema, BooleanSchema):
             return ColumnDef(
@@ -212,9 +209,7 @@ class ColumnBuilder:
         extra_nullable, eff_schema = _unwrap_nullable(schema)
         nullable = not required or extra_nullable
 
-        data_type = self._resolve_data_type(
-            eff_schema, col_name, force_json=force_json, sql_type=sql_type
-        )
+        data_type = self._resolve_data_type(eff_schema, col_name, sql_type=sql_type)
         check = (
             self._check_exprs(eff_schema, quote_sql_identifier(col_name), data_type)
             if isinstance(eff_schema, ObjectSchema)
@@ -372,14 +367,17 @@ class ColumnBuilder:
         return ColumnConstraint(check_expr=_join_checks(exprs))
 
     def _resolve_data_type(
-        self, schema: JsonSchema, col_name: str, *, force_json: bool, sql_type: str | None
+        self, schema: JsonSchema, col_name: str, *, sql_type: str | None
     ) -> DataType:
-        """Apply the type-overriding keywords, else infer from the schema."""
-        if sql_type is not None:
-            return DataType(base=PgDataType.CUSTOM, custom=sql_type)
-        if force_json:
-            return DataType.jsonb()
-        return self._schema_to_data_type(schema, col_name)
+        """Use the declared SQL type if there is one, else infer from the schema."""
+        if sql_type is None:
+            return self._schema_to_data_type(schema, col_name)
+        # Recognise the JSON types by name rather than treating every override as opaque,
+        # so that `x-pg-type: jsonb` still gets a pg_jsonschema check like an inferred one.
+        named = _PG_TYPES_BY_NAME.get(sql_type.strip().lower())
+        if named is not None:
+            return DataType(base=named)
+        return DataType(base=PgDataType.CUSTOM, custom=sql_type)
 
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:
         loc: SourceLocation | None = None

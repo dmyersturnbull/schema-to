@@ -64,6 +64,20 @@ class TableSpec:
         """Human-readable identification for error messages."""
         return f"schema {self.schema_name!r}"
 
+    @property
+    def primary_key(self) -> tuple[str, ...]:
+        """The key columns: the declared ones, else `id` when the schema has one.
+
+        Almost every resource is keyed by `id`, so requiring `x-pg-primary-key` on each
+        would be noise that is wrong nowhere and stated everywhere. A schema keyed on
+        anything else has to say so.
+        """
+        if self.keywords.primary_key:
+            return self.keywords.primary_key
+        if "id" in (self.schema.properties or {}):
+            return ("id",)
+        return ()
+
 
 @dataclass
 class PostgresTableSetTransformer:
@@ -94,6 +108,7 @@ class PostgresTableSetTransformer:
         specs = self._collect(input)
         _reject_duplicate_names(specs)
         self._check_reference_targets(specs)
+        self._warn_keyless(specs)
         ordered, cycles = _in_dependency_order(specs)
         self._warn_cycles(cycles, specs)
         tables = [self._build_table(spec) for spec in ordered]
@@ -167,6 +182,19 @@ class PostgresTableSetTransformer:
                         )
                     )
 
+    def _warn_keyless(self, specs: Sequence[TableSpec]) -> None:
+        """Warn about a table with neither an `id` property nor a declared key."""
+        for spec in specs:
+            if not spec.primary_key:
+                self._warnings.append(
+                    TranspilationWarning(
+                        f"Table {spec.table_name!r} has no `id` property and no "
+                        f"`x-pg-primary-key`, so it is generated without a primary key.",
+                        code="no-primary-key",
+                        location=SourceLocation(spec.source_id, ""),
+                    )
+                )
+
     def _warn_cycles(self, cycles: Sequence[str], specs: Sequence[TableSpec]) -> None:
         """Warn that a foreign-key cycle left a forward reference in the output."""
         by_name = {spec.table_name: spec for spec in specs}
@@ -220,10 +248,11 @@ class PostgresTableSetTransformer:
             keywords.column or safe_sql_identifier(prop_name),
             flat,
             required=prop_name in required,
-            force_json=keywords.force_json,
             sql_type=keywords.sql_type,
         )
-        return _with_keywords(column, keywords, single_pk=_is_single_pk(spec, keywords))
+        pk = spec.primary_key
+        single_pk = len(pk) == 1 and (keywords.column or safe_sql_identifier(prop_name)) == pk[0]
+        return _with_keywords(column, keywords, single_pk=single_pk)
 
     def _build_indexes(self, spec: TableSpec) -> list[CreateIndexStmt]:
         """Return the index statements for a table, from both keyword forms."""
@@ -245,7 +274,7 @@ class PostgresTableSetTransformer:
 
 def _with_keywords(column: ColumnDef, keywords: PropertyKeywords, *, single_pk: bool) -> ColumnDef:
     """Apply the key, uniqueness, and foreign-key keywords to a built column."""
-    reference = keywords.references
+    reference = keywords.refs
     constraint = ColumnConstraint(
         # A primary key is NOT NULL by definition; saying both is noise.
         not_null=column.constraint.not_null and not single_pk,
@@ -262,15 +291,6 @@ def _with_keywords(column: ColumnDef, keywords: PropertyKeywords, *, single_pk: 
     )
 
 
-def _is_single_pk(spec: TableSpec, keywords: PropertyKeywords) -> bool:
-    """Report whether this property is the table's whole primary key.
-
-    A property marked `x-pg-primary-key` is inlined as `PRIMARY KEY` only when the
-    schema does not declare a composite key, which becomes a table constraint instead.
-    """
-    return keywords.primary_key and not spec.keywords.primary_key
-
-
 def _extras_column(name: str) -> ColumnDef:
     return ColumnDef(
         name=name,
@@ -281,12 +301,11 @@ def _extras_column(name: str) -> ColumnDef:
 
 
 def _table_constraints(spec: TableSpec) -> tuple[TableConstraint, ...]:
-    if not spec.keywords.primary_key:
+    if len(spec.primary_key) < 2:
+        # A single-column key is inlined on the column itself, which reads better.
         return ()
     return (
-        TableConstraint(
-            constraint_name=f"{spec.table_name}_pkey", primary_key=spec.keywords.primary_key
-        ),
+        TableConstraint(constraint_name=f"{spec.table_name}_pkey", primary_key=spec.primary_key),
     )
 
 
@@ -368,8 +387,8 @@ def _referenced_tables(spec: TableSpec) -> list[str]:
     for prop_name, prop_schema in (spec.schema.properties or {}).items():
         where = f"property {prop_name!r} of schema {spec.schema_name!r}"
         keywords = read_property_keywords(_extensions_of(prop_schema), where=where)
-        if keywords.references is not None and keywords.references.table != spec.table_name:
-            targets.append(keywords.references.table)
+        if keywords.refs is not None and keywords.refs.table != spec.table_name:
+            targets.append(keywords.refs.table)
     return targets
 
 

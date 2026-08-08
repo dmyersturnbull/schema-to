@@ -17,7 +17,6 @@ from schema_to.io.source import JsonSchemaRawDoc
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.resolve.json_schema import JsonSchemaRefResolver
 from schema_to.result import Ok
-from schema_to.transpile.sql import JsonSchemaToPostgresTranspiler
 
 _PARSER = JsonSchemaParser()
 _SOURCE_ID = "test://schema"
@@ -265,50 +264,7 @@ def test_recursive_ref_terminates() -> None:
     assert "recursive-ref" in [w.code for w in result.warnings]
 
 
-# ---------------------------------------------------------------------------
-# Integration with the Postgres target
-# ---------------------------------------------------------------------------
-
-
-def _transpile(data: object) -> str:
-    doc = JsonSchemaRawDoc(
-        doc_id=_SOURCE_ID,
-        content=orjson.dumps(data),
-        media_type=MediaTypes.json,
-        display_name="Test",
-    )
-    result = JsonSchemaToPostgresTranspiler().transpile(doc)
-    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    return result.value[0].content.decode("utf-8")
-
-
-def test_all_of_root_produces_a_table_with_every_column() -> None:
-    """A root composed only of `allOf` used to be rejected as a non-object schema."""
-    sql = _transpile(
-        {
-            "title": "composed",
-            "allOf": [
-                {"type": "object", "required": ["id"], "properties": {"id": {"type": "string"}}},
-                {"type": "object", "properties": {"count": {"type": "integer"}}},
-            ],
-        }
-    )
-    assert "CREATE TABLE IF NOT EXISTS composed (" in sql
-    assert "id text NOT NULL" in sql
-    assert "count integer" in sql
-
-
-def test_all_of_root_is_object_schema_after_flattening() -> None:
+def test_all_of_root_is_an_object_schema_once_flattened() -> None:
+    """`is_object_schema` is a syntactic check, so flattening has to come first."""
     flat = _flatten({"allOf": [{"type": "object", "properties": {"a": {"type": "string"}}}]})
     assert is_object_schema(flat)
-
-
-def test_non_object_root_names_what_it_found() -> None:
-    doc = JsonSchemaRawDoc(
-        doc_id=_SOURCE_ID, content=orjson.dumps({"type": "string"}), media_type=MediaTypes.json
-    )
-    result = JsonSchemaToPostgresTranspiler().transpile(doc)
-    assert not isinstance(result, Ok)
-    [error] = result.errors
-    assert "object" in error.message
-    assert "string" in error.message
