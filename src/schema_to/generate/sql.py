@@ -51,7 +51,7 @@ from schema_to.cst.json_schema import (
 )
 from schema_to.errors import GenerationError, SourceLocation, TranspilationWarning
 from schema_to.generate._compose import SchemaFlattener
-from schema_to.generate._names import safe_sql_identifier
+from schema_to.generate._names import quote_sql_identifier, safe_sql_identifier
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
@@ -125,6 +125,11 @@ def _unwrap_nullable(schema: ObjectSchema) -> tuple[bool, JsonSchema]:
     if JsonSchemaType.NULL in schema.get_types() and non_null_from_type:
         return True, schema
     return False, schema
+
+
+def _base_uri(schema: JsonSchema) -> str:
+    """Return the document a schema came from, for resolving its relative references."""
+    return schema.source_ref.source_id if schema.source_ref else ""
 
 
 def _join_checks(exprs: list[str]) -> str | None:
@@ -211,11 +216,13 @@ class ColumnBuilder:
             eff_schema, col_name, force_json=force_json, sql_type=sql_type
         )
         check = (
-            self._check_exprs(eff_schema, col_name, data_type)
+            self._check_exprs(eff_schema, quote_sql_identifier(col_name), data_type)
             if isinstance(eff_schema, ObjectSchema)
             else ColumnConstraint()
         )
-        check_expr = self._with_json_check(check.check_expr, eff_schema, col_name, data_type)
+        check_expr = self._with_json_check(
+            check.check_expr, eff_schema, quote_sql_identifier(col_name), data_type
+        )
 
         doc = schema.description or schema.title
         return ColumnDef(
@@ -233,7 +240,15 @@ class ColumnBuilder:
             return base
         if not isinstance(schema, ObjectSchema):
             return base
-        schema_json = orjson.dumps(JsonSchemaSerializer().serialize(schema)).decode("utf-8")
+        # pg_jsonschema evaluates a literal with no way to fetch a reference,
+        # so every `$ref` below this column has to be resolved away first.
+        standalone = SchemaFlattener(resolver=self.resolver).inline(
+            schema, base_uri=_base_uri(schema)
+        )
+        self._warnings.extend(standalone.warnings)
+        schema_json = orjson.dumps(JsonSchemaSerializer().serialize(standalone.schema)).decode(
+            "utf-8"
+        )
         fn = "jsonb_matches_schema" if data_type.base == PgDataType.JSONB else "json_matches_schema"
         escaped = schema_json.replace("'", "''")
         json_check = f"{fn}('{escaped}', {col_name})"
@@ -314,6 +329,11 @@ class ColumnBuilder:
     def _check_exprs(
         self, schema: ObjectSchema, col_name: str, data_type: DataType
     ) -> ColumnConstraint:
+        """Build the `CHECK` expression for a column.
+
+        `col_name` must already be quoted: these expressions name the column, so a
+        reserved word such as `end` needs the same quoting the column definition uses.
+        """
         exprs: list[str] = []
 
         # Numeric range constraints.

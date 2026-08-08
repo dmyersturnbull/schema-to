@@ -13,6 +13,7 @@ import pytest
 
 from schema_to.errors import GenerationError
 from schema_to.generate._pg_keywords import read_property_keywords, read_table_keywords
+from schema_to.generate.sql_tables import PostgresTableSetTransformer
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import SchemaMapRawDoc
 from schema_to.result import Err, Ok
@@ -435,3 +436,79 @@ def test_two_file_set_with_cross_file_refs() -> None:
 def test_unresolvable_cross_file_ref_is_an_error() -> None:
     docs = _doc({"thing": {**_THING, "properties": {"x": {"$ref": "./missing.yaml#/nope"}}}})
     assert any("missing.yaml" in message for message in _errors(docs))
+
+
+# ---------------------------------------------------------------------------
+# Identifier quoting
+# ---------------------------------------------------------------------------
+
+
+def test_reserved_words_are_quoted() -> None:
+    """Goldberry has properties named `end`, `group`, `left`, and `right`."""
+    sql = _sql(
+        _doc(
+            {
+                "thing": {
+                    "type": "object",
+                    "x-pg-table": "thing",
+                    "properties": {
+                        "end": {"type": "string"},
+                        "group": {"type": "string", "x-pg-index": True},
+                        "ordinary": {"type": "string"},
+                    },
+                }
+            }
+        )
+    )
+    assert '"end" text' in sql
+    assert '"group" text' in sql
+    # Ordinary names stay bare, so the DDL remains readable.
+    assert "ordinary text" in sql
+    assert '"ordinary"' not in sql
+    # And the quoting follows the column everywhere it is named.
+    assert 'ON thing USING BTREE ("group")' in sql
+
+
+def test_check_expressions_quote_the_column() -> None:
+    sql = _sql(
+        _doc(
+            {
+                "thing": {
+                    "type": "object",
+                    "x-pg-table": "thing",
+                    "properties": {"end": {"type": "string", "pattern": "^P"}},
+                }
+            }
+        )
+    )
+    assert """CHECK (("end" ~ '^P'))""" in sql
+
+
+def test_pg_jsonschema_check_has_no_unresolved_refs() -> None:
+    """Flattening runs before serialization, so the embedded schema is self-contained."""
+    base = _doc({"stamp": {"type": "string", "pattern": "^2"}}, "base")
+    main = _doc(
+        {
+            "thing": {
+                "type": "object",
+                "x-pg-table": "thing",
+                "properties": {
+                    "payload": {
+                        "type": "object",
+                        "properties": {"at": {"$ref": "./base.yaml#/stamp"}},
+                    }
+                },
+            }
+        },
+        "main",
+    )
+    transpiler = SchemaMapSetToPostgresTranspiler(
+        generator=PostgresTableSetTransformer(validate_json=True)
+    )
+    result = transpiler.transpile_all([base, main])
+    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
+    sql = result.value[0].content.decode("utf-8")
+    assert "jsonb_matches_schema(" in sql
+    # pg_jsonschema cannot fetch a remote ref, so none may survive into the check.
+    assert "$ref" not in sql
+    assert "^2" in sql

@@ -18,7 +18,7 @@ and falls back to a documented choice where it cannot:
   override an `x-pg-*` keyword written at the point of use.
 """
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from typing import TYPE_CHECKING
 
 from schema_to.cst.json_schema import BooleanSchema, JsonSchema, ObjectSchema
@@ -36,6 +36,12 @@ __all__ = ["FlattenedSchema", "SchemaFlattener"]
 
 # Guards against a `$ref` cycle that `_seen` cannot catch, e.g. one built from `$dynamicRef`.
 _MAX_DEPTH = 32
+
+# The parse kinds whose values hold sub-schemas, and so need inlining in turn.
+_SUB_SCHEMA_KINDS = frozenset({"optional_schema", "schema_list", "schema_map"})
+
+# What `_inline_children` puts back on a schema, matching those three kinds.
+type _SubSchemaValue = JsonSchema | Sequence[JsonSchema] | Mapping[str, JsonSchema]
 
 # Union of the keyword values `_first_set` copies between schemas.
 type _KeywordValue = (
@@ -72,9 +78,24 @@ class SchemaFlattener:
     _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
 
     def flatten(self, schema: JsonSchema, *, base_uri: str) -> FlattenedSchema:
-        """Merge `schema`'s `allOf` branches and `$ref` target into one schema."""
+        """Merge `schema`'s `allOf` branches and `$ref` target into one schema.
+
+        Only this schema's own composition is resolved; sub-schemas are left as written.
+        Use `inline` when the result must stand alone.
+        """
         self._warnings.clear()
         merged = self._flatten(schema, base_uri=base_uri, seen=frozenset(), depth=0)
+        return FlattenedSchema(schema=merged, warnings=tuple(self._warnings))
+
+    def inline(self, schema: JsonSchema, *, base_uri: str) -> FlattenedSchema:
+        """Flatten `schema` and every sub-schema, leaving no `$ref` anywhere in the result.
+
+        Needed wherever a schema is handed to something that cannot follow a reference —
+        `pg_jsonschema`, for instance, validates against a literal embedded in the DDL
+        and has no way to fetch `./other-file.yaml#/thing`.
+        """
+        self._warnings.clear()
+        merged = self._inline(schema, base_uri=base_uri, seen=frozenset(), depth=0)
         return FlattenedSchema(schema=merged, warnings=tuple(self._warnings))
 
     # ------------------------------------------------------------------
@@ -91,6 +112,41 @@ class SchemaFlattener:
         for part in parts:
             own = self._merge(own, part)
         return own
+
+    def _inline(
+        self, schema: JsonSchema, *, base_uri: str, seen: frozenset[str], depth: int
+    ) -> JsonSchema:
+        flat = self._flatten(schema, base_uri=base_uri, seen=seen, depth=depth)
+        if isinstance(flat, BooleanSchema) or depth > _MAX_DEPTH:
+            return flat
+        children = self._inline_children(flat, base_uri=base_uri, seen=seen, depth=depth)
+        return replace(flat, **children)
+
+    def _inline_children(
+        self, schema: ObjectSchema, *, base_uri: str, seen: frozenset[str], depth: int
+    ) -> dict[str, _SubSchemaValue]:
+        """Inline every keyword whose value holds sub-schemas.
+
+        Driven by the same field metadata the parser dispatches on, so a keyword
+        added to `ObjectSchema` is covered here without touching this method.
+        """
+
+        def step(sub: JsonSchema) -> JsonSchema:
+            return self._inline(sub, base_uri=base_uri, seen=seen, depth=depth + 1)
+
+        out: dict[str, _SubSchemaValue] = {}
+        for f in fields(ObjectSchema):
+            kind = f.metadata.get("kind")
+            value = getattr(schema, f.name)
+            if kind not in _SUB_SCHEMA_KINDS or value is None:
+                continue
+            if kind == "optional_schema":
+                out[f.name] = step(value)
+            elif kind == "schema_list":
+                out[f.name] = [step(sub) for sub in value]
+            else:
+                out[f.name] = {name: step(sub) for name, sub in value.items()}
+        return out
 
     def _parts(
         self, schema: ObjectSchema, *, base_uri: str, seen: frozenset[str], depth: int
