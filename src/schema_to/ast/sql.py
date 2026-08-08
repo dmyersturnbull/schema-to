@@ -5,11 +5,8 @@ Reification produces a `.sql` migration script compatible with PostgreSQL 14+ an
 [pg_jsonschema](https://github.com/supabase/pg_jsonschema)
 for inline JSON validation constraints.
 
-Custom extension keywords supported by the generator:
-- `x-is-table` — emit a `CREATE TABLE` rather than a bare type definition.
-- `x-is-fk` — emit a `REFERENCES` foreign key constraint.
-- `x-is-index` — emit a `CREATE INDEX` on the annotated column.
-- `x-pg-type` — override the inferred PostgreSQL type with a literal type name.
+The generator is driven by the `x-pg-*` extension keywords; see
+`schema_to.generate._pg_keywords` for the full vocabulary.
 """
 
 

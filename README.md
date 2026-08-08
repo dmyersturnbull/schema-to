@@ -53,7 +53,8 @@ Unfortunately, four years later, most tooling is still stuck on OpenAPI 3.0 and 
 ### Output Formats
 - **SQL:**
   - PostgreSQL DDL with JSON Schema validation via [pg_jsonschema](https://github.com/supabase/pg_jsonschema)
-  - Custom extensions: `x-is-table`, `x-is-fk`, `x-is-index`, etc.
+  - A whole directory of schema files to one migration, with foreign keys ordered
+    across files, driven by `x-pg-table`, `x-pg-references`, `x-pg-index`, and friends
 - **Backend:**
   - TypeScript types
   - Python dataclasses or Pydantic 2 models

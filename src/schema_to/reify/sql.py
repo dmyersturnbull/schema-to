@@ -11,7 +11,6 @@ Output style:
 - `CREATE INDEX` and standalone `COMMENT ON` in statement order.
 """
 
-
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -116,13 +115,17 @@ class SqlReifier(Reifier[SqlScript, SqlArtifact]):
 
     def _emit_create_index(self, stmt: CreateIndexStmt) -> str:
         unique_clause = "UNIQUE " if stmt.unique else ""
-        name_clause = f" {stmt.index_name}" if stmt.index_name else ""
-        exists_clause = "IF NOT EXISTS " if stmt.if_not_exists else ""
-        method_clause = f" USING {stmt.method.value}"
+        # PostgreSQL puts `IF NOT EXISTS` *before* the index name, and rejects it
+        # outright for an unnamed index — there would be no name to test.
+        name_clause = ""
+        if stmt.index_name:
+            exists_clause = "IF NOT EXISTS " if stmt.if_not_exists else ""
+            name_clause = f"{exists_clause}{stmt.index_name} "
+        method_clause = f" USING {stmt.method.value.upper()}"
         cols = ", ".join(stmt.columns)
         where_clause = f" WHERE {stmt.where_expr}" if stmt.where_expr else ""
         return (
-            f"CREATE {unique_clause}INDEX{name_clause} {exists_clause}"
+            f"CREATE {unique_clause}INDEX {name_clause}"
             f"ON {stmt.table_name}{method_clause} ({cols}){where_clause};"
         )
 
@@ -162,9 +165,9 @@ def _emit_column_constraint(c: ColumnConstraint) -> str:
         if c.references_column is not None:
             ref += f"({c.references_column})"
         if c.on_delete != ForeignKeyAction.NO_ACTION:
-            ref += f" ON DELETE {c.on_delete.value}"
+            ref += f" ON DELETE {c.on_delete.value.upper()}"
         if c.on_update != ForeignKeyAction.NO_ACTION:
-            ref += f" ON UPDATE {c.on_update.value}"
+            ref += f" ON UPDATE {c.on_update.value.upper()}"
         parts.append(ref)
     return " ".join(parts)
 
@@ -185,9 +188,9 @@ def _emit_table_constraint(tc: TableConstraint) -> str:
         if tc.references_columns:
             result += f" ({', '.join(tc.references_columns)})"
         if tc.on_delete != ForeignKeyAction.NO_ACTION:
-            result += f" ON DELETE {tc.on_delete.value}"
+            result += f" ON DELETE {tc.on_delete.value.upper()}"
         if tc.on_update != ForeignKeyAction.NO_ACTION:
-            result += f" ON UPDATE {tc.on_update.value}"
+            result += f" ON UPDATE {tc.on_update.value.upper()}"
         return result
     return ""
 
