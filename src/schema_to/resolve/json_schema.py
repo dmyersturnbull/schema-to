@@ -185,12 +185,10 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         """
         if input.source_id not in self._docs:
             self.register(input)
-
         try:
-            ref_resolver = Resolver(self._registry.resolver(base_uri=input.source_id))
-        except Unresolvable as exc:
-            return Err((ResolutionError(str(exc), location=SourceLocation(input.source_id, "")),))
-
+            ref_resolver = self._resolver_for(input.source_id)
+        except ResolutionError as exc:
+            return Err((exc,))
         errors: list[TranspilationError] = []
         self._check_refs(
             input.root, ref_resolver=ref_resolver, source_id=input.source_id, errors=errors
@@ -232,9 +230,9 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         if input.source_id not in self._map_docs:
             self.register_map(input)
         try:
-            ref_resolver = Resolver(self._registry.resolver(base_uri=input.source_id))
-        except Unresolvable as exc:
-            return Err((ResolutionError(str(exc), location=SourceLocation(input.source_id, "")),))
+            ref_resolver = self._resolver_for(input.source_id)
+        except ResolutionError as exc:
+            return Err((exc,))
         errors: list[TranspilationError] = []
         for schema in input.schemas.values():
             self._check_refs(
@@ -247,6 +245,17 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+
+    def _resolver_for(self, source_id: str) -> Resolver:
+        """Return a resolver rooted at `source_id`.
+
+        Raises:
+            ResolutionError: If the document is not in the registry.
+        """
+        try:
+            return Resolver(self._registry.resolver(base_uri=source_id))
+        except Unresolvable as exc:
+            raise ResolutionError(str(exc), location=SourceLocation(source_id, "")) from exc
 
     def _index_cst(self, schema: JsonSchema, source_id: str, pointer: str) -> None:
         self._cst_by_pointer[source_id, pointer] = schema

@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from schema_to.core import JsonValue
 
 __all__ = [
+    "SINGULAR_KEYWORDS",
     "BooleanApplicatorKeyword",
     "BooleanSchema",
     "ConstValue",
@@ -128,6 +129,35 @@ type SchemaKeywordValue = (
     | Mapping[str, frozenset[str]]
     | Mapping[str, JsonValue]
     | None
+)
+
+
+# Keywords whose value is one self-contained assertion, so two schemas cannot contribute
+# complementary halves of one: either a schema sets it or it does not.
+# `properties` and `required` are absent because they accumulate, and `allOf`/`anyOf`/`oneOf`
+# because they are the composition being resolved.
+SINGULAR_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "title",
+        "description",
+        "format",
+        "pattern",
+        "enum",
+        "const",
+        "minimum",
+        "maximum",
+        "exclusive_minimum",
+        "exclusive_maximum",
+        "min_length",
+        "max_length",
+        "items",
+        "property_names",
+        "additional_properties",
+        "unevaluated_properties",
+        "pattern_properties",
+        "read_only",
+        "write_only",
+    }
 )
 
 

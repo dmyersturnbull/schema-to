@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from schema_to.io.media_type import MediaType, MediaTypes
 from schema_to.io.os_errors import PathMissingError, TypedNotADirectoryError
-from schema_to.io.routing import peek_doc_type
+from schema_to.io.routing import is_schema_map, peek_doc_type
 from schema_to.io.sink import Artifact, DataSink
 from schema_to.io.source import DataSource, JsonSchemaRawDoc, OpenApiRawDoc, RawDoc, SchemaMapRawDoc
 
@@ -150,9 +150,12 @@ class SchemaMapDirectorySource(DataSource):
     one file `$ref`s another by relative path (`../base/time.yaml#/timestamp`).
 
     Unlike `DirectoryDataSource`, this matches on plain `.yaml` / `.yml` / `.json`
-    rather than compound extensions, because such files carry no marker
-    distinguishing them from any other schema file. That is also why the caller
-    selects this source explicitly: content alone cannot identify the shape.
+    rather than compound extensions, since these files carry no compound suffix.
+    The caller selects this source explicitly rather than the pipeline sniffing for
+    it, because the distinguishing evidence is weak: a schema map looks like a
+    single schema whose keywords are all unrecognised, and both are valid documents.
+    `peek_doc_type` does rule out the confusable cases — see `is_schema_map` — so
+    files that are definitely something else are skipped rather than mis-parsed.
 
     `doc_id` is each file's URI, so a relative `$ref` resolves by URI math against
     the referring file, exactly as it does on disk.
@@ -186,9 +189,12 @@ class SchemaMapDirectorySource(DataSource):
 
     def documents(self) -> Iterator[SchemaMapRawDoc]:
         for path in sorted(self._paths()):
+            content = path.read_bytes()
+            if not is_schema_map(content):
+                continue
             yield SchemaMapRawDoc(
                 doc_id=path.as_uri(),
-                content=path.read_bytes(),
+                content=content,
                 media_type=type(self).suffixes[path.suffix.lower()],
                 display_name=path.stem,
                 base_uri=path.as_uri(),
