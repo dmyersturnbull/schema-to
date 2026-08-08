@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
     from schema_to.io.media_type import MediaType
 
-__all__ = ["DataSource", "JsonSchemaRawDoc", "OpenApiRawDoc", "RawDoc"]
+__all__ = ["DataSource", "JsonSchemaRawDoc", "OpenApiRawDoc", "RawDoc", "SchemaMapRawDoc"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +51,16 @@ class RawDoc:
 @dataclass(frozen=True, slots=True)
 class JsonSchemaRawDoc(RawDoc):
     """A `RawDoc` known to contain a JSON Schema 2020-12 document."""
+
+
+@dataclass(frozen=True, slots=True)
+class SchemaMapRawDoc(RawDoc):
+    """A `RawDoc` whose root is a map of names to JSON Schema 2020-12 schemas.
+
+    Distinct from `JsonSchemaRawDoc`, whose root is itself a schema:
+    the two cannot be told apart by content, since a map of named schemas is
+    indistinguishable from a schema whose keywords are all unrecognised.
+    """
 
 
 @dataclass(frozen=True, slots=True)

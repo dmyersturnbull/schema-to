@@ -579,7 +579,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         schema_data = data.get("schema")
         if isinstance(schema_data, dict):
             schema = extract(
-                self.js._build_schema(
+                self.js.build_schema(
                     schema_data, source_id=source_id, pointer=ptr(pointer, "schema")
                 ),
                 errors,
@@ -704,7 +704,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         schema_data = data.get("schema")
         if isinstance(schema_data, dict):
             schema = extract(
-                self.js._build_schema(
+                self.js.build_schema(
                     schema_data, source_id=source_id, pointer=ptr(pointer, "schema")
                 ),
                 errors,
@@ -732,7 +732,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         schema_data = data.get("schema")
         if isinstance(schema_data, dict):
             schema = extract(
-                self.js._build_schema(
+                self.js.build_schema(
                     schema_data, source_id=source_id, pointer=ptr(pointer, "schema")
                 ),
                 errors,
@@ -915,7 +915,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         if isinstance(data.get("schemas"), dict):
             for name, s_data in cast("dict[str, JsonValue]", data["schemas"]).items():
                 s = extract(
-                    self.js._build_schema(
+                    self.js.build_schema(
                         s_data, source_id=source_id, pointer=ptr(pointer, "schemas", name)
                     ),
                     errors,
