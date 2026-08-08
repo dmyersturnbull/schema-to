@@ -25,6 +25,7 @@ from schema_to.ast.sql import (
     SqlScript,
     TableConstraint,
 )
+from schema_to.generate._names import quote_sql_identifier as q
 from schema_to.io.sink import SqlArtifact
 from schema_to.pipeline import Reifier
 from schema_to.result import Ok, Result
@@ -80,20 +81,20 @@ class SqlReifier(Reifier[SqlScript, SqlArtifact]):
     def _emit_table_block(self, stmt: CreateTableStmt) -> Iterator[str]:
         yield self._emit_create_table(stmt)
         if stmt.doc:
-            yield f"COMMENT ON TABLE {stmt.table_name} IS {_sql_str(stmt.doc)};"
+            yield f"COMMENT ON TABLE {q(stmt.table_name)} IS {_sql_str(stmt.doc)};"
         yield from (
-            f"COMMENT ON COLUMN {stmt.table_name}.{col.name} IS {_sql_str(col.doc)};"
+            f"COMMENT ON COLUMN {q(stmt.table_name)}.{q(col.name)} IS {_sql_str(col.doc)};"
             for col in stmt.columns
             if col.doc
         )
 
     def _emit_create_table(self, stmt: CreateTableStmt) -> str:
         exists_clause = "IF NOT EXISTS " if stmt.if_not_exists else ""
-        header = f"CREATE TABLE {exists_clause}{stmt.table_name} ("
+        header = f"CREATE TABLE {exists_clause}{q(stmt.table_name)} ("
 
         parts: list[str] = []
         for col in stmt.columns:
-            col_str = f"{_INDENT}{col.name} {_emit_data_type(col.data_type)}"
+            col_str = f"{_INDENT}{q(col.name)} {_emit_data_type(col.data_type)}"
             constraint_str = _emit_column_constraint(col.constraint)
             if constraint_str:
                 col_str += f" {constraint_str}"
@@ -120,13 +121,13 @@ class SqlReifier(Reifier[SqlScript, SqlArtifact]):
         name_clause = ""
         if stmt.index_name:
             exists_clause = "IF NOT EXISTS " if stmt.if_not_exists else ""
-            name_clause = f"{exists_clause}{stmt.index_name} "
+            name_clause = f"{exists_clause}{q(stmt.index_name)} "
         method_clause = f" USING {stmt.method.value.upper()}"
-        cols = ", ".join(stmt.columns)
+        cols = ", ".join(q(c) for c in stmt.columns)
         where_clause = f" WHERE {stmt.where_expr}" if stmt.where_expr else ""
         return (
             f"CREATE {unique_clause}INDEX {name_clause}"
-            f"ON {stmt.table_name}{method_clause} ({cols}){where_clause};"
+            f"ON {q(stmt.table_name)}{method_clause} ({cols}){where_clause};"
         )
 
 
@@ -158,12 +159,12 @@ def _emit_column_constraint(c: ColumnConstraint) -> str:
     if c.default_expr is not None:
         parts.append(f"DEFAULT {c.default_expr}")
     if c.check_expr is not None:
-        name_prefix = f"CONSTRAINT {c.constraint_name} " if c.constraint_name else ""
+        name_prefix = f"CONSTRAINT {q(c.constraint_name)} " if c.constraint_name else ""
         parts.append(f"{name_prefix}CHECK ({c.check_expr})")
     if c.references_table is not None:
-        ref = f"REFERENCES {c.references_table}"
+        ref = f"REFERENCES {q(c.references_table)}"
         if c.references_column is not None:
-            ref += f"({c.references_column})"
+            ref += f"({q(c.references_column)})"
         if c.on_delete != ForeignKeyAction.NO_ACTION:
             ref += f" ON DELETE {c.on_delete.value.upper()}"
         if c.on_update != ForeignKeyAction.NO_ACTION:
@@ -173,20 +174,20 @@ def _emit_column_constraint(c: ColumnConstraint) -> str:
 
 
 def _emit_table_constraint(tc: TableConstraint) -> str:
-    name_prefix = f"CONSTRAINT {tc.constraint_name} " if tc.constraint_name else ""
+    name_prefix = f"CONSTRAINT {q(tc.constraint_name)} " if tc.constraint_name else ""
     if tc.primary_key:
-        cols = ", ".join(tc.primary_key)
+        cols = ", ".join(q(c) for c in tc.primary_key)
         return f"{name_prefix}PRIMARY KEY ({cols})"
     if tc.unique:
-        cols = ", ".join(tc.unique)
+        cols = ", ".join(q(c) for c in tc.unique)
         return f"{name_prefix}UNIQUE ({cols})"
     if tc.check_expr:
         return f"{name_prefix}CHECK ({tc.check_expr})"
     if tc.foreign_key_columns and tc.references_table:
-        fk_cols = ", ".join(tc.foreign_key_columns)
-        result = f"{name_prefix}FOREIGN KEY ({fk_cols}) REFERENCES {tc.references_table}"
+        fk_cols = ", ".join(q(c) for c in tc.foreign_key_columns)
+        result = f"{name_prefix}FOREIGN KEY ({fk_cols}) REFERENCES {q(tc.references_table)}"
         if tc.references_columns:
-            result += f" ({', '.join(tc.references_columns)})"
+            result += f" ({', '.join(q(c) for c in tc.references_columns)})"
         if tc.on_delete != ForeignKeyAction.NO_ACTION:
             result += f" ON DELETE {tc.on_delete.value.upper()}"
         if tc.on_update != ForeignKeyAction.NO_ACTION:
