@@ -47,7 +47,7 @@ def test_two_file_set_with_cross_file_refs() -> None:
             },
             "run-data": {
                 "x-pg-table": "run",
-                "x-pg-extras": "extras",
+                "x-pg-overflow": "extras",
                 "description": "A run.",
                 "allOf": [
                     {
