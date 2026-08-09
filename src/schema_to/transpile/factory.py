@@ -23,25 +23,40 @@ Supported targets:
     see `examples/postgres/` for a worked PostgreSQL set built on `query-dsl`.
 """
 
-
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
 from schema_to.generate.fastapi import FastApiTransformer
 from schema_to.generate.sql import PostgresTransformer
+from schema_to.generate.sql_tables import PostgresTableSetTransformer
 from schema_to.generate.template_body import TemplateBodyBackend
+from schema_to.io.media_type import MediaTypes
+from schema_to.io.source import JsonSchemaRawDoc
 from schema_to.transpile.fastapi import OpenApiToFastApiTranspiler
 from schema_to.transpile.pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
 from schema_to.transpile.pydantic import JsonSchemaToPydanticTranspiler
+from schema_to.transpile.schema_map import SchemaMapExpandingTranspiler
 from schema_to.transpile.sql import JsonSchemaToPostgresTranspiler
+from schema_to.transpile.sql_tables import SchemaMapSetToPostgresTranspiler
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
     from schema_to.io.media_type import MediaType
-    from schema_to.pipeline import Transpiler
+
+from schema_to.pipeline import Transpiler
 
 __all__ = ["RoutingError", "TranspilerRouter"]
+
+
+# Targets whose unit of output is the whole document set rather than one schema.
+_TABLE_SET_TARGETS: frozenset[str] = frozenset({"postgres", "pg-jsonschema"})
+
+
+def _takes_json_schema(transpiler: Transpiler) -> bool:
+    """Report whether a transpiler consumes JSON Schema documents rather than OpenAPI."""
+    probe = JsonSchemaRawDoc(doc_id="probe://", content=b"{}", media_type=MediaTypes.json)
+    return transpiler.accepts(probe)
 
 
 class RoutingError(Exception):
@@ -60,6 +75,25 @@ class TranspilerRouter:
     SUPPORTED_TARGETS: ClassVar[frozenset[str]] = frozenset(
         {"fastapi", "pass-thru", "pydantic", "postgres", "pg-jsonschema"}
     )
+
+    def route_schema_maps(
+        self,
+        target_name: str,
+        output_media_type: MediaType,
+        *,
+        templates: Mapping[str, str] | None = None,
+    ) -> Sequence[Transpiler]:
+        """Return the transpilers for target `target_name`, reading schema-map documents.
+
+        A schema map is a set of schemas, so each target is met on its own terms: one
+        that treats the whole set as the unit consumes it directly, and one whose unit
+        is a single schema is wrapped so it sees the schemas one at a time.
+        """
+        if target_name in _TABLE_SET_TARGETS:
+            generator = PostgresTableSetTransformer(validate_json=target_name == "pg-jsonschema")
+            return [SchemaMapSetToPostgresTranspiler(generator=generator)]
+        inner = self.route(target_name, output_media_type, templates=templates)
+        return [SchemaMapExpandingTranspiler(inner=t) for t in inner if _takes_json_schema(t)]
 
     def route(
         self,

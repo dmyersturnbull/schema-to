@@ -7,28 +7,33 @@ that file is registered.
 """
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from schema_to.generate.sql_tables import PostgresTableSetTransformer
+from schema_to.io.sink import SqlArtifact
+from schema_to.io.source import SchemaMapRawDoc
 from schema_to.parse.json_schema import JsonSchemaMapParser
+from schema_to.pipeline import Transpiler
 from schema_to.reify.sql import SqlReifier
 from schema_to.resolve.json_schema import JsonSchemaRefResolver
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Sequence
 
     from schema_to.cst.json_schema import JsonSchemaMapDocument
     from schema_to.errors import TranspilationError, TranspilationWarning
-    from schema_to.io.sink import SqlArtifact
-    from schema_to.io.source import SchemaMapRawDoc
 
 __all__ = ["SchemaMapSetToPostgresTranspiler"]
 
 
 @dataclass
-class SchemaMapSetToPostgresTranspiler:
+class SchemaMapSetToPostgresTranspiler(Transpiler[SchemaMapRawDoc, SqlArtifact]):
     """End-to-end transpiler: a set of schema-map documents → one `.sql` artifact.
+
+    The whole set is the unit, not each document: foreign keys cannot be ordered
+    until every table is known, and a cross-file `$ref` cannot resolve until the file
+    it points into has been read.
 
     Attributes:
         parser: Parses each raw document.
@@ -41,10 +46,20 @@ class SchemaMapSetToPostgresTranspiler:
     output_name: str = "schema.sql"
 
     @property
+    @override
     def warnings(self) -> Sequence[TranspilationWarning]:
         return list(self.generator.warnings)
 
-    def transpile_all(self, docs: Iterable[SchemaMapRawDoc]) -> Result[Sequence[SqlArtifact]]:
+    @override
+    def accepts(self, doc: SchemaMapRawDoc) -> bool:
+        return isinstance(doc, SchemaMapRawDoc)
+
+    @override
+    def transpile(self, doc: SchemaMapRawDoc) -> Result[Sequence[SqlArtifact]]:
+        return self.transpile_all([doc])
+
+    @override
+    def transpile_all(self, docs: Sequence[SchemaMapRawDoc]) -> Result[Sequence[SqlArtifact]]:
         """Parse, resolve, and generate one script from every document in `docs`."""
         parsed = self._parse_all(docs)
         if isinstance(parsed, Err):
@@ -62,7 +77,7 @@ class SchemaMapSetToPostgresTranspiler:
         return SqlReifier(artifact_name=self.output_name).apply(script.value)
 
     def _parse_all(
-        self, docs: Iterable[SchemaMapRawDoc]
+        self, docs: Sequence[SchemaMapRawDoc]
     ) -> Result[Sequence[JsonSchemaMapDocument]]:
         """Parse every document, accumulating errors across all of them."""
         parsed: list[JsonSchemaMapDocument] = []

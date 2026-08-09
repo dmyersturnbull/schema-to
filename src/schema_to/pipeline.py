@@ -37,7 +37,6 @@ It drives the full process:
 4. Return a `Result[ProcessSummary]` with counts and accumulated warnings.
 """
 
-
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -229,11 +228,18 @@ class Reifier[A: AstNode, O: Artifact](Stage[A, Sequence[O]]):
 
 
 class Transpiler[I: RawDoc, O: Artifact](ABC):
-    """Type-erased base for a complete single-document transpilation unit.
+    """Type-erased base for a complete transpilation unit.
 
     Prefer subclassing `TypedTranspiler[CstT, AstT]` for new implementations;
     use `Transpiler` directly only when the CST or AST types are not statically known
     (e.g. a plugin loaded at runtime).
+
+    Documents and artifacts are related many-to-many, not one-to-one.  One document
+    may yield several artifacts (a schema per `components/schemas` entry), and several
+    documents may yield one (a migration for a whole directory of schemas, whose
+    foreign keys cannot be ordered until every table is known).  `transpile_all` is
+    where that is decided; `transpile` handles the common one-document case, and the
+    default `transpile_all` maps it over the batch.
     """
 
     @abstractmethod
@@ -243,8 +249,28 @@ class Transpiler[I: RawDoc, O: Artifact](ABC):
 
     @abstractmethod
     def transpile(self, doc: I) -> Result[Sequence[O]]:
-        """Run the full parse → resolve → generate → reify pipeline."""
+        """Run the full parse → resolve → generate → reify pipeline for one document."""
         raise NotImplementedError
+
+    def transpile_all(self, docs: Sequence[I]) -> Result[Sequence[O]]:
+        """Transpile every accepted document, as one batch.
+
+        The default treats the documents independently, accumulating errors across all
+        of them rather than stopping at the first — one bad file should not hide the
+        rest.  Override to make the batch itself the unit, when artifacts depend on
+        more than one document.
+        """
+        artifacts: list[O] = []
+        errors: list[TranspilationError] = []
+        for doc in docs:
+            result = self.transpile(doc)
+            if isinstance(result, Err):
+                errors.extend(result.errors)
+            else:
+                artifacts.extend(result.value)
+        if errors:
+            return Err(tuple(errors))
+        return Ok(artifacts)
 
     @property
     def warnings(self) -> Sequence[TranspilationWarning]:
@@ -366,13 +392,17 @@ class Pipeline[I: RawDoc, O: Artifact]:
     def process(self) -> Result[ProcessSummary]:
         """Execute the pipeline: read all sources, transpile, write to sink.
 
+        Every document is read and routed before anything is transpiled.  A transpiler
+        then sees all of its documents at once, which is what lets an artifact depend
+        on more than one of them — a `$ref` into a sibling file cannot be resolved
+        until that file has been read.
+
         Returns `Ok[ProcessSummary]` if every document was transpiled without
         fatal errors, or `Err` with all accumulated errors otherwise.
         """
         helper = _PipelineHelper()
-        for source in self.sources:
-            for document in source.documents():
-                self._next_doc(document, helper)
+        for index, documents in self._route(helper):
+            self._transpile_batch(self.transpilers[index], documents, helper)
         if helper.errors:
             return Err(tuple(helper.errors))
         return Ok(
@@ -383,22 +413,36 @@ class Pipeline[I: RawDoc, O: Artifact]:
             )
         )
 
-    def _next_doc(self, document: I, helper: _PipelineHelper) -> None:
-        transpiler = next((t for t in self.transpilers if t.accepts(document)), None)
-        if transpiler:
-            helper.docs_used.append(document.doc_id)
-            self._transpile_doc(document, helper, transpiler)
-        else:
-            helper.warnings.append(
-                TranspilationWarning(
-                    f"No transpiler accepts {document.doc_id!r}; skipping.", code="no-transpiler"
-                )
-            )
+    def _route(self, helper: _PipelineHelper) -> list[tuple[int, list[I]]]:
+        """Group every source document under the first transpiler that accepts it.
 
-    def _transpile_doc(
-        self, document: I, helper: _PipelineHelper, transpiler: Transpiler[I, O]
+        Batches are keyed by position rather than by the transpiler itself, which need
+        not be hashable — a mutable transpiler is a perfectly ordinary thing to write.
+        Order follows the transpiler list and then the order documents were read, so
+        output is stable across runs.
+        """
+        batches: list[list[I]] = [[] for _ in self.transpilers]
+        for source in self.sources:
+            for document in source.documents():
+                index = next(
+                    (i for i, t in enumerate(self.transpilers) if t.accepts(document)), None
+                )
+                if index is None:
+                    helper.warnings.append(
+                        TranspilationWarning(
+                            f"No transpiler accepts {document.doc_id!r}; skipping.",
+                            code="no-transpiler",
+                        )
+                    )
+                    continue
+                helper.docs_used.append(document.doc_id)
+                batches[index].append(document)
+        return [(i, docs) for i, docs in enumerate(batches) if docs]
+
+    def _transpile_batch(
+        self, transpiler: Transpiler[I, O], documents: Sequence[I], helper: _PipelineHelper
     ) -> None:
-        result = transpiler.transpile(document)
+        result = transpiler.transpile_all(documents)
         helper.warnings.extend(transpiler.warnings)
         match result:
             case Err(errs):
