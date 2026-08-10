@@ -94,6 +94,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                 source_id=document.doc_id,
                 display_name=document.display_name,
                 source_ref=SourceRef(document.doc_id, ""),
+                base_uri=document.base_uri,
             )
         )
 

@@ -20,6 +20,7 @@ from schema_to.io.sink import JsonSchemaJsonArtifact
 from schema_to.io.source import DataSource, JsonSchemaRawDoc, RawDoc, SchemaMapRawDoc
 from schema_to.pipeline import Pipeline, Transpiler
 from schema_to.result import Ok, Result
+from schema_to.transpile.pydantic import JsonSchemaToPydanticTranspiler
 from schema_to.transpile.schema_map import SchemaMapExpandingTranspiler
 
 
@@ -147,3 +148,61 @@ def test_expanded_document_ids_name_the_file_and_the_schema() -> None:
     assert virtual.doc_id == "file:///catalog.yaml#/a-data"
     assert virtual.base_uri == "file:///catalog.yaml"
     assert virtual.display_name == "a-data"
+
+
+def test_sibling_refs_resolve_after_expansion() -> None:
+    """`#/other` means the sibling in the *file*, which splitting would otherwise break."""
+    inner = JsonSchemaToPydanticTranspiler()
+    doc = SchemaMapRawDoc(
+        doc_id="file:///catalog.yaml",
+        content=orjson.dumps(
+            {
+                "stamp": {"type": "string", "pattern": "^2"},
+                "thing": {"type": "object", "properties": {"at": {"$ref": "#/stamp"}}},
+            }
+        ),
+        media_type=MediaTypes.json,
+        display_name="catalog",
+    )
+    result = SchemaMapExpandingTranspiler(inner=inner).transpile_all([doc])
+    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
+    assert {a.artifact_id for a in result.value} == {"stamp.py", "thing.py"}
+
+
+def test_seeding_is_skipped_for_a_transpiler_that_does_not_resolve() -> None:
+    """`_PerDoc` exposes no resolver, so there is nothing to seed and nothing to fail."""
+    expander = SchemaMapExpandingTranspiler(inner=_PerDoc())
+    doc = SchemaMapRawDoc(
+        doc_id="file:///catalog.yaml",
+        content=orjson.dumps({"a": {"type": "object"}}),
+        media_type=MediaTypes.json,
+    )
+    assert isinstance(expander.transpile_all([doc]), Ok)
+
+
+def test_one_document_keeps_the_configured_artifact_name() -> None:
+    doc = JsonSchemaRawDoc(
+        doc_id="test://a",
+        content=orjson.dumps({"type": "object"}),
+        media_type=MediaTypes.json,
+        display_name="thing",
+    )
+    result = JsonSchemaToPydanticTranspiler().transpile_all([doc])
+    assert isinstance(result, Ok)
+    assert [a.artifact_id for a in result.value] == ["models.py"]
+
+
+def test_several_documents_are_named_apart() -> None:
+    """They would otherwise overwrite one another in the sink."""
+    docs = [
+        JsonSchemaRawDoc(
+            doc_id=f"test://{n}",
+            content=orjson.dumps({"type": "object"}),
+            media_type=MediaTypes.json,
+            display_name=n,
+        )
+        for n in ("thing-one", "thing-two")
+    ]
+    result = JsonSchemaToPydanticTranspiler().transpile_all(docs)
+    assert isinstance(result, Ok)
+    assert [a.artifact_id for a in result.value] == ["thing_one.py", "thing_two.py"]
