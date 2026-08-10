@@ -1,6 +1,5 @@
 """Tests for the `pg-jsonschema` target (JSON Schema → PostgreSQL with validation)."""
 
-
 import orjson
 
 from schema_to import JsonSchemaRawDoc, MediaTypes, Ok

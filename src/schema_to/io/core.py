@@ -1,6 +1,5 @@
 """Defines abstract and concrete classes for reading and writing JSON-compatible formats."""
 
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast

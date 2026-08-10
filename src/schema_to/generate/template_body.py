@@ -21,7 +21,6 @@ the resource's `json_properties`,
 and the REST helpers from `schema_to.generate.rest`.
 """
 
-
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from functools import cache

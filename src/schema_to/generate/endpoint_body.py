@@ -13,7 +13,6 @@ The context carries no persistence-specific fields;
 a backend that wants e.g. a table name reads it from the extensions.
 """
 
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING

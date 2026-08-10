@@ -10,7 +10,6 @@ because `FileDataSource` uses compound filename extensions to select the correct
 Transpiler `accepts()` methods are therefore a simple `isinstance` check with no additional I/O.
 """
 
-
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, override
 

@@ -1,6 +1,5 @@
 """In-memory `DataSource` and `DataSink` implementations."""
 
-
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 

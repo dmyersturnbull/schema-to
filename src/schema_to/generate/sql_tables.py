@@ -5,8 +5,7 @@ schema files to the set of tables they describe — the unit a migration actuall
 
 Only schemas carrying `x-pg-table` become tables, so a tree may hold as many
 request bodies, patch documents, and shared primitives as it likes without any of
-them turning into a table.  See `generate._pg_keywords` for the keyword vocabulary,
-including the `$ref`-to-a-table form that implies a foreign key without one.
+them turning into a table.  See `generate._pg_keywords` for the keyword vocabulary.
 
 Tables are emitted in dependency order: a table is declared after every table its
 foreign keys reference.  A reference cycle has no such order, so the foreign keys
@@ -14,7 +13,7 @@ within it are made `DEFERRABLE INITIALLY DEFERRED` — checked at commit rather 
 per statement, which is what lets one transaction satisfy both directions.
 """
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from schema_to.ast.sql import (
@@ -45,7 +44,7 @@ from schema_to.generate.sql import ColumnBuilder
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Mapping, Sequence
+    from collections.abc import Iterable, Mapping, Sequence
     from collections.abc import Set as AbstractSet
 
     from schema_to.core import JsonValue
@@ -115,7 +114,7 @@ class PostgresTableSetTransformer:
         _reject_duplicate_names(specs)
         self._check_reference_targets(specs)
         self._warn_keyless(specs)
-        ordered, cycles = _in_dependency_order(specs, self._referenced_tables)
+        ordered, cycles = _in_dependency_order(specs)
         self._warn_cycles(cycles, specs)
         tables = [self._build_table(spec, cycles) for spec in ordered]
         indexes = [stmt for spec in ordered for stmt in self._build_indexes(spec)]
@@ -169,90 +168,6 @@ class PostgresTableSetTransformer:
         self._warnings.extend(result.warnings)
         return result.schema
 
-    def refs_for(
-        self, keywords: PropertyKeywords, schema: JsonSchema, *, base_uri: str
-    ) -> ForeignKeyRef | None:
-        """Return a property's foreign key, whether declared or implied.
-
-        `x-pg-refs` wins. Failing that, a `$ref` whose target carries `x-pg-table` is
-        itself the statement that the property points at that table, so no keyword is
-        needed to say it twice.
-
-        `schema` must be the property *before* flattening: flattening resolves the
-        `$ref` away, which is exactly the evidence this reads.
-        """
-        if keywords.refs is not None:
-            return keywords.refs
-        target = self._ref_target(schema, base_uri=base_uri)
-        if target is None:
-            return None
-        table = target.get_extensions().get(TABLE)
-        if not isinstance(table, str) or not table:
-            return None
-        return ForeignKeyRef(table=table)
-
-    def _as_key_type(
-        self,
-        flat: JsonSchema,
-        prop_schema: JsonSchema,
-        refs: ForeignKeyRef | None,
-        *,
-        base_uri: str,
-    ) -> JsonSchema:
-        """Retype a column that `$ref`s a whole table to match that table's key.
-
-        A property pointing at a table's schema flattens to the table's object, which
-        would make the column `jsonb` — while referencing a `text` key. PostgreSQL
-        rejects that outright, so the column takes the key's type instead. The
-        property's own description still wins, since it describes this end of the link.
-        """
-        if refs is None:
-            return flat
-        target = self._ref_target(prop_schema, base_uri=base_uri)
-        if target is None:
-            return flat
-        key_schema = self._key_schema_of(target, base_uri=base_uri)
-        if key_schema is None:
-            return flat
-        described = flat.description if isinstance(flat, ObjectSchema) else None
-        if isinstance(key_schema, ObjectSchema) and described:
-            return replace(key_schema, description=described)
-        return key_schema
-
-    def _key_schema_of(self, target: ObjectSchema, *, base_uri: str) -> JsonSchema | None:
-        """Return the schema of the referenced table's key property, if it has exactly one."""
-        flat = self._flatten(target, base_uri=base_uri)
-        if not isinstance(flat, ObjectSchema):
-            return None
-        keywords = read_table_keywords(flat.get_extensions(), where="a referenced schema")
-        properties = flat.properties or {}
-        key_columns = keywords.primary_key or (("id",) if "id" in properties else ())
-        if len(key_columns) != 1:
-            return None
-        for name, schema in properties.items():
-            if safe_sql_identifier(name) == key_columns[0]:
-                return self._flatten(schema, base_uri=base_uri)
-        return None
-
-    def _ref_target(self, schema: JsonSchema, *, base_uri: str) -> ObjectSchema | None:
-        if not isinstance(schema, ObjectSchema) or schema.ref is None or self.resolver is None:
-            return None
-        target = self.resolver.lookup(schema.ref, base_uri=base_uri)
-        return target if isinstance(target, ObjectSchema) else None
-
-    def _referenced_tables(self, spec: TableSpec) -> list[str]:
-        """Return the tables this table's foreign keys point at, declared or implied."""
-        targets: list[str] = []
-        for prop_name, prop_schema in (spec.schema.properties or {}).items():
-            where = f"property {prop_name!r} of schema {spec.schema_name!r}"
-            keywords = read_property_keywords(_extensions_of(prop_schema), where=where)
-            if keywords.skip:
-                continue
-            refs = self.refs_for(keywords, prop_schema, base_uri=spec.source_id)
-            if refs is not None and refs.table != spec.table_name:
-                targets.append(refs.table)
-        return targets
-
     def _check_reference_targets(self, specs: Sequence[TableSpec]) -> None:
         """Warn about foreign keys pointing at tables no schema in this set declares.
 
@@ -261,7 +176,7 @@ class PostgresTableSetTransformer:
         """
         declared = {spec.table_name for spec in specs}
         for spec in specs:
-            for target in self._referenced_tables(spec):
+            for target in _referenced_tables(spec):
                 if target not in declared:
                     self._warnings.append(
                         TranspilationWarning(
@@ -341,13 +256,9 @@ class PostgresTableSetTransformer:
         if keywords.skip:
             return None
         col_name = keywords.column or safe_sql_identifier(prop_name)
-        refs = self.refs_for(keywords, prop_schema, base_uri=spec.source_id)
+        refs = keywords.refs
         column = builder.build(
-            col_name,
-            # Retype before building: a column referencing a table must match its key.
-            self._as_key_type(flat, prop_schema, refs, base_uri=spec.source_id),
-            required=prop_name in required,
-            sql_type=keywords.sql_type,
+            col_name, flat, required=prop_name in required, sql_type=keywords.sql_type
         )
         pk = spec.primary_key
         # A cycle cannot be ordered away, but it can be deferred: checking at commit
@@ -472,9 +383,7 @@ def _reject_duplicate_names(specs: Sequence[TableSpec]) -> None:
         seen[spec.table_name] = spec
 
 
-def _in_dependency_order(
-    specs: Sequence[TableSpec], referenced_tables: Callable[[TableSpec], list[str]]
-) -> tuple[list[TableSpec], set[str]]:
+def _in_dependency_order(specs: Sequence[TableSpec]) -> tuple[list[TableSpec], set[str]]:
     """Sort so that a table follows every table it references.
 
     Ties keep the input order, which keeps output stable across runs.
@@ -496,7 +405,7 @@ def _in_dependency_order(
             cycles.update(visiting[visiting.index(spec.table_name) :])
             return
         visiting.append(spec.table_name)
-        for target in referenced_tables(spec):
+        for target in _referenced_tables(spec):
             dependency = by_name.get(target)
             if dependency is not None:
                 visit(dependency)
@@ -507,6 +416,19 @@ def _in_dependency_order(
     for spec in specs:
         visit(spec)
     return ordered, cycles
+
+
+def _referenced_tables(spec: TableSpec) -> list[str]:
+    """Return the tables this table's foreign keys point at."""
+    targets: list[str] = []
+    for prop_name, prop_schema in (spec.schema.properties or {}).items():
+        where = f"property {prop_name!r} of schema {spec.schema_name!r}"
+        keywords = read_property_keywords(_extensions_of(prop_schema), where=where)
+        if keywords.skip or keywords.refs is None:
+            continue
+        if keywords.refs.table != spec.table_name:
+            targets.append(keywords.refs.table)
+    return targets
 
 
 def _extensions_of(schema: JsonSchema) -> Mapping[str, JsonValue]:

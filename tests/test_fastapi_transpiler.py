@@ -7,7 +7,6 @@ Covers:
 - Integration: curated petstore-style document — models, routes, parameters, imports.
 """
 
-
 import ast
 
 import orjson

@@ -7,7 +7,6 @@ Covers:
 - Failure: boolean root schema cannot be transpiled.
 """
 
-
 import ast
 import re
 

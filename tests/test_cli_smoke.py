@@ -1,6 +1,5 @@
 """CLI smoke tests: invoke the real `schema-to` binary and verify output files."""
 
-
 import json
 import subprocess
 import sys

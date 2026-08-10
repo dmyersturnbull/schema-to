@@ -13,7 +13,6 @@ Mapping rules
 - Schemas that cannot be mapped emit a `TranspilationWarning` and fall back to `Any`.
 """
 
-
 import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING

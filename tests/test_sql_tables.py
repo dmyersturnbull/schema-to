@@ -437,97 +437,8 @@ def test_check_expressions_quote_the_column() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Implied foreign keys, extra columns, and deferral
+# Extra columns and deferral
 # ---------------------------------------------------------------------------
-
-
-def test_ref_to_a_table_schema_implies_a_foreign_key() -> None:
-    """Pointing a property at a table's schema is already the statement `x-pg-refs` makes."""
-    sql = _sql(
-        _doc(
-            {
-                "author-data": {
-                    "type": "object",
-                    "x-pg-table": "author",
-                    "properties": {"id": {"type": "string"}},
-                },
-                "run-data": {
-                    "type": "object",
-                    "x-pg-table": "run",
-                    "properties": {"id": {"type": "string"}, "author": {"$ref": "#/author-data"}},
-                },
-            }
-        )
-    )
-    assert "author text REFERENCES author" in sql
-
-
-def test_implied_foreign_key_takes_the_referenced_key_type() -> None:
-    """The target flattens to an object, which would make the column jsonb — and unloadable."""
-    sql = _sql(
-        _doc(
-            {
-                "author-data": {
-                    "type": "object",
-                    "x-pg-table": "author",
-                    "properties": {"id": {"type": "integer"}},
-                },
-                "run-data": {
-                    "type": "object",
-                    "x-pg-table": "run",
-                    "properties": {"id": {"type": "string"}, "author": {"$ref": "#/author-data"}},
-                },
-            }
-        )
-    )
-    assert "author integer REFERENCES author" in sql
-    assert "author jsonb" not in sql
-
-
-def test_ref_to_a_non_table_schema_implies_nothing() -> None:
-    sql = _sql(
-        _doc(
-            {
-                "author-id": {"type": "string", "pattern": "^a"},
-                "run-data": {
-                    "type": "object",
-                    "x-pg-table": "run",
-                    "properties": {"id": {"type": "string"}, "author": {"$ref": "#/author-id"}},
-                },
-            }
-        )
-    )
-    assert "REFERENCES" not in sql
-    assert "author text" in sql
-
-
-def test_declared_refs_wins_over_the_implied_one() -> None:
-    sql = _sql(
-        _doc(
-            {
-                "a-data": {
-                    "type": "object",
-                    "x-pg-table": "a",
-                    "properties": {"id": {"type": "string"}},
-                },
-                "b-data": {
-                    "type": "object",
-                    "x-pg-table": "b",
-                    "properties": {"id": {"type": "string"}},
-                },
-                "run-data": {
-                    "type": "object",
-                    "x-pg-table": "run",
-                    "properties": {
-                        "id": {"type": "string"},
-                        "target": {"$ref": "#/a-data", "x-pg-refs": {"table": "b"}},
-                    },
-                },
-            }
-        )
-    )
-    assert "REFERENCES b" in sql
-    assert "REFERENCES a" not in sql
 
 
 def test_extra_columns_are_appended() -> None:
@@ -563,12 +474,18 @@ def test_cycle_keys_are_deferrable() -> None:
                 "a-data": {
                     "type": "object",
                     "x-pg-table": "a",
-                    "properties": {"id": {"type": "string"}, "b": {"$ref": "#/b-data"}},
+                    "properties": {
+                        "id": {"type": "string"},
+                        "b": {"type": "string", "x-pg-refs": "b"},
+                    },
                 },
                 "b-data": {
                     "type": "object",
                     "x-pg-table": "b",
-                    "properties": {"id": {"type": "string"}, "a": {"$ref": "#/a-data"}},
+                    "properties": {
+                        "id": {"type": "string"},
+                        "a": {"type": "string", "x-pg-refs": "a"},
+                    },
                 },
             }
         )
@@ -588,7 +505,10 @@ def test_keys_outside_a_cycle_are_not_deferrable() -> None:
                 "b-data": {
                     "type": "object",
                     "x-pg-table": "b",
-                    "properties": {"id": {"type": "string"}, "a": {"$ref": "#/a-data"}},
+                    "properties": {
+                        "id": {"type": "string"},
+                        "a": {"type": "string", "x-pg-refs": "a"},
+                    },
                 },
             }
         )

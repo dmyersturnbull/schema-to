@@ -3,7 +3,6 @@
 Verifies invertibility: `transpile(transpile(doc)) == transpile(doc)`.
 """
 
-
 import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import json_schema_st, openapi_doc_st

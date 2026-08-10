@@ -17,7 +17,6 @@ Additional strategies
   exercising the Pydantic generator.
 """
 
-
 from hypothesis import strategies as st
 
 # ---------------------------------------------------------------------------

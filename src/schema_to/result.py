@@ -5,7 +5,6 @@ It models the same concept as `Either[NonEmptyList[TranspilationError], T]` in H
 providing `map` and `flat_map` for sequential composition that short-circuits on the first failure.
 """
 
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Self, final, override

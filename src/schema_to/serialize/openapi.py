@@ -1,6 +1,5 @@
 """Serialize OpenAPI 3.1 CST nodes back to JSON-compatible values."""
 
-
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 

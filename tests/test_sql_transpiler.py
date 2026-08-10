@@ -14,7 +14,6 @@ Covers:
 - Integration: full schema exercising all supported features.
 """
 
-
 import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import object_schema_st, sql_object_schema_st

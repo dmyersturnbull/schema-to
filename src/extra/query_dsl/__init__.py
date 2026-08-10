@@ -26,7 +26,6 @@ generated FastAPI endpoint bodies depend on; it is intended to be published
 separately on PyPI.
 """
 
-
 from query_dsl._builders import (
     build_delete_query,
     build_get_query,

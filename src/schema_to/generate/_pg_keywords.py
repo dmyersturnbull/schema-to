@@ -20,11 +20,6 @@ persistence decision that no standard keyword can express.
 | `x-pg-type`           | property | a SQL type, e.g. `jsonb`                       | Override the inferred type.                |
 | `x-pg-skip`           | property | `true`                                         | Do not emit a column.                      |
 
-A foreign key is also *implied* by a `$ref` whose target is a schema carrying
-`x-pg-table`: pointing a property at a table's schema is already the statement that
-`x-pg-refs` would make. Write `x-pg-refs` when the target is not a schema in the set,
-or when the key needs a column or an action.
-
 Taken together:
 
 ```yaml
@@ -43,7 +38,8 @@ run-version-data:
   type: object
   properties:
     run:
-      $ref: "#/run-data"          # implies REFERENCES run
+      type: string
+      x-pg-refs: run
     alias:
       type: integer
     author:

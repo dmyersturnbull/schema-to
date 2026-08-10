@@ -9,7 +9,6 @@ The output style is:
 - Fields as `name: Annotation` or `name: Annotation = default`
 """
 
-
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
