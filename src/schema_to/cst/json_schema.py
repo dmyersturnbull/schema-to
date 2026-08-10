@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from schema_to.core import JsonValue
 
 __all__ = [
+    "DOC_KEYWORDS",
     "SINGULAR_KEYWORDS",
     "BooleanApplicatorKeyword",
     "BooleanSchema",
@@ -159,6 +160,11 @@ SINGULAR_KEYWORDS: frozenset[str] = frozenset(
         "write_only",
     }
 )
+
+
+# The subset of `SINGULAR_KEYWORDS` that documents a schema rather than constraining it.
+# Losing one to a merge costs prose; losing any of the others costs validation.
+DOC_KEYWORDS: frozenset[str] = frozenset({"title", "description"})
 
 
 def is_object_schema(schema: JsonSchema) -> TypeIs[ObjectSchema]:

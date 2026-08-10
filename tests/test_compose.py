@@ -10,11 +10,16 @@ Covers:
 
 import orjson
 
-from schema_to.cst.json_schema import JsonSchemaType, ObjectSchema, is_object_schema
+from schema_to.cst.json_schema import (
+    JsonSchemaMapDocument,
+    JsonSchemaType,
+    ObjectSchema,
+    is_object_schema,
+)
 from schema_to.generate._compose import SchemaFlattener
 from schema_to.io.media_type import MediaTypes
-from schema_to.io.source import JsonSchemaRawDoc
-from schema_to.parse.json_schema import JsonSchemaParser
+from schema_to.io.source import JsonSchemaRawDoc, SchemaMapRawDoc
+from schema_to.parse.json_schema import JsonSchemaMapParser, JsonSchemaParser
 from schema_to.resolve.json_schema import JsonSchemaRefResolver
 from schema_to.result import Ok
 
@@ -45,6 +50,13 @@ def _flatten(data: object, *, resolve: bool = False) -> ObjectSchema:
     flat = SchemaFlattener(resolver=resolver).flatten(schema, base_uri=_SOURCE_ID).schema
     assert isinstance(flat, ObjectSchema)
     return flat
+
+
+def _parse_map(data: object, doc_id: str) -> JsonSchemaMapDocument:
+    doc = SchemaMapRawDoc(doc_id=doc_id, content=orjson.dumps(data), media_type=MediaTypes.json)
+    result = JsonSchemaMapParser().apply(doc)
+    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
+    return result.value
 
 
 # ---------------------------------------------------------------------------
@@ -268,3 +280,51 @@ def test_all_of_root_is_an_object_schema_once_flattened() -> None:
     """`is_object_schema` is a syntactic check, so flattening has to come first."""
     flat = _flatten({"allOf": [{"type": "object", "properties": {"a": {"type": "string"}}}]})
     assert is_object_schema(flat)
+
+
+def test_ref_target_resolves_its_own_refs_against_its_own_document() -> None:
+    """A chained ref: `main` -> `base#/outer` -> `base#/inner`, all from `main`'s view.
+
+    `#/inner` is written in `base`, so it means `base`'s `inner` — not `main`'s.
+    Getting this wrong silently degraded the column to jsonb rather than failing.
+    """
+    base = _parse_map(
+        {"inner": {"type": "string", "pattern": "^x"}, "outer": {"$ref": "#/inner"}},
+        "file:///base.yaml",
+    )
+    main = _parse_map({"thing": {"$ref": "./base.yaml#/outer"}}, "file:///main.yaml")
+    resolver = JsonSchemaRefResolver()
+    resolver.register_map(base)
+    resolver.register_map(main)
+    result = SchemaFlattener(resolver=resolver).flatten(
+        main.schemas["thing"], base_uri="file:///main.yaml"
+    )
+    assert [w.code for w in result.warnings] == []
+    assert isinstance(result.schema, ObjectSchema)
+    assert result.schema.get_types() == frozenset({JsonSchemaType.STRING})
+    assert result.schema.pattern == "^x"
+
+
+def test_sibling_overriding_a_ref_target_does_not_warn() -> None:
+    """2020-12 makes siblings override the target; narrowing in place is the idiom."""
+    data = {
+        "$defs": {"stamp": {"type": "string", "description": "A timestamp."}},
+        "$ref": "#/$defs/stamp",
+        "description": "When the resource was last modified.",
+    }
+    assert "conflicting-keyword" not in _warnings(data, resolve=True)
+
+
+def test_conflicting_constraints_across_all_of_branches_warn() -> None:
+    """Only one `pattern` survives the merge, so the other is silently unenforced."""
+    data = {"allOf": [{"type": "string", "pattern": "^a"}, {"type": "string", "pattern": "^b"}]}
+    assert "conflicting-keyword" in _warnings(data)
+
+
+def test_conflicting_descriptions_do_not_warn() -> None:
+    """A wrapper describing itself and `allOf`-ing a described definition is the norm."""
+    data = {
+        "description": "The resource.",
+        "allOf": [{"type": "object", "description": "The hashable content."}],
+    }
+    assert "conflicting-keyword" not in _warnings(data)

@@ -23,9 +23,13 @@ and falls back to a documented choice where it cannot:
   definition and raises a warning, since a column has exactly one type.
 - `required` is unioned, matching `allOf` exactly.
 - `type` is intersected across the branches that declare it, matching `allOf` exactly.
-- A singular keyword (`description`, `propertyNames`, …) is taken from the first branch
-  that sets one.  Two branches setting it *identically* is fine and silent; two branches
-  disagreeing warns, because only one of the two assertions survives into the output.
+- A singular keyword (`description`, `propertyNames`, …) is taken from the first schema
+  that sets one.  Two `allOf` branches disagreeing on a *constraint* warns, because only
+  one of the two assertions survives into the output.  Disagreeing on a `title` or
+  `description` does not — that costs prose, not validation — and neither does a keyword
+  written beside a `$ref`, since overriding the target is what that idiom is for.
+- A resolved `$ref` target brings its own document with it, so a reference written
+  inside it resolves against *that* file rather than against the one pointing at it.
 - Extensions merge with the outer schema winning, so a `$ref`ed schema cannot
   override an `x-pg-*` keyword written at the point of use.
 """
@@ -33,7 +37,13 @@ and falls back to a documented choice where it cannot:
 from dataclasses import dataclass, field, fields, replace
 from typing import TYPE_CHECKING
 
-from schema_to.cst.json_schema import SINGULAR_KEYWORDS, BooleanSchema, JsonSchema, ObjectSchema
+from schema_to.cst.json_schema import (
+    DOC_KEYWORDS,
+    SINGULAR_KEYWORDS,
+    BooleanSchema,
+    JsonSchema,
+    ObjectSchema,
+)
 from schema_to.errors import SourceLocation, TranspilationWarning
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 
@@ -120,9 +130,8 @@ class SchemaFlattener:
         if isinstance(schema, BooleanSchema) or depth > _MAX_DEPTH:
             return schema
         own = replace(schema, ref=None, all_of=None)
-        parts = self._parts(schema, base_uri=base_uri, seen=seen, depth=depth)
-        for part in parts:
-            own = self._merge(own, part)
+        for part, from_ref in self._parts(schema, base_uri=base_uri, seen=seen, depth=depth):
+            own = self._merge(own, part, from_ref=from_ref)
         return own
 
     def _inline(
@@ -144,7 +153,7 @@ class SchemaFlattener:
         """
 
         def step(sub: JsonSchema) -> JsonSchema:
-            return self._inline(sub, base_uri=base_uri, seen=seen, depth=depth + 1)
+            return self._inline(sub, base_uri=_base_of(sub, base_uri), seen=seen, depth=depth + 1)
 
         out: dict[str, _SubSchemaValue] = {}
         for f in fields(ObjectSchema):
@@ -162,20 +171,28 @@ class SchemaFlattener:
 
     def _parts(
         self, schema: ObjectSchema, *, base_uri: str, seen: frozenset[str], depth: int
-    ) -> list[ObjectSchema]:
-        """Return the flattened `$ref` target and `allOf` branches contributing to `schema`."""
-        sources: list[JsonSchema] = []
+    ) -> list[tuple[ObjectSchema, bool]]:
+        """Return the flattened `$ref` target and `allOf` branches contributing to `schema`.
+
+        Each is paired with whether it came from the `$ref`, which decides how a
+        keyword set on both it and `schema` is treated.
+        """
+        sources: list[tuple[JsonSchema, bool]] = []
         if schema.ref is not None:
             target = self._resolve(schema.ref, base_uri=base_uri, seen=seen, schema=schema)
             if target is not None:
-                sources.append(target)
+                sources.append((target, True))
                 seen |= {schema.ref}
-        sources.extend(schema.all_of or ())
-        parts: list[ObjectSchema] = []
-        for source in sources:
-            flat = self._flatten(source, base_uri=base_uri, seen=seen, depth=depth + 1)
+        sources.extend((branch, False) for branch in schema.all_of or ())
+        parts: list[tuple[ObjectSchema, bool]] = []
+        for source, from_ref in sources:
+            # A resolved target brings its own document with it: a `$ref` written inside
+            # it is relative to *that* file, not to the one that pointed at it.
+            flat = self._flatten(
+                source, base_uri=_base_of(source, base_uri), seen=seen, depth=depth + 1
+            )
             if isinstance(flat, ObjectSchema):
-                parts.append(flat)
+                parts.append((flat, from_ref))
             elif not flat.value:
                 self._warn(
                     "An `allOf` branch is `false`, so no value can satisfy this schema.",
@@ -201,22 +218,26 @@ class SchemaFlattener:
     # Merging
     # ------------------------------------------------------------------
 
-    def _merge(self, base: ObjectSchema, other: ObjectSchema) -> ObjectSchema:
+    def _merge(self, base: ObjectSchema, other: ObjectSchema, *, from_ref: bool) -> ObjectSchema:
         return replace(
             base,
             type=_intersect_types(base, other),
             properties=self._merge_properties(base, other),
             required=_union_or_none(base.required, other.required),
             extensions={**other.get_extensions(), **base.get_extensions()},
-            **self._merge_singular(base, other),
+            **self._merge_singular(base, other, from_ref=from_ref),
         )
 
-    def _merge_singular(self, base: ObjectSchema, other: ObjectSchema) -> dict[str, _KeywordValue]:
-        """Take each singular keyword from the first branch that sets one.
+    def _merge_singular(
+        self, base: ObjectSchema, other: ObjectSchema, *, from_ref: bool
+    ) -> dict[str, _KeywordValue]:
+        """Take each singular keyword from the first schema that sets one.
 
-        Setting one twice to the same value is redundant but consistent, so it passes
-        silently.  Setting it to two different values does not: `allOf` means both
-        assertions hold, but only one can survive into a single flat schema.
+        Two `allOf` branches setting one to *different* values warns: `allOf` means both
+        assertions hold, but only one can survive into a single flat schema.  A keyword
+        written beside a `$ref` is not that case — 2020-12 makes siblings override the
+        target, and narrowing a shared definition in place is the whole point of the
+        idiom — so it overrides silently.
         """
         out: dict[str, _KeywordValue] = {}
         for name in SINGULAR_KEYWORDS:
@@ -225,7 +246,7 @@ class SchemaFlattener:
             # but `0 == False`, and `0` is a real bound for `minimum` and friends.
             if mine is None or mine is False:
                 out[name] = theirs
-            elif theirs is not None and theirs is not False and mine != theirs:
+            elif self._is_conflict(name, mine, theirs, from_ref=from_ref):
                 self._warn(
                     f"Keyword {name!r} is set to conflicting values by more than one "
                     f"`allOf` branch; keeping the first.",
@@ -233,6 +254,19 @@ class SchemaFlattener:
                     schema=base,
                 )
         return out
+
+    def _is_conflict(
+        self, name: str, mine: _KeywordValue, theirs: _KeywordValue, *, from_ref: bool
+    ) -> bool:
+        """Report whether losing `theirs` to `mine` costs anything worth saying.
+
+        Overriding a `$ref` target is the point of that idiom, and a `title` or
+        `description` that loses a merge costs prose rather than validation — the outer
+        one is the one meant to survive.  Everything else drops a constraint silently.
+        """
+        if from_ref or name in DOC_KEYWORDS:
+            return False
+        return theirs is not None and theirs is not False and mine != theirs
 
     def _merge_properties(
         self, base: ObjectSchema, other: ObjectSchema
@@ -265,6 +299,13 @@ class SchemaFlattener:
 # ---------------------------------------------------------------------------
 # Keyword-level merge helpers
 # ---------------------------------------------------------------------------
+
+
+def _base_of(schema: JsonSchema, fallback: str) -> str:
+    """Return the document a schema was parsed from, for resolving its relative refs."""
+    if schema.source_ref is not None:
+        return schema.source_ref.source_id
+    return fallback
 
 
 def _same_schema(a: JsonSchema, b: JsonSchema) -> bool:
