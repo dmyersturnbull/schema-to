@@ -1,15 +1,18 @@
 # PostgreSQL endpoint bodies via the extension mechanism
 
-This example fills generated FastAPI route bodies **without** any PostgreSQL
-knowledge in schema-to. The persistence layer lives entirely in named Jinja
-templates plus the standalone [`query-dsl`](../../src/extra/) runtime library;
-the OpenAPI document only references the templates and declares the imports and
-parameters each operation needs.
+This example fills generated FastAPI route bodies **without** any PostgreSQL knowledge in schema-to.
+The persistence layer lives in Jinja templates,
+which generate code that use
+[query-dsl](https://github.com/sauron-lab/query-dsl)
+at runtime.
+The OpenAPI document references the templates
+and declares the imports and parameters each operation needs.
 
 ## Generating the app
 
-Register each template by name with `--template <name>=<path>` (repeatable) and
-transpile with the plain `fastapi` target:
+Register each template by name with
+`--template <name>=<path>` (repeatable)
+and transpile with the plain `fastapi` target:
 
 ```bash
 schema-to --to fastapi \
@@ -21,9 +24,9 @@ schema-to --to fastapi \
   examples/postgres/things.openapi.yaml -o out/
 ```
 
-The generated `out/main.py` depends on `query-dsl` (install it) and on the
-[`_db.py`](./_db.py) glue module here (copy it next to `main.py`, then wire
-`get_db` to a real connection pool).
+The generated `out/main.py` depends on 
+the [`_db.py`](./_db.py) glue module here.
+Copy it next to `main.py`, then wire `get_db` to a real connection pool.
 
 ## The extension keywords
 
@@ -36,13 +39,13 @@ Each operation (or path item) may carry:
 | `x-fastapi-imports`   | A list of import statements the body needs.                          |
 | `x-fastapi-params`    | Extra signature parameters: `{name, annotation?, default?, kind?}`.  |
 
-Operation-level values override path-item-level values, so shared parameters
-(like the injected `conn`) can be declared once per path. Named templates are
-the recommended mechanism; the inline `x-fastapi-body` form is there for one-offs.
+Operation-level values override path-item-level values,
+so shared parameters (like the injected `conn`) can be declared once per path.
+Named templates are preferred over the inline `x-fastapi-body`.
 
 ## Template context
 
-Templates render with this neutral context — none of it is PostgreSQL-specific:
+Templates render with this context, which is not PostgreSQL-specific:
 
 | Name                | What it is                                                            |
 | ------------------- | --------------------------------------------------------------------- |
@@ -65,16 +68,15 @@ Filters and globals:
 | `infer_operation(method, path)` | The `RestOperation` for a path/method pair.          |
 | `RestOperation`                 | The operation enum, for comparisons.                 |
 
-Templates own all query-convention knowledge. The names `where`, `select`,
-`sort`, etc. are just the OpenAPI parameter names this example happens to use;
-the template reads them with `param("where")` and passes them to `query-dsl`.
-Likewise `json_properties` is derived purely from the JSON Schema types of the
-resource's properties (object/array ⇒ JSON) — there is no PostgreSQL-specific
-configuration involved.
+Templates own all query-convention knowledge.
+The names `where`, `select`, `sort`, etc. are just the parameter names this example uses;
+the template reads them with `param("where")` and passes them to query-dsl.
+Likewise `json_properties` is derived purely from the JSON Schema types of the resource's properties (object/array ⇒ JSON);
+there is no PostgreSQL-specific configuration involved.
 
 ## The templates
 
-[`templates/`](./templates) holds one template per REST operation. They are the
-recommended starting point for writing your own backend (SQLite, an HTTP
-upstream, an in-memory store, …): swap the imports and the body, register them
-with `--template`, and schema-to renders whatever code you provide.
+[`templates/`](./templates) holds one template per REST operation.
+They are the recommended starting point for writing your own backend.
+Swap the imports and the body and register them with `--template`.
+schema-to will render whatever code you provide.

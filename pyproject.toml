@@ -31,11 +31,6 @@ dev = [
   "ty>=0.0.60",
 ]
 
-[tool.ty.environment]
-# Add the staged `query-dsl` package (src/extra) to the import path so it is
-# type-checked and resolvable from the tests that exercise it.
-extra-paths = ["src/extra"]
-
 [tool.ty.src]
 # `examples` holds illustrative generated-style code (intentional stubs), not
 # library code, so it is checked by its own tooling rather than here.
@@ -43,9 +38,8 @@ exclude = ["examples"]
 
 [tool.ruff]
 # `examples` holds illustrative generated-style code, not part of the library;
-# `query-dsl` (src/extra) uses the schema-to lint config until it is split out.
 extend-exclude = ["examples"]
-src = ["src", "src/extra"] # Needed for import sorting
+src = ["src"] # Needed for import sorting
 line-length = 100
 
 [tool.ruff.format]
@@ -149,9 +143,7 @@ max-bool-expr = 10
 max-nested-blocks = 4
 
 [tool.pytest]
-# `src/extra` is on the path so tests can import the staged `query-dsl` package
-# (its own distribution under src/extra) without installing it.
-pythonpath = ["src/", "src/extra/"]
+pythonpath = ["src/"]
 testpaths = ["tests/"]
 empty_parameter_set_mark = "fail_at_collect"
 log_level = "WARNING"
