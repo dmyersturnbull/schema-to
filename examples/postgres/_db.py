@@ -1,10 +1,10 @@
 """Application database glue for the generated FastAPI app.
 
-`query-dsl` builds queries but deliberately knows nothing about FastAPI's
-dependency injection or Pydantic.  This small module supplies the two pieces of
-app glue the generated endpoint bodies import: a connection dependency and a
-request-body-to-dict coercion.  Replace `get_db` with a real provider (e.g. one
-backed by a `psycopg_pool.AsyncConnectionPool`) before serving traffic.
+query-dsl builds queries but knows nothing about FastAPI's dependency injection or Pydantic.
+This small module supplies the two pieces of app glue the generated endpoint bodies import:
+(1) a connection dependency and (2) request-body-to-dict coercion.
+Replace `get_db` with a real provider before serving traffic;
+for example, you might use one backed by a `psycopg_pool.AsyncConnectionPool`.
 """
 
 
