@@ -14,7 +14,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import openapi_doc_st
 
-from schema_to import MediaTypes, Ok, OpenApiParser, OpenApiRawDoc
+from schema_to import MediaTypes, Ok, OpenApiParser, OpenApiRawDoc, PythonReifier
 from schema_to.ast.python import FunctionDef, PythonModule, PythonTypeAnnotation, VarDef
 from schema_to.cst.openapi import HttpMethod
 from schema_to.generate.fastapi import (
@@ -425,3 +425,18 @@ def test_integration_petstore() -> None:
 
     # body for POST → typed as the NewPet model
     assert "body: NewPet" in src
+
+
+def test_roots_keeps_only_named_component_schemas() -> None:
+    """`roots` narrows generated component-schema models; routes are unaffected."""
+    transformer = FastApiTransformer(roots=frozenset({"Pet"}))
+    r1 = _PARSER.apply(_doc(_PETSTORE))
+    assert isinstance(r1, Ok)
+    result = transformer.apply(r1.value)
+    assert isinstance(result, Ok)
+    src = PythonReifier(artifact_id="main.py").apply(result.value)
+    assert isinstance(src, Ok)
+    content = src.value[0].content.decode("utf-8")
+    assert "class Pet(BaseModel):" in content
+    assert "class NewPet(BaseModel):" not in content
+    assert "async def list_pets(" in content

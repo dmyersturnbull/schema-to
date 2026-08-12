@@ -59,14 +59,28 @@ def transpile(
             "schema in turn.",
         ),
     ] = False,
+    roots: Annotated[
+        list[str] | None,
+        Option(
+            "--roots",
+            help="Restrict output to these named schema nodes (repeatable): a `$defs` "
+            "entry, a --schema-map schema name, or an OpenAPI components/schemas name. "
+            "Every other schema in the input stays available for $ref resolution; only "
+            "which ones become their own artifact changes. Omit to generate every "
+            "named schema, as before.",
+        ),
+    ] = None,
 ) -> None:
     """Transpile one or more schema sources into the requested target formats."""
     output_media_type = MediaTypes.yaml if yaml else MediaTypes.json
+    root_set = frozenset(roots) if roots else None
     router = TranspilerRouter()
     try:
         templates = _load_templates(template or [])
         route = router.route_schema_maps if schema_map else router.route
-        transpilers = route(to, output_media_type=output_media_type, templates=templates)
+        transpilers = route(
+            to, output_media_type=output_media_type, templates=templates, roots=root_set
+        )
     except (RoutingError, ValueError, OSError) as exc:
         echo(f"error: {exc}", err=True)
         raise Exit(1) from exc

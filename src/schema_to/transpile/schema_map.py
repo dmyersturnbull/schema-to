@@ -61,11 +61,15 @@ class SchemaMapExpandingTranspiler[O: Artifact](Transpiler[SchemaMapRawDoc, O]):
         inner: The transpiler that handles one schema at a time.
         parser: Parses the schema map.  Injected for testability.
         writer: Re-encodes each named schema as bytes for `inner` to parse back.
+        roots: If given, only schemas named here are expanded into a virtual document
+            for `inner`; the rest are still registered, so a `$ref` into one of them
+            still resolves. `None` expands every schema, as before.
     """
 
     inner: Transpiler[JsonSchemaRawDoc, O]
     parser: JsonSchemaMapParser = field(default_factory=JsonSchemaMapParser)
     writer: JsonLikeWriter = field(default_factory=DefaultJsonLikeWriter)
+    roots: frozenset[str] | None = None
 
     @override
     def accepts(self, doc: SchemaMapRawDoc) -> bool:
@@ -123,6 +127,8 @@ class SchemaMapExpandingTranspiler[O: Artifact](Transpiler[SchemaMapRawDoc, O]):
         self, parsed: JsonSchemaMapDocument, doc: SchemaMapRawDoc
     ) -> Iterator[JsonSchemaRawDoc]:
         for name, schema in parsed.schemas.items():
+            if self.roots is not None and name not in self.roots:
+                continue
             yield JsonSchemaRawDoc(
                 doc_id=f"{doc.doc_id}#/{name}",
                 content=self.writer.write_bytes(_SERIALIZER.serialize(schema), doc.media_type),

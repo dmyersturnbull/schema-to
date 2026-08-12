@@ -227,6 +227,39 @@ def test_defs_classes_generated_before_root() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Smoke: `roots` restricts which $defs get their own declaration
+# ---------------------------------------------------------------------------
+
+
+def test_roots_keeps_only_named_defs() -> None:
+    """`roots` narrows generated `$defs` classes; the root class is unaffected."""
+    schema = {
+        "type": "object",
+        "title": "Root",
+        "$defs": {
+            "Kept": {"type": "object", "properties": {"a": {"type": "string"}}},
+            "Dropped": {"type": "object", "properties": {"b": {"type": "string"}}},
+        },
+    }
+    transpiler = JsonSchemaToPydanticTranspiler(roots=frozenset({"Kept"}))
+    result = transpiler.transpile(_doc(schema))
+    assert isinstance(result, Ok)
+    src = result.value[0].content.decode("utf-8")
+    assert "class Kept(BaseModel):" in src
+    assert "class Dropped(BaseModel):" not in src
+    assert "class Root(BaseModel):" in src
+
+
+def test_roots_none_keeps_every_def() -> None:
+    """Omitting `roots` keeps today's behaviour of emitting every `$defs` entry."""
+    schema = {"type": "object", "title": "Root", "$defs": {"A": {"type": "object"}}}
+    transpiler = JsonSchemaToPydanticTranspiler(roots=None)
+    result = transpiler.transpile(_doc(schema))
+    assert isinstance(result, Ok)
+    assert "class A(BaseModel):" in result.value[0].content.decode("utf-8")
+
+
+# ---------------------------------------------------------------------------
 # Smoke: readOnly / writeOnly split into Read/Write classes
 # ---------------------------------------------------------------------------
 

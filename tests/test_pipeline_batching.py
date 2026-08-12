@@ -169,6 +169,30 @@ def test_sibling_refs_resolve_after_expansion() -> None:
     assert {a.artifact_id for a in result.value} == {"stamp.py", "thing.py"}
 
 
+def test_roots_expands_only_named_schemas_but_siblings_still_resolve() -> None:
+    """`roots` narrows which named schemas become artifacts, not which ones can be $ref'd."""
+    inner = JsonSchemaToPydanticTranspiler()
+    doc = SchemaMapRawDoc(
+        doc_id="file:///catalog.yaml",
+        content=orjson.dumps(
+            {
+                "stamp": {"type": "string", "pattern": "^2"},
+                "thing": {"type": "object", "properties": {"at": {"$ref": "#/stamp"}}},
+            }
+        ),
+        media_type=MediaTypes.json,
+        display_name="catalog",
+    )
+    result = SchemaMapExpandingTranspiler(inner=inner, roots=frozenset({"thing"})).transpile_all(
+        [doc]
+    )
+    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
+    # `stamp` was filtered out, so only one virtual document remains — named
+    # `models.py`, the configured default, since disambiguating names only kicks
+    # in for a batch of more than one.
+    assert {a.artifact_id for a in result.value} == {"models.py"}
+
+
 def test_seeding_is_skipped_for_a_transpiler_that_does_not_resolve() -> None:
     """`_PerDoc` exposes no resolver, so there is nothing to seed and nothing to fail."""
     expander = SchemaMapExpandingTranspiler(inner=_PerDoc())

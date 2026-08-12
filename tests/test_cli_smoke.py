@@ -109,6 +109,33 @@ def test_cli_fastapi_named_templates(tmp_path: Path) -> None:
     assert "x-fastapi" not in main
 
 
+def test_cli_roots_restricts_generated_defs(tmp_path: Path) -> None:
+    """`--roots` keeps only the named `$defs` entry; the root model is unaffected."""
+    schema = {
+        "type": "object",
+        "title": "Root",
+        "$defs": {
+            "Kept": {"type": "object", "properties": {"a": {"type": "string"}}},
+            "Dropped": {"type": "object", "properties": {"b": {"type": "string"}}},
+        },
+    }
+    input_file = tmp_path / "root.schema.json"
+    input_file.write_text(json.dumps(schema))
+
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+
+    result = _run(
+        str(input_file), "--to", "pydantic", "--output", str(output_dir), "--roots", "Kept"
+    )
+    assert result.returncode == 0, f"CLI failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+
+    content = (output_dir / "models.py").read_text()
+    assert "class Kept(BaseModel):" in content
+    assert "class Dropped(BaseModel):" not in content
+    assert "class Root(BaseModel):" in content
+
+
 def test_cli_unknown_template_spec_exits_nonzero(tmp_path: Path) -> None:
     """A malformed --template spec exits with a non-zero status."""
     schema = {"openapi": "3.1.0", "info": {"title": "x", "version": "1"}, "paths": {}}

@@ -122,10 +122,14 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
 
     Attributes:
         resolver: Optional resolver for cross-document `$ref` lookup.
+        roots: If given, only `$defs` entries named here become their own declaration;
+            the rest are still available for `$ref` resolution. `None` emits every entry,
+            as before.
         _warnings: Accumulated warnings from the most recent `apply` call.
     """
 
     resolver: JsonSchemaRefResolver | None = None
+    roots: frozenset[str] | None = None
     _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
 
     @property
@@ -148,6 +152,8 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
         # --- Named definitions ($defs) ---
         if isinstance(input.root, ObjectSchema) and input.root.defs:
             for def_name, def_schema in input.root.defs.items():
+                if self.roots is not None and def_name not in self.roots:
+                    continue
                 declarations.extend(ctx.schema_to_declarations(def_schema, name=def_name))
 
         # --- Root schema ---
