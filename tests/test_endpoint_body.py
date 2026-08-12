@@ -7,7 +7,6 @@ and both shipped backends:
 `NullBodyBackend` (empty) and `TemplateBodyBackend` (named + inline templates).
 """
 
-
 from typing import TYPE_CHECKING
 
 from schema_to.cst.openapi import HttpMethod, Operation, ParameterLocation, PathItem

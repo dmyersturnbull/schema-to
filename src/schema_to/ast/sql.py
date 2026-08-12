@@ -9,7 +9,6 @@ The generator is driven by the `x-pg-*` extension keywords; see
 `schema_to.generate._pg_keywords` for the full vocabulary.
 """
 
-
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from typing import TYPE_CHECKING, override
@@ -184,6 +183,9 @@ class ColumnConstraint(AstNode):
         on_delete: `ON DELETE` action for the foreign key.
         on_update: `ON UPDATE` action for the foreign key.
         constraint_name: Optional `CONSTRAINT <name>` prefix.
+        deferrable: Emits `DEFERRABLE INITIALLY DEFERRED`, so the foreign key is
+            checked at commit rather than at each statement.  This is what makes a
+            cycle of tables loadable: no single insert can satisfy both directions.
     """
 
     not_null: bool = False
@@ -196,6 +198,7 @@ class ColumnConstraint(AstNode):
     on_delete: ForeignKeyAction = ForeignKeyAction.NO_ACTION
     on_update: ForeignKeyAction = ForeignKeyAction.NO_ACTION
     constraint_name: str | None = None
+    deferrable: bool = False
 
 
 @dataclass(frozen=True, slots=True)

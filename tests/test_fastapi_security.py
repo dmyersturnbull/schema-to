@@ -1,6 +1,5 @@
 """Tests for FastAPI security generation from OpenAPI security schemes."""
 
-
 import ast
 
 import orjson

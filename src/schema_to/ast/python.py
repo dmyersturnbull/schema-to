@@ -8,7 +8,6 @@ Supported output styles include bare `@dataclass`, `@dataclass(frozen=True, slot
 and [Pydantic v2](https://docs.pydantic.dev/latest/) `BaseModel` subclasses.
 """
 
-
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from typing import TYPE_CHECKING

@@ -208,9 +208,9 @@ def test_composite_index_from_the_schema() -> None:
     assert "CREATE UNIQUE INDEX IF NOT EXISTS thing_a_b_idx ON thing USING BTREE (a, b);" in sql
 
 
-def test_extras_column() -> None:
-    sql = _sql(_doc({"thing": {**_THING, "x-pg-extras": "extras"}}))
-    assert "extras jsonb NOT NULL DEFAULT '{}'::jsonb" in sql
+def test_overflow_column() -> None:
+    sql = _sql(_doc({"thing": {**_THING, "x-pg-overflow": "unmodelled"}}))
+    assert "unmodelled jsonb NOT NULL DEFAULT '{}'::jsonb" in sql
 
 
 def test_column_rename() -> None:
@@ -434,3 +434,83 @@ def test_check_expressions_quote_the_column() -> None:
         )
     )
     assert """CHECK (("end" ~ '^P'))""" in sql
+
+
+# ---------------------------------------------------------------------------
+# Extra columns and deferral
+# ---------------------------------------------------------------------------
+
+
+def test_extra_columns_are_appended() -> None:
+    sql = _sql(
+        _doc(
+            {
+                "thing": {
+                    **_THING,
+                    "x-pg-extra-columns": [
+                        {
+                            "name": "loaded_at",
+                            "type": "timestamptz",
+                            "not-null": True,
+                            "default": "now()",
+                        }
+                    ],
+                }
+            }
+        )
+    )
+    assert "loaded_at timestamptz NOT NULL DEFAULT now()" in sql
+
+
+def test_extra_column_without_a_type_raises() -> None:
+    with pytest.raises(GenerationError, match="both a `name` and a `type`"):
+        read_table_keywords({"x-pg-extra-columns": [{"name": "x"}]}, where="schema 'thing'")
+
+
+def test_cycle_keys_are_deferrable() -> None:
+    sql = _sql(
+        _doc(
+            {
+                "a-data": {
+                    "type": "object",
+                    "x-pg-table": "a",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "b": {"type": "string", "x-pg-refs": "b"},
+                    },
+                },
+                "b-data": {
+                    "type": "object",
+                    "x-pg-table": "b",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "a": {"type": "string", "x-pg-refs": "a"},
+                    },
+                },
+            }
+        )
+    )
+    assert sql.count("DEFERRABLE INITIALLY DEFERRED") == 2
+
+
+def test_keys_outside_a_cycle_are_not_deferrable() -> None:
+    sql = _sql(
+        _doc(
+            {
+                "a-data": {
+                    "type": "object",
+                    "x-pg-table": "a",
+                    "properties": {"id": {"type": "string"}},
+                },
+                "b-data": {
+                    "type": "object",
+                    "x-pg-table": "b",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "a": {"type": "string", "x-pg-refs": "a"},
+                    },
+                },
+            }
+        )
+    )
+    assert "DEFERRABLE" not in sql

@@ -8,7 +8,6 @@ Everything here is injection-safe:
 Identifiers are quoted and every literal value is bound as a parameter.
 """
 
-
 from collections.abc import Iterable, Mapping, Sequence
 
 from psycopg import sql

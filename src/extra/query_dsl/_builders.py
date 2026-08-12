@@ -7,7 +7,6 @@ The list builder interprets the `select`/`where`/`sort`/`limit`/`offset` query s
 the others act on a primary key.
 """
 
-
 from typing import TYPE_CHECKING
 
 from psycopg import sql

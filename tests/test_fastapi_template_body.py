@@ -7,7 +7,6 @@ Asserts that the generated module fills its route bodies from the inline Jinja t
 wires up the declared imports and the injected connection parameter, and parses as valid Python.
 """
 
-
 import ast
 from pathlib import Path
 

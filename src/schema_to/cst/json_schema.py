@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from schema_to.core import JsonValue
 
 __all__ = [
+    "DOC_KEYWORDS",
     "SINGULAR_KEYWORDS",
     "BooleanApplicatorKeyword",
     "BooleanSchema",
@@ -159,6 +160,11 @@ SINGULAR_KEYWORDS: frozenset[str] = frozenset(
         "write_only",
     }
 )
+
+
+# The subset of `SINGULAR_KEYWORDS` that documents a schema rather than constraining it.
+# Losing one to a merge costs prose; losing any of the others costs validation.
+DOC_KEYWORDS: frozenset[str] = frozenset({"title", "description"})
 
 
 def is_object_schema(schema: JsonSchema) -> TypeIs[ObjectSchema]:
@@ -415,12 +421,25 @@ class ObjectSchema(_JsonSchema):
 
 @dataclass(frozen=True, slots=True)
 class JsonSchemaDocument(CstNode):
-    """The root of a parsed JSON Schema 2020-12 document."""
+    """The root of a parsed JSON Schema 2020-12 document.
+
+    Attributes:
+        source_id: Identifies this document.
+        base_uri: What a relative `$ref` inside it resolves against.  Usually the same
+            as `source_id`; they differ for a document carved out of a larger one,
+            whose ID must stay unique while its references still mean what they did
+            in the file they were written in.
+    """
 
     root: JsonSchema
     source_id: str
     display_name: str | None = None
     source_ref: SourceRef | None = None
+    base_uri: str | None = None
+
+    def get_base_uri(self) -> str:
+        """Return what a relative `$ref` in this document resolves against."""
+        return self.base_uri or self.source_id
 
 
 @dataclass(frozen=True, slots=True)

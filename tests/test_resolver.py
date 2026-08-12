@@ -8,7 +8,6 @@ Covers:
 - Edge cases: circular (self-recursive) schemas, multiple bad refs accumulate.
 """
 
-
 import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import json_schema_st, json_schema_with_defs_st

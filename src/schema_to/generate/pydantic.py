@@ -8,6 +8,10 @@ Mapping rules
 - Properties that appear in `required` get a plain annotation;
   all others get `T | None = None`.
 - `$ref: "#/$defs/Name"` becomes a forward reference to the generated class.
+- A declaration composed with `allOf` is flattened first, so the model carries every
+  branch's fields.  Only the declaration's own composition is resolved: a bare `$ref`
+  stays an alias, and a property referencing another schema stays a reference to its
+  class, since inlining either would replace a named model with a copy.
 - `anyOf` / `oneOf` with exactly one non-null branch collapses to `T | None`.
 - `enum` / `const` map to `Literal[…]`.
 - Unsupported constructs emit `TranspilationWarning` and fall back to `Any`.
@@ -40,6 +44,7 @@ from schema_to.errors import (
     TranspilationError,
     TranspilationWarning,
 )
+from schema_to.generate._compose import SchemaFlattener
 from schema_to.generate._names import (
     safe_python_class_name,
     safe_python_field_name,
@@ -133,6 +138,7 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
             source_id=input.source_id,
             resolver=self.resolver,
             warnings=self._warnings,
+            base_uri=input.get_base_uri(),
             split_names=_compute_split_names(input),
         )
 
@@ -191,6 +197,7 @@ class _GenCtx:
     source_id: str
     resolver: JsonSchemaRefResolver | None
     warnings: list[TranspilationWarning]
+    base_uri: str = ""
     split_names: frozenset[str] = field(default_factory=frozenset)
 
     def schema_to_declarations(
@@ -204,6 +211,7 @@ class _GenCtx:
         """
         if isinstance(schema, BooleanSchema):
             return []
+        schema = self._composed(schema)
         if is_object_schema(schema):
             if safe_python_class_name(name) in self.split_names:
                 return [
@@ -219,6 +227,22 @@ class _GenCtx:
                 description=schema.description if schema.title else None,
             )
         return [TypeAliasDef(name=safe_python_class_name(name), annotation=ann, doc=doc)]
+
+    def _composed(self, schema: ObjectSchema) -> ObjectSchema:
+        """Merge an `allOf` composition so the model gets every branch's fields.
+
+        Only composition is resolved, and only here.  A declaration that is a bare
+        `$ref` stays an alias to the class its target generates, and a *property*
+        that references another schema still becomes a reference to that class —
+        inlining either would replace a named model with a copy of its contents.
+        """
+        if not schema.all_of:
+            return schema
+        result = SchemaFlattener(resolver=self.resolver).flatten(
+            schema, base_uri=self.base_uri or self.source_id
+        )
+        self.warnings.extend(result.warnings)
+        return result.schema if isinstance(result.schema, ObjectSchema) else schema
 
     def _make_class(
         self, schema: ObjectSchema, name: str, *, variant: Literal["read", "write"] | None

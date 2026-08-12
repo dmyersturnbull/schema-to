@@ -162,15 +162,22 @@ def _emit_column_constraint(c: ColumnConstraint) -> str:
         name_prefix = f"CONSTRAINT {q(c.constraint_name)} " if c.constraint_name else ""
         parts.append(f"{name_prefix}CHECK ({c.check_expr})")
     if c.references_table is not None:
-        ref = f"REFERENCES {q(c.references_table)}"
-        if c.references_column is not None:
-            ref += f"({q(c.references_column)})"
-        if c.on_delete != ForeignKeyAction.NO_ACTION:
-            ref += f" ON DELETE {c.on_delete.value.upper()}"
-        if c.on_update != ForeignKeyAction.NO_ACTION:
-            ref += f" ON UPDATE {c.on_update.value.upper()}"
-        parts.append(ref)
+        parts.append(_emit_references(c, c.references_table))
     return " ".join(parts)
+
+
+def _emit_references(c: ColumnConstraint, table: str) -> str:
+    """Emit the `REFERENCES …` clause of an inline foreign key."""
+    ref = f"REFERENCES {q(table)}"
+    if c.references_column is not None:
+        ref += f"({q(c.references_column)})"
+    if c.on_delete != ForeignKeyAction.NO_ACTION:
+        ref += f" ON DELETE {c.on_delete.value.upper()}"
+    if c.on_update != ForeignKeyAction.NO_ACTION:
+        ref += f" ON UPDATE {c.on_update.value.upper()}"
+    if c.deferrable:
+        ref += " DEFERRABLE INITIALLY DEFERRED"
+    return ref
 
 
 def _emit_table_constraint(tc: TableConstraint) -> str:

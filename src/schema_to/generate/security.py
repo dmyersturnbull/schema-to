@@ -10,7 +10,6 @@ The actual enforcement is intentionally left as a stub:
 without pretending to validate credentials.
 """
 
-
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 

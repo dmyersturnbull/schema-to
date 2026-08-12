@@ -5,7 +5,6 @@ It accepts `Artifact`s produced by the pipeline without exposing how or where th
 Concrete implementations may write to a directory, accumulate in memory, upload to an object store, etc.
 """
 
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar

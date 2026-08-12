@@ -7,7 +7,6 @@ Covers:
 - Failure: boolean root schema cannot be transpiled.
 """
 
-
 import ast
 import re
 
@@ -630,3 +629,73 @@ def test_integration_full_pipeline() -> None:
     assert re.search(r"status:\s*Literal\[", src), "status should be Literal"
     assert "'active'" in src or '"active"' in src
     assert "'inactive'" in src or '"inactive"' in src
+
+
+def test_all_of_composed_schema_becomes_a_model() -> None:
+    """Composition used to fall back to `Any`, losing every field."""
+    doc = JsonSchemaRawDoc(
+        doc_id="test://schema",
+        content=orjson.dumps(
+            {
+                "title": "battery",
+                "description": "A battery.",
+                "allOf": [
+                    {
+                        "type": "object",
+                        "required": ["id"],
+                        "properties": {"id": {"type": "string"}},
+                    },
+                    {"type": "object", "properties": {"count": {"type": "integer"}}},
+                ],
+            }
+        ),
+        media_type=MediaTypes.json,
+    )
+    result = JsonSchemaToPydanticTranspiler().transpile(doc)
+    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
+    src = result.value[0].content.decode("utf-8")
+    assert "class Battery(BaseModel):" in src
+    assert "id: str" in src
+    assert "count: int | None = None" in src
+    assert "= Any" not in src
+
+
+def test_composition_does_not_inline_referenced_models() -> None:
+    """The branches merge, but a property pointing at a named schema stays a reference."""
+    doc = JsonSchemaRawDoc(
+        doc_id="test://schema",
+        content=orjson.dumps(
+            {
+                "title": "thing",
+                "$defs": {"stamp": {"type": "string", "pattern": "^2"}},
+                "allOf": [{"type": "object", "properties": {"at": {"$ref": "#/$defs/stamp"}}}],
+            }
+        ),
+        media_type=MediaTypes.json,
+    )
+    result = JsonSchemaToPydanticTranspiler().transpile(doc)
+    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
+    src = result.value[0].content.decode("utf-8")
+    # The shared definition keeps its own declaration, and the field names it.
+    assert "type Stamp = str" in src
+    assert "at: Stamp | None = None" in src
+
+
+def test_a_bare_ref_declaration_stays_an_alias() -> None:
+    """Flattening one of these would replace the alias with a copy of its target."""
+    doc = JsonSchemaRawDoc(
+        doc_id="test://schema",
+        content=orjson.dumps(
+            {
+                "title": "alias",
+                "$defs": {"named": {"type": "object", "properties": {"a": {"type": "string"}}}},
+                "$ref": "#/$defs/named",
+            }
+        ),
+        media_type=MediaTypes.json,
+    )
+    result = JsonSchemaToPydanticTranspiler().transpile(doc)
+    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
+    src = result.value[0].content.decode("utf-8")
+    assert "class Named(BaseModel):" in src
+    assert "type Alias = Named" in src

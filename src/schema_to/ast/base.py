@@ -5,7 +5,6 @@ Each target language has its own independent AST hierarchy (`_python`,
 cross-cutting enumerations used by more than one target.
 """
 
-
 from abc import ABC
 from enum import StrEnum, auto
 

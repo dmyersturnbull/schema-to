@@ -1,6 +1,5 @@
 """Shared utilities for document parsers."""
 
-
 from typing import TYPE_CHECKING, cast
 
 from schema_to.errors import ParseError, SourceLocation, TranspilationError

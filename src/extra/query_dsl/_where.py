@@ -14,7 +14,6 @@ The grammar::
                   | "[" value ( "," value )* "]"
 """
 
-
 import re
 
 from psycopg import sql

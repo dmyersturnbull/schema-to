@@ -4,7 +4,6 @@ Every node in every CST carries a `SourceRef` that links it back to its origin
 in a `RawDoc`, enabling precise error messages and source-map generation.
 """
 
-
 from abc import ABC
 from dataclasses import dataclass
 

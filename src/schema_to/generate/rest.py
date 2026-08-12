@@ -7,7 +7,6 @@ method into a REST operation and derive a resource name from a path, and are
 exposed to endpoint-body templates as Jinja globals.
 """
 
-
 from enum import StrEnum, auto
 from typing import TYPE_CHECKING, NamedTuple
 

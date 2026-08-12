@@ -4,7 +4,6 @@ A `FunctionDef` with no `body` emits an `...` stub (existing behavior);
 a `FunctionDef` with `body` lines emits those lines, indented, after the optional docstring.
 """
 
-
 import ast
 
 from schema_to.ast.python import FunctionDef, PythonDocString, PythonModule

@@ -1,6 +1,5 @@
 """Thin wrapper around [IANA media types](https://www.iana.org/assignments/media-types/)."""
 
-
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, NamedTuple, overload

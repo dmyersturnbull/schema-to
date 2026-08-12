@@ -5,28 +5,59 @@ which properties are keys, or how one resource points at another.
 These keywords supply exactly that, and nothing else — every one of them is a
 persistence decision that no standard keyword can express.
 
-Schema-level keywords:
+| Keyword               | Goes on  | Value                                          | Effect                                     |
+|-----------------------|----------|------------------------------------------------|--------------------------------------------|
+| `x-pg-table`          | schema   | table name                                     | Emit a table. Absent: no table.            |
+| `x-pg-primary-key`    | schema   | column name, or a list of them                 | Composite key. Defaults to `id`.           |
+| `x-pg-primary-key`    | property | `true`                                         | Single-column key.                         |
+| `x-pg-indexes`        | schema   | list of `{columns, name, method, unique, where}` | Composite or partial indexes.            |
+| `x-pg-index`          | property | `true`, or `{name, method, unique, where}`     | Index on this column.                      |
+| `x-pg-overflow`       | schema   | column name                                    | JSONB column for undeclared keys.          |
+| `x-pg-extra-columns`  | schema   | list of `{name, type, default, not-null}`      | Columns with no property behind them.      |
+| `x-pg-refs`           | property | table name, or `{table, column, on-delete, on-update}` | Foreign key.                       |
+| `x-pg-column`         | property | column name                                    | Rename the column.                         |
+| `x-pg-unique`         | property | `true`                                         | `UNIQUE` constraint.                       |
+| `x-pg-type`           | property | a SQL type, e.g. `jsonb`                       | Override the inferred type.                |
+| `x-pg-skip`           | property | `true`                                         | Do not emit a column.                      |
 
-| Keyword            | Value                                    | Effect                          |
-|--------------------|------------------------------------------|---------------------------------|
-| `x-pg-table`       | table name                               | Emit a table. Absent: no table. |
-| `x-pg-primary-key` | column name, or a list of them           | Primary key. Defaults to `id`.  |
-| `x-pg-extras`      | column name                              | JSONB column for undeclared keys. |
-| `x-pg-indexes`     | list of index objects (see below)        | Composite or expression indexes. |
+Taken together:
 
-Property-level keywords:
+```yaml
+run-version-data:
+  x-pg-table: run_version
+  x-pg-primary-key: [run, alias]
+  x-pg-overflow: unmodelled
+  x-pg-extra-columns:
+    - name: loaded_at
+      type: timestamptz
+      not-null: true
+      default: now()
+  x-pg-indexes:
+    - columns: [author, insert_time]
+      method: btree
+  type: object
+  properties:
+    run:
+      type: string
+      x-pg-refs: run
+    alias:
+      type: integer
+    author:
+      type: string
+      x-pg-refs: {table: author, on-delete: restrict}
+      x-pg-index: true
+    is-official:
+      type: boolean
+      x-pg-column: official       # `is-official` would otherwise be `is_official`
+    wells:
+      type: array
+      x-pg-type: jsonb
+    internal-note:
+      type: string
+      x-pg-skip: true
+```
 
-| Keyword            | Value                                    | Effect                          |
-|--------------------|------------------------------------------|---------------------------------|
-| `x-pg-column`      | column name                              | Rename the column.              |
-| `x-pg-primary-key` | `true`                                   | Single-column primary key.      |
-| `x-pg-unique`      | `true`                                   | `UNIQUE` constraint.            |
-| `x-pg-refs`        | table name, or `{table, column, on-delete, on-update}` | Foreign key. |
-| `x-pg-index`       | `true`, or `{name, method, unique, where}` | Index on this column.         |
-| `x-pg-type`        | a literal SQL type, e.g. `jsonb`         | Override the inferred type.     |
-| `x-pg-skip`        | `true`                                   | Do not emit a column.           |
-
-A keyword whose value has the wrong shape raises `GenerationError` rather than being
+A keyword whose value has the wrong shape raises `KeywordError` rather than being
 ignored: a misspelled foreign key that silently vanishes is worse than a failed build.
 """
 
@@ -42,6 +73,7 @@ if TYPE_CHECKING:
     from schema_to.core import JsonValue
 
 __all__ = [
+    "ExtraColumn",
     "ForeignKeyRef",
     "IndexRequest",
     "PropertyKeywords",
@@ -52,7 +84,8 @@ __all__ = [
 
 TABLE = "x-pg-table"
 PRIMARY_KEY = "x-pg-primary-key"
-EXTRAS = "x-pg-extras"
+OVERFLOW = "x-pg-overflow"
+EXTRA_COLUMNS = "x-pg-extra-columns"
 INDEXES = "x-pg-indexes"
 COLUMN = "x-pg-column"
 UNIQUE = "x-pg-unique"
@@ -89,12 +122,28 @@ class IndexRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class ExtraColumn:
+    """A column declared by `x-pg-extra-columns`, with no property behind it.
+
+    For values the database owns rather than the API: a load timestamp, a tenant
+    discriminator, a trigger-maintained counter.  They have no schema, so their type
+    is given literally.
+    """
+
+    name: str
+    sql_type: str
+    default: str | None = None
+    not_null: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class TableKeywords:
     """The `x-pg-*` keywords read from a schema that becomes a table."""
 
     table: str | None = None
     primary_key: tuple[str, ...] = ()
-    extras_column: str | None = None
+    overflow_column: str | None = None
+    extra_columns: tuple[ExtraColumn, ...] = ()
     indexes: tuple[IndexRequest, ...] = ()
 
 
@@ -125,7 +174,8 @@ def read_table_keywords(extensions: Mapping[str, JsonValue], *, where: str) -> T
     return TableKeywords(
         table=_opt_str(extensions, TABLE, where=where),
         primary_key=_str_tuple(extensions, PRIMARY_KEY, where=where),
-        extras_column=_opt_str(extensions, EXTRAS, where=where),
+        overflow_column=_opt_str(extensions, OVERFLOW, where=where),
+        extra_columns=_read_extra_columns(extensions, where=where),
         indexes=_read_indexes(extensions, where=where),
     )
 
@@ -183,6 +233,35 @@ def _read_index(extensions: Mapping[str, JsonValue], *, where: str) -> IndexRequ
     if fields is None:
         raise _bad(INDEX, where, "`true` or an object")
     return _index_from(fields, columns=(), where=where, keyword=INDEX)
+
+
+def _read_extra_columns(
+    extensions: Mapping[str, JsonValue], *, where: str
+) -> tuple[ExtraColumn, ...]:
+    raw = extensions.get(EXTRA_COLUMNS)
+    if raw is None:
+        return ()
+    entries = as_array(raw)
+    if entries is None:
+        raise _bad(EXTRA_COLUMNS, where, "a list of column objects")
+    out: list[ExtraColumn] = []
+    for entry in entries:
+        fields = as_object(entry)
+        if fields is None:
+            raise _bad(EXTRA_COLUMNS, where, "a list of column objects")
+        name = _opt_str(fields, "name", where=where)
+        sql_type = _opt_str(fields, "type", where=where)
+        if not name or not sql_type:
+            raise _bad(EXTRA_COLUMNS, where, "objects with both a `name` and a `type`")
+        out.append(
+            ExtraColumn(
+                name=name,
+                sql_type=sql_type,
+                default=_opt_str(fields, "default", where=where),
+                not_null=_flag(fields, "not-null", where=where),
+            )
+        )
+    return tuple(out)
 
 
 def _read_indexes(extensions: Mapping[str, JsonValue], *, where: str) -> tuple[IndexRequest, ...]:

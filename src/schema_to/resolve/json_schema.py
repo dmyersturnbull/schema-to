@@ -19,7 +19,7 @@ after `apply` has confirmed the document is valid.
 
 import urllib.parse
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from referencing import Registry, Resource
 from referencing.exceptions import Unresolvable
@@ -41,7 +41,20 @@ from schema_to.serialize.json_schema import JsonSchemaSerializer
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-__all__ = ["JsonSchemaRefResolver"]
+__all__ = ["JsonSchemaRefResolver", "ResolvesRefs"]
+
+
+@runtime_checkable
+class ResolvesRefs(Protocol):
+    """A transpiler that resolves `$ref` through a resolver it exposes.
+
+    Exposing the resolver is what lets a caller register documents the transpiler
+    will never be handed but whose contents its inputs point into — a schema-map
+    file split into per-schema documents, whose `#/sibling` references still mean
+    "the sibling in that file".
+    """
+
+    resolver: JsonSchemaRefResolver
 
 
 def _escape(name: str) -> str:
@@ -186,7 +199,9 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         if input.source_id not in self._docs:
             self.register(input)
         try:
-            ref_resolver = self._resolver_for(input.source_id)
+            # References resolve against the document's base URI, which is not its ID
+            # when the document was carved out of a larger file.
+            ref_resolver = self._resolver_for(input.get_base_uri())
         except ResolutionError as exc:
             return Err((exc,))
         errors: list[TranspilationError] = []
