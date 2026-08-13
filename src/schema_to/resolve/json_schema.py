@@ -19,7 +19,7 @@ after `apply` has confirmed the document is valid.
 
 import urllib.parse
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, override
 
 from referencing import Registry, Resource
 from referencing.exceptions import Unresolvable
@@ -41,20 +41,7 @@ from schema_to.serialize.json_schema import JsonSchemaSerializer
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-__all__ = ["JsonSchemaRefResolver", "ResolvesRefs"]
-
-
-@runtime_checkable
-class ResolvesRefs(Protocol):
-    """A transpiler that resolves `$ref` through a resolver it exposes.
-
-    Exposing the resolver is what lets a caller register documents the transpiler
-    will never be handed but whose contents its inputs point into — a schema-map
-    file split into per-schema documents, whose `#/sibling` references still mean
-    "the sibling in that file".
-    """
-
-    resolver: JsonSchemaRefResolver
+__all__ = ["JsonSchemaMapRefResolver", "JsonSchemaRefResolver"]
 
 
 def _escape(name: str) -> str:
@@ -358,3 +345,28 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         if doc_uri in self._docs or doc_uri in self._map_docs:
             return doc_uri
         return self._id_to_source.get(doc_uri)
+
+
+@dataclass(frozen=True, slots=True)
+class JsonSchemaMapRefResolver(RefResolver[JsonSchemaMapDocument]):
+    """The schema-map face of a `JsonSchemaRefResolver`.
+
+    A `JsonSchemaRefResolver` indexes both kinds of document into one registry, which
+    is what lets a reference cross between them; this exposes its map half as an
+    ordinary `RefResolver`, so a set of map documents registers and validates through
+    the same two-pass composition as any other:
+
+    ```python
+    Each(maps.registering()).then(Each(maps))
+    ```
+    """
+
+    inner: JsonSchemaRefResolver
+
+    @override
+    def register(self, cst: JsonSchemaMapDocument) -> None:
+        self.inner.register_map(cst)
+
+    @override
+    def apply(self, input: JsonSchemaMapDocument) -> Result[JsonSchemaMapDocument]:
+        return self.inner.apply_map(input)

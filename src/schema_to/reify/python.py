@@ -9,8 +9,9 @@ The output style is:
 - Fields as `name: Annotation` or `name: Annotation = default`
 """
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from typing import override
 
 from schema_to.ast.python import (
     ClassDef,
@@ -21,6 +22,7 @@ from schema_to.ast.python import (
     Parameter,
     PythonDocString,
     PythonModule,
+    PythonPackage,
     PythonTypeAnnotation,
     SimpleImport,
     TypeAliasDef,
@@ -28,13 +30,10 @@ from schema_to.ast.python import (
 )
 from schema_to.errors import ReificationError
 from schema_to.io.sink import PythonArtifact
-from schema_to.pipeline import Reifier
+from schema_to.pipeline import Each, Flatten, Reducer, Reifier, Stage
 from schema_to.result import Err, Ok, Result
 
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-
-__all__ = ["PythonReifier"]
+__all__ = ["PythonPackageAssembler", "PythonPackageReifier", "PythonReifier"]
 
 _INDENT = "    "
 
@@ -43,12 +42,11 @@ _INDENT = "    "
 class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     """Serialise a `PythonModule` AST to a single `.py` `Artifact`.
 
-    Attributes:
-        artifact_id: Base file name for the output artifact (e.g. `"models.py"`).
+    The file is named after the module, which is the only name it could be: two
+    modules written side by side must differ, and only the module knows what it is of.
     """
 
-    artifact_id: str
-
+    @override
     def apply(self, input: PythonModule) -> Result[Sequence[PythonArtifact]]:
         try:
             source = self._emit_module(input)
@@ -57,7 +55,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
         return Ok(
             [
                 PythonArtifact(
-                    artifact_id=self.artifact_id,
+                    artifact_id=f"{input.name}.py",
                     content=source.encode("utf-8"),
                     source_ids=input.source_ids,
                 )
@@ -253,3 +251,32 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     # ruff:ignore[unused-method-argument]  # Defined for overriding.
     def _emit_method_stub(self, m: FunctionDef) -> list[str]:
         return ["pass"]
+
+
+@dataclass(frozen=True, slots=True)
+class PythonPackageAssembler(Reducer[PythonModule, PythonPackage]):
+    """Collects the modules a run generated into the package they are written as."""
+
+    @override
+    def apply(self, input: Sequence[PythonModule]) -> Result[PythonPackage]:
+        source_ids = tuple(dict.fromkeys(sid for module in input for sid in module.source_ids))
+        return Ok(PythonPackage(modules=list(input), source_ids=source_ids))
+
+
+@dataclass(frozen=True, slots=True)
+class PythonPackageReifier(Reifier[PythonPackage, PythonArtifact]):
+    """Serialises every module of a package, one `.py` artifact each.
+
+    Attributes:
+        modules: How each module is reified and the results concatenated.  The default
+            is `PythonReifier` over the batch; a caller wanting a different per-module
+            reifier composes one rather than subclassing this.
+    """
+
+    modules: Stage[Sequence[PythonModule], Sequence[PythonArtifact]] = field(
+        default_factory=lambda: Each(PythonReifier()).then(Flatten())
+    )
+
+    @override
+    def apply(self, input: PythonPackage) -> Result[Sequence[PythonArtifact]]:
+        return self.modules.apply(input.modules)

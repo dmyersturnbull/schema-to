@@ -3,9 +3,10 @@
 ## Quick start
 
 ```python
-from schema_to import Pipeline, Ok, Err
+from schema_to import Pipeline, TranspilerRouter, MediaTypes, Ok, Err
 
-pipeline = Pipeline(sources=[...], transpilers=[...], sink=...)
+transpilers = TranspilerRouter().route("pydantic", MediaTypes.json)
+pipeline = Pipeline(sources=[...], transpilers=transpilers, sink=...)
 
 match pipeline.process():
     case Ok(summary):
@@ -31,13 +32,13 @@ match pipeline.process():
 | `schema_to.resolve.json_schema` | `JsonSchemaRefResolver` |
 | `schema_to.generate.pydantic` | `PydanticGenerator` |
 | `schema_to.generate.sql` | `PostgresGenerator` |
-| `schema_to.reify.python` | `PythonReifier` |
+| `schema_to.reify.python` | `PythonReifier`, `PythonPackageReifier` |
 | `schema_to.reify.sql` | `SqlReifier` |
-| `schema_to.transpile.pass_thru` | Pass-through `Transpiler` implementations |
-| `schema_to.transpile.extract` | `OpenApiExtractTranspiler` |
-| `schema_to.transpile.pydantic` | `JsonSchemaToPydanticTranspiler` |
-| `schema_to.transpile.sql` | `JsonSchemaToPostgresTranspiler` |
-| `schema_to.pipeline` | `Stage`, `Transpiler`, `Pipeline` |
+| `schema_to.reify.json_schema` | `JsonSchemaReifier`, `OpenApiReifier` |
+| `schema_to.transpile.factory` | `TranspilerRouter` — builds a `Transpiler` per target |
+| `schema_to.transpile.schema_map` | `SchemaMapExpander`, `SchemaMapMerger` |
+| `schema_to.transpile.extract` | `OpenApiComponentExtractor` |
+| `schema_to.pipeline` | `Stage`, `Expander`, `Reducer`, `Each`, `Transpiler`, `Pipeline` |
 | `schema_to.result` | `Ok`, `Err`, `Result` |
 | `schema_to.errors` | `TranspilationError` subclasses |
 """
@@ -86,20 +87,32 @@ from schema_to.io.sink import (
 from schema_to.io.source import DataSource, JsonSchemaRawDoc, OpenApiRawDoc, RawDoc
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.parse.openapi import OpenApiParser
-from schema_to.pipeline import Pipeline, ProcessSummary, Transpiler, TypedTranspiler
-from schema_to.reify.python import PythonReifier
+from schema_to.pipeline import (
+    Append,
+    Each,
+    Expander,
+    Flatten,
+    Pipeline,
+    ProcessSummary,
+    Reducer,
+    Reifier,
+    Stage,
+    Transformer,
+    Transpiler,
+)
+from schema_to.reify.json_schema import JsonSchemaReifier, OpenApiReifier
+from schema_to.reify.python import PythonPackageAssembler, PythonPackageReifier, PythonReifier
 from schema_to.reify.sql import SqlReifier
-from schema_to.resolve.json_schema import JsonSchemaRefResolver
+from schema_to.resolve.json_schema import JsonSchemaMapRefResolver, JsonSchemaRefResolver
 from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 from schema_to.serialize.openapi import OpenApiSerializer
-from schema_to.transpile.extract import OpenApiExtractTranspiler
-from schema_to.transpile.fastapi import OpenApiToFastApiTranspiler
-from schema_to.transpile.pass_thru import JsonSchemaPassThruTranspiler, OpenApiPassThruTranspiler
-from schema_to.transpile.pydantic import JsonSchemaToPydanticTranspiler
-from schema_to.transpile.sql import JsonSchemaToPostgresTranspiler
+from schema_to.transpile.extract import OpenApiComponentExtractor
+from schema_to.transpile.factory import RoutingError, TranspilerRouter
+from schema_to.transpile.schema_map import SchemaMapExpander, SchemaMapMerger
 
 __all__ = [
+    "Append",
     "Artifact",
     # I/O
     "DataSink",
@@ -108,16 +121,20 @@ __all__ = [
     "DirectoryDataSource",
     # Routing
     "DocType",
+    # Stage combinators
+    "Each",
     "EndpointBody",
     # Endpoint-body backends
     "EndpointBodyBackend",
     "EndpointContext",
     # Result
     "Err",
+    "Expander",
     # Generators
     "FastApiTransformer",
     "FileDataSink",
     "FileDataSource",
+    "Flatten",
     # Errors
     "GenerationError",
     "InMemoryDataSink",
@@ -126,53 +143,59 @@ __all__ = [
     # Artifacts
     "JsonSchemaArtifact",
     "JsonSchemaJsonArtifact",
+    "JsonSchemaMapRefResolver",
     # Parsers
     "JsonSchemaParser",
-    # Transpilers
-    "JsonSchemaPassThruTranspiler",
     "JsonSchemaRawDoc",
     # Resolver
     "JsonSchemaRefResolver",
+    "JsonSchemaReifier",
     # Serializers
     "JsonSchemaSerializer",
-    # Typed transpilers
-    "JsonSchemaToPostgresTranspiler",
-    "JsonSchemaToPydanticTranspiler",
     "JsonSchemaYamlArtifact",
     "MediaType",
     "MediaTypeParam",
     "MediaTypes",
-    # Pipeline
     "NullBodyBackend",
     "Ok",
     "OpenApiArtifact",
-    "OpenApiExtractTranspiler",
+    "OpenApiComponentExtractor",
     "OpenApiJsonArtifact",
     "OpenApiParser",
-    "OpenApiPassThruTranspiler",
     "OpenApiRawDoc",
+    "OpenApiReifier",
     "OpenApiSerializer",
-    "OpenApiToFastApiTranspiler",
     "OpenApiYamlArtifact",
     "ParseError",
     "PeekingDirectorySource",
+    # Pipeline
     "Pipeline",
     "PostgresTransformer",
     "ProcessSummary",
     "PydanticTransformer",
+    "PythonPackageAssembler",
+    "PythonPackageReifier",
     # Reifiers
     "PythonReifier",
     "RawDoc",
+    "Reducer",
     "ReificationError",
+    "Reifier",
     "ResolutionError",
     "RestOperation",
     "Result",
+    # Composition root
+    "RoutingError",
+    "SchemaMapExpander",
+    "SchemaMapMerger",
     "SchemaValidationError",
     "SourceLocation",
     "SqlReifier",
+    "Stage",
     "TemplateBodyBackend",
+    "Transformer",
     "TranspilationError",
     "TranspilationWarning",
     "Transpiler",
-    "TypedTranspiler",
+    "TranspilerRouter",
 ]

@@ -17,12 +17,12 @@ Covers:
 import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import object_schema_st, sql_object_schema_st
+from tests.targets import transpiler_for
 
 from schema_to import (
     Err,
     JsonSchemaParser,
     JsonSchemaRawDoc,
-    JsonSchemaToPostgresTranspiler,
     MediaTypes,
     Ok,
     OpenApiRawDoc,
@@ -44,7 +44,7 @@ def _doc(data: object, source_id: str = "test://schema") -> JsonSchemaRawDoc:
 
 def _transpile(data: object, source_id: str = "test://schema") -> str:
     """Run the full SQL pipeline and return the emitted SQL source."""
-    transpiler = JsonSchemaToPostgresTranspiler()
+    transpiler = transpiler_for("postgres")
     result = transpiler.transpile(_doc(data, source_id))
     assert isinstance(result, Ok), (
         f"Transpile failed: {[getattr(e, 'message', str(e)) for e in result.errors]}"
@@ -567,7 +567,7 @@ def test_table_name_from_source_id() -> None:
         content=orjson.dumps({"type": "object"}),
         media_type=MediaTypes.json,
     )
-    result = JsonSchemaToPostgresTranspiler().transpile(doc)
+    result = transpiler_for("postgres").transpile(doc)
     assert isinstance(result, Ok)
     src = result.value[0].content.decode("utf-8")
     assert "CREATE TABLE IF NOT EXISTS https_example_com_product_json" in src
@@ -604,9 +604,7 @@ def test_roots_keeps_only_named_defs() -> None:
         "title": "Root",
         "$defs": {"Kept": {"type": "object"}, "Dropped": {"type": "object"}},
     }
-    transpiler = JsonSchemaToPostgresTranspiler(
-        generator=PostgresTransformer(roots=frozenset({"Kept"}))
-    )
+    transpiler = transpiler_for("postgres", roots=frozenset({"Kept"}))
     result = transpiler.transpile(_doc(schema))
     assert isinstance(result, Ok)
     src = result.value[0].content.decode("utf-8")
@@ -673,17 +671,17 @@ def test_column_title_fallback_comment() -> None:
 
 
 def test_accepts_json_schema_document() -> None:
-    assert JsonSchemaToPostgresTranspiler().accepts(_doc({}))
+    assert transpiler_for("postgres").accepts(_doc({}))
 
 
 def test_rejects_openapi_document() -> None:
     doc = OpenApiRawDoc(doc_id="test://s", content=b"{}", media_type=MediaTypes.json)
-    assert not JsonSchemaToPostgresTranspiler().accepts(doc)  # ty:ignore[invalid-argument-type]
+    assert not transpiler_for("postgres").accepts(doc)
 
 
 def test_rejects_raw_document() -> None:
     doc = RawDoc(doc_id="test://s", content=b"{}", media_type=MediaTypes.json)
-    assert not JsonSchemaToPostgresTranspiler().accepts(doc)  # ty:ignore[invalid-argument-type]
+    assert not transpiler_for("postgres").accepts(doc)
 
 
 # ---------------------------------------------------------------------------

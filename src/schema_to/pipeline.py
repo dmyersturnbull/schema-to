@@ -11,19 +11,29 @@ resolve = JsonSchemaRefResolver()
 full: Stage[RawDoc, JsonSchemaDocument] = parse.then(resolve)
 ```
 
-## Transpiler contract
+`Each` and `Flatten` lift a stage over one document to a stage over a batch of them,
+so a whole target is one composed `Stage`, not a class that re-implements the chaining:
 
-A `Transpiler` bundles four ordered stages for a specific `(CstT, AstT)` pair:
+```python
+batch: Stage[Sequence[RawDoc], Sequence[Artifact]] = Each(full.then(gen).then(reify)).then(
+    Flatten()
+)
+```
+
+## Transpiler
+
+A `Transpiler` is a value, not a base class: it binds a `RawDoc` subclass to the batch
+stage that handles documents of that type.
+`Pipeline` uses the binding to dispatch each source document to the right stage at runtime.
+Building one is the composition root's job — see `schema_to.transpile.factory`.
 
 ```
-RawDoc
-  →[parse]→   CstT
-  →[resolve]→ CstT   (with $ref / $dynamicRef links resolved)
-  →[generate]→ AstT
+Sequence[RawDoc]
+  →[parse]→   CST
+  →[resolve]→ CST   (with $ref / $dynamicRef links resolved)
+  →[generate]→ AST
   →[reify]→   Sequence[Artifact]
 ```
-
-The type-erased `accepts(document)` predicate allows a `Pipeline` to dispatch each source document to the correct `Transpiler` at runtime.
 
 ## Pipeline
 
@@ -40,7 +50,7 @@ It drives the full process:
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import override
+from typing import final, override
 
 from schema_to.ast.base import AstNode
 from schema_to.cst.base import CstNode
@@ -50,15 +60,19 @@ from schema_to.io.source import DataSource, RawDoc
 from schema_to.result import Err, Ok, Result
 
 __all__ = [
+    "Append",
     "DocParser",
+    "Each",
+    "Expander",
+    "Flatten",
     "Pipeline",
     "ProcessSummary",
+    "Reducer",
     "RefResolver",
     "Reifier",
     "Stage",
     "Transformer",
     "Transpiler",
-    "TypedTranspiler",
 ]
 
 
@@ -77,12 +91,22 @@ class Stage[X, Y](ABC):
     - *Short-circuit*: an `Err` from `s` bypasses `t` and propagates unchanged.
 
     This matches the structure of a Kleisli category over the `Result` monad.
+
+    Errors are fatal and travel in the `Result`; warnings are not, and travel beside it.
+    A stage that diagnoses something without failing exposes it through `warnings`,
+    which composition accumulates,
+    so a caller reads the whole chain's diagnostics from the outermost stage.
     """
 
     @abstractmethod
     def apply(self, /, input: X) -> Result[Y]:
         """Run this stage, returning `Ok[B]` on success or `Err` on failure."""
         raise NotImplementedError
+
+    @property
+    def warnings(self) -> Sequence[TranspilationWarning]:
+        """Non-fatal diagnostics from the most recent `apply` call."""
+        return ()
 
     def then[Z](self, /, other: Stage[Y, Z]) -> Stage[X, Z]:
         """Compose `self` with `other`, running `other` only if `self` succeeds."""
@@ -109,11 +133,17 @@ class _ComposedStage[X, Y, Z](Stage[X, Z]):
         self.first = first
         self.second = second
 
+    @override
     def apply(self, /, input: X) -> Result[Z]:
         r = self.first.apply(input)
         if isinstance(r, Err):
             return r
         return self.second.apply(r.value)
+
+    @property
+    @override
+    def warnings(self) -> Sequence[TranspilationWarning]:
+        return [*self.first.warnings, *self.second.warnings]
 
 
 class _MappedErrorStage[X, Y](Stage[X, Y]):
@@ -125,11 +155,17 @@ class _MappedErrorStage[X, Y](Stage[X, Y]):
         self.inner = first
         self.if_error = if_error
 
+    @override
     def apply(self, /, input: X) -> Result[Y]:
         r = self.inner.apply(input)
         if isinstance(r, Err):
             return Err(tuple(self.if_error(e) for e in r.errors))
         return r
+
+    @property
+    @override
+    def warnings(self) -> Sequence[TranspilationWarning]:
+        return self.inner.warnings
 
 
 class _RecoverStage[X, Y](Stage[X, Y]):
@@ -139,11 +175,139 @@ class _RecoverStage[X, Y](Stage[X, Y]):
         self.first = first
         self.f = f
 
+    @override
     def apply(self, /, input: X) -> Result[Y]:
         r = self.first.apply(input)
         if isinstance(r, Err):
             return self.f(r)
         return r
+
+    @property
+    @override
+    def warnings(self) -> Sequence[TranspilationWarning]:
+        return self.first.warnings
+
+
+class _RegisteringStage[C: CstNode](Stage[C, C]):
+    """Internal: result of `RefResolver.registering()`."""
+
+    def __init__(self, /, resolver: RefResolver[C]) -> None:
+        self.resolver = resolver
+
+    @override
+    def apply(self, /, input: C) -> Result[C]:
+        self.resolver.register(input)
+        return Ok(input)
+
+
+# ---------------------------------------------------------------------------
+# Cardinality kinds
+# ---------------------------------------------------------------------------
+
+
+class Expander[X, Y](Stage[X, Sequence[Y]]):
+    """A stage that produces many outputs from one input.
+
+    The dual of `Reducer`, and the Kleisli arrow of the list monad: `X → Result[[Y]]`.
+    `Each(e).then(Flatten())` lifts one over a batch, mapping and then joining.
+
+    Splitting a schema-map file into its named schemas is one, and so is reifying an
+    AST root into the several files it describes — `Reifier` is the specialisation of
+    this kind whose outputs are artifacts.
+    """
+
+    @abstractmethod
+    def apply(self, input: X) -> Result[Sequence[Y]]:
+        raise NotImplementedError
+
+
+class Reducer[X, Y](Stage[Sequence[X], Y]):
+    """A stage that produces one output from many inputs.
+
+    The dual of `Expander`, and a fold over the batch.  It is the only kind that can
+    express an output the whole set determines: a migration whose foreign keys cannot
+    be ordered until every table is known has no per-document formulation.
+    """
+
+    @abstractmethod
+    def apply(self, input: Sequence[X]) -> Result[Y]:
+        raise NotImplementedError
+
+
+# ---------------------------------------------------------------------------
+# Batch combinators
+# ---------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class Each[X, Y](Stage[Sequence[X], Sequence[Y]]):
+    """Runs `inner` over every item of a batch, accumulating errors across all of them.
+
+    One bad document should not hide the rest, so every item is attempted and the
+    failures are reported together rather than at the first one.
+    Warnings accumulate the same way — `inner` resets its own on each `apply`,
+    so they are collected here as they are produced.
+    """
+
+    inner: Stage[X, Y]
+    _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
+
+    @override
+    def apply(self, /, input: Sequence[X]) -> Result[Sequence[Y]]:
+        self._warnings.clear()
+        values: list[Y] = []
+        errors: list[TranspilationError] = []
+        for item in input:
+            result = self.inner.apply(item)
+            self._warnings.extend(self.inner.warnings)
+            if isinstance(result, Err):
+                errors.extend(result.errors)
+            else:
+                values.append(result.value)
+        if errors:
+            return Err(tuple(errors))
+        return Ok(values)
+
+    @property
+    @override
+    def warnings(self) -> Sequence[TranspilationWarning]:
+        return list(self._warnings)
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class Flatten[Y](Reducer[Sequence[Y], Sequence[Y]]):
+    """Concatenates the batches produced by `Each` over an `Expander`.
+
+    `Each(e)` where `e` is an `Expander` gives a batch of batches; this is the join
+    that flattens it back to one, so `Each(e).then(Flatten())` is an expansion lifted
+    over a whole batch.
+    """
+
+    @override
+    def apply(self, /, input: Sequence[Sequence[Y]]) -> Result[Sequence[Y]]:
+        return Ok([item for batch in input for item in batch])
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class Append[Y](Stage[Sequence[Y], Sequence[Y]]):
+    """Appends whatever `supply` returns to what the preceding stage produced.
+
+    The supplier is called once per batch, which is what makes it the right place for
+    an output that belongs to the run rather than to any one document — a support
+    module a generated application imports, say.
+
+    Attributes:
+        supply: Called after the batch is built; typically a bound method of the
+            component that knows what extra outputs it needs.
+    """
+
+    supply: Callable[[], Sequence[Y]]
+
+    @override
+    def apply(self, /, input: Sequence[Y]) -> Result[Sequence[Y]]:
+        return Ok([*input, *self.supply()])
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +352,17 @@ class RefResolver[C: CstNode](Stage[C, C]):
         """Add a parsed CST to the resolution registry."""
         raise NotImplementedError
 
+    def registering(self) -> Stage[C, C]:
+        """Return a stage that registers each document and passes it through unchanged.
+
+        Registration and validation are separate passes because a reference may point
+        from any document in a set into any other: checking one before the last is
+        registered would fail on a forward reference.  Splitting them into two stages
+        is what lets a caller write `Each(r.registering()).then(Each(r))` and get the
+        two passes in the right order, without a class that hard-codes both.
+        """
+        return _RegisteringStage(self)
+
 
 class Transformer[C: CstNode, A: AstNode](Stage[C, A]):
     """Transforms a resolved `CstT` into a target-language `AstT`.
@@ -205,119 +380,73 @@ class Transformer[C: CstNode, A: AstNode](Stage[C, A]):
     @property
     @abstractmethod
     def warnings(self) -> Sequence[TranspilationWarning]:
-        """Warnings accumulated across all `apply` calls since construction."""
+        """Warnings accumulated during the most recent `apply` call."""
         raise NotImplementedError
 
 
-class Reifier[A: AstNode, O: Artifact](Stage[A, Sequence[O]]):
-    """Serialises an `AstT` into one or more `Artifact`s.
+class Reifier[X, O: Artifact](Expander[X, O]):
+    """Serialises a generated root node into one or more `Artifact`s.
 
-    A single AST root (e.g. `PythonModule`) typically produces one artifact,
+    The input is normally an AST root (`PythonModule`, `SqlScript`),
+    but a target that re-emits its input — a pass-through — reifies a CST document instead.
+
+    A single root typically produces one artifact,
     but a reifier may split output across multiple files
-    (e.g. one `.py` per top-level class, or a `.sql` plus a `.ts` twin).
+    (e.g. one `.py` per module of a package, or a `.sql` plus a `.ts` twin),
+    which is why this is an `Expander` rather than a plain one-to-one stage.
     """
 
     @abstractmethod
-    def apply(self, input: A) -> Result[Sequence[O]]:
+    def apply(self, input: X) -> Result[Sequence[O]]:
         raise NotImplementedError
 
 
 # ---------------------------------------------------------------------------
-# Transpiler contract
+# Transpiler
 # ---------------------------------------------------------------------------
 
 
-class Transpiler[I: RawDoc, O: Artifact](ABC):
-    """Type-erased base for a complete transpilation unit.
+@final
+@dataclass(frozen=True, slots=True)
+class Transpiler[I: RawDoc, O: Artifact]:
+    """A document type bound to the batch stage that transpiles documents of that type.
 
-    Prefer subclassing `TypedTranspiler[CstT, AstT]` for new implementations;
-    use `Transpiler` directly only when the CST or AST types are not statically known
-    (e.g. a plugin loaded at runtime).
+    A transpiler is a value, not an abstraction to subclass: everything specific to a
+    target lives in the `Stage` it holds, and everything specific to *routing* lives in
+    `selects`.  Assembling the two is the composition root's job — see
+    `schema_to.transpile.factory.TranspilerRouter`.
 
     Documents and artifacts are related many-to-many, not one-to-one.  One document
     may yield several artifacts (a schema per `components/schemas` entry), and several
     documents may yield one (a migration for a whole directory of schemas, whose
-    foreign keys cannot be ordered until every table is known).  `transpile_all` is
-    where that is decided; `transpile` handles the common one-document case, and the
-    default `transpile_all` maps it over the batch.
+    foreign keys cannot be ordered until every table is known).  The stage takes the
+    whole batch, so which of those a target does is the stage's own business:
+    `Each(...)` treats documents independently, and a batch-native stage does not.
+
+    Attributes:
+        selects: The `RawDoc` subclass this transpiler consumes.
+        stage: Transforms a batch of accepted documents into the artifacts to write.
     """
 
-    @abstractmethod
-    def accepts(self, doc: I) -> bool:
-        """Return `True` if this transpiler can process `doc`."""
-        raise NotImplementedError
+    selects: type[I]
+    stage: Stage[Sequence[I], Sequence[O]]
 
-    @abstractmethod
+    def accepts(self, doc: RawDoc) -> bool:
+        """Return `True` if this transpiler can process `doc`."""
+        return isinstance(doc, self.selects)
+
     def transpile(self, doc: I) -> Result[Sequence[O]]:
-        """Run the full parse → resolve → generate → reify pipeline for one document."""
-        raise NotImplementedError
+        """Transpile a single document, as a batch of one."""
+        return self.transpile_all([doc])
 
     def transpile_all(self, docs: Sequence[I]) -> Result[Sequence[O]]:
-        """Transpile every accepted document, as one batch.
-
-        The default treats the documents independently, accumulating errors across all
-        of them rather than stopping at the first — one bad file should not hide the
-        rest.  Override to make the batch itself the unit, when artifacts depend on
-        more than one document.
-        """
-        artifacts: list[O] = []
-        errors: list[TranspilationError] = []
-        for doc in docs:
-            result = self.transpile(doc)
-            if isinstance(result, Err):
-                errors.extend(result.errors)
-            else:
-                artifacts.extend(result.value)
-        if errors:
-            return Err(tuple(errors))
-        return Ok(artifacts)
+        """Transpile every accepted document, as one batch."""
+        return self.stage.apply(docs)
 
     @property
     def warnings(self) -> Sequence[TranspilationWarning]:
-        """Non-fatal diagnostics from the most recent `transpile` call."""
-        return ()
-
-
-class TypedTranspiler[I: RawDoc, O: Artifact, C: CstNode, A: AstNode](Transpiler[I, O]):
-    """A fully typed transpiler with individually-overridable stage methods.
-
-    Subclasses override `parse`, `resolve`, `generate`, and `reify`;
-    the provided `transpile` implementation chains them via `Result.flat_map`.
-    """
-
-    @abstractmethod
-    def parse(self, doc: I) -> Result[C]:
-        """Stage 1: decode bytes and construct the CST."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def resolve(self, cst: C) -> Result[C]:
-        """Stage 2: resolve `$ref` and validate against the meta-schema."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def generate(self, cst: C) -> Result[A]:
-        """Stage 3: transform the CST into a target-language AST."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def reify(self, ast: A) -> Result[Sequence[O]]:
-        """Stage 4: serialise the AST to output bytes."""
-        raise NotImplementedError
-
-    @override
-    def transpile(self, doc: I) -> Result[Sequence[O]]:
-        """Run all four stages sequentially."""
-        doc: Result[C] = self.parse(doc)
-        if isinstance(doc, Err):
-            return doc
-        cst: Result[C] = self.resolve(doc.value)
-        if isinstance(cst, Err):
-            return cst
-        ast: Result[A] = self.generate(cst.value)
-        if isinstance(ast, Err):
-            return ast
-        return self.reify(ast.value)
+        """Non-fatal diagnostics from the most recent `transpile_all` call."""
+        return self.stage.warnings
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +501,7 @@ class Pipeline[I: RawDoc, O: Artifact]:
         ```python
         pipeline = Pipeline(
             sources=[DirectoryDataSource("schemas/")],
-            transpilers=[JsonSchemaToSqlTranspiler(), JsonSchemaToTypeScriptTranspiler()],
+            transpilers=TranspilerRouter().route("postgres", MediaTypes.json),
             sink=DirectoryDataSink("out/"),
         )
         match pipeline.process():
@@ -385,7 +514,6 @@ class Pipeline[I: RawDoc, O: Artifact]:
     """
 
     sources: Sequence[DataSource[I]]
-    # TODO: Each Transpiler in `transpilers` will have different generic args. Is that compatible with the generic args on `Pipeline`?
     transpilers: Sequence[Transpiler[I, O]]
     sink: DataSink[O]
 
@@ -417,7 +545,7 @@ class Pipeline[I: RawDoc, O: Artifact]:
         """Group every source document under the first transpiler that accepts it.
 
         Batches are keyed by position rather than by the transpiler itself, which need
-        not be hashable — a mutable transpiler is a perfectly ordinary thing to write.
+        not be hashable — the stage it holds is a perfectly ordinary mutable object.
         Order follows the transpiler list and then the order documents were read, so
         output is stable across runs.
         """

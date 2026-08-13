@@ -5,11 +5,11 @@ These go through the whole parse → resolve → generate → reify pipeline.
 """
 
 import orjson
+from tests.targets import transpiler_for
 
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import JsonSchemaRawDoc
 from schema_to.result import Ok
-from schema_to.transpile.sql import JsonSchemaToPostgresTranspiler
 
 _SOURCE_ID = "test://schema"
 
@@ -21,7 +21,7 @@ def _transpile(data: object) -> str:
         media_type=MediaTypes.json,
         display_name="Test",
     )
-    result = JsonSchemaToPostgresTranspiler().transpile(doc)
+    result = transpiler_for("postgres").transpile(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     return result.value[0].content.decode("utf-8")
 
@@ -46,7 +46,7 @@ def test_non_object_root_names_what_it_found() -> None:
     doc = JsonSchemaRawDoc(
         doc_id=_SOURCE_ID, content=orjson.dumps({"type": "string"}), media_type=MediaTypes.json
     )
-    result = JsonSchemaToPostgresTranspiler().transpile(doc)
+    result = transpiler_for("postgres").transpile(doc)
     assert not isinstance(result, Ok)
     [error] = result.errors
     assert "object" in error.message

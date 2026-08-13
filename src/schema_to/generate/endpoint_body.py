@@ -119,7 +119,7 @@ class EndpointBodyBackend(ABC):
     def support_artifacts(self) -> Sequence[PythonArtifact]:
         """Extra files the rendered bodies depend on (e.g. a runtime helper).
 
-        Emitted once per transpiled document. Defaults to none.
+        Emitted once per transpiled batch. Defaults to none.
         """
         return ()
 

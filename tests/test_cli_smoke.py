@@ -130,7 +130,8 @@ def test_cli_roots_restricts_generated_defs(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, f"CLI failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
 
-    content = (output_dir / "models.py").read_text()
+    # The module is named after the document it was generated from.
+    content = (output_dir / "root.py").read_text()
     assert "class Kept(BaseModel):" in content
     assert "class Dropped(BaseModel):" not in content
     assert "class Root(BaseModel):" in content
@@ -145,3 +146,30 @@ def test_cli_unknown_template_spec_exits_nonzero(tmp_path: Path) -> None:
     result = _run(str(input_file), "--to", "fastapi", "--template", "noequals")
     assert result.returncode != 0
     assert "NAME=PATH" in result.stderr
+
+
+def test_cli_json_schema_extracts_openapi_components(tmp_path: Path) -> None:
+    """`--to json-schema` writes each `components/schemas` entry as its own file."""
+    openapi = {
+        "openapi": "3.1.0",
+        "info": {"title": "Test", "version": "1.0"},
+        "components": {
+            "schemas": {
+                "User": {"type": "object", "properties": {"id": {"type": "string"}}},
+                "Group": {"type": "object"},
+            }
+        },
+    }
+    input_file = tmp_path / "api.openapi.json"
+    input_file.write_text(json.dumps(openapi))
+
+    output_dir = tmp_path / "out"
+    output_dir.mkdir()
+
+    result = _run(str(input_file), "--to", "json-schema", "--output", str(output_dir))
+    assert result.returncode == 0, f"CLI failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+
+    written = {path.name for path in output_dir.iterdir()}
+    assert written == {"User.schema.json", "Group.schema.json"}
+    user = json.loads((output_dir / "User.schema.json").read_text())
+    assert user["properties"]["id"]["type"] == "string"

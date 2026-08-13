@@ -5,12 +5,11 @@ These assert on whole scripts built from several documents.
 """
 
 import orjson
+from tests.targets import transpiler_for
 
-from schema_to.generate.sql_tables import PostgresTableSetTransformer
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import SchemaMapRawDoc
 from schema_to.result import Err, Ok
-from schema_to.transpile.sql_tables import SchemaMapSetToPostgresTranspiler
 
 
 def _doc(data: object, name: str = "main") -> SchemaMapRawDoc:
@@ -23,7 +22,9 @@ def _doc(data: object, name: str = "main") -> SchemaMapRawDoc:
 
 
 def _sql(*docs: SchemaMapRawDoc) -> str:
-    result = SchemaMapSetToPostgresTranspiler().transpile_all(docs)
+    result = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True).transpile_all(
+        docs
+    )
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     return result.value[0].content.decode("utf-8")
 
@@ -91,7 +92,9 @@ def test_unresolvable_cross_file_ref_is_an_error() -> None:
             }
         }
     )
-    result = SchemaMapSetToPostgresTranspiler().transpile_all([docs])
+    result = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True).transpile_all(
+        [docs]
+    )
     assert isinstance(result, Err)
     assert any("missing.yaml" in getattr(e, "message", str(e)) for e in result.errors)
 
@@ -114,9 +117,7 @@ def test_pg_jsonschema_check_has_no_unresolved_refs() -> None:
         },
         "main",
     )
-    transpiler = SchemaMapSetToPostgresTranspiler(
-        generator=PostgresTableSetTransformer(validate_json=True)
-    )
+    transpiler = transpiler_for("pg-jsonschema", selects=SchemaMapRawDoc, schema_map=True)
     result = transpiler.transpile_all([base, main])
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     sql = result.value[0].content.decode("utf-8")
@@ -124,3 +125,16 @@ def test_pg_jsonschema_check_has_no_unresolved_refs() -> None:
     # pg_jsonschema cannot fetch a remote ref, so none may survive into the check.
     assert "$ref" not in sql
     assert "^2" in sql
+
+
+def test_one_schema_name_may_not_be_used_in_two_files() -> None:
+    """A set of schema-map files is one namespace, so the merge has to reject a clash."""
+    first = _doc({"thing": {"type": "object", "x-pg-table": "a"}}, "first")
+    second = _doc({"thing": {"type": "object", "x-pg-table": "b"}}, "second")
+    transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
+    result = transpiler.transpile_all([first, second])
+    assert isinstance(result, Err)
+    [error] = result.errors
+    assert "thing" in error.message
+    assert "first.yaml" in error.message
+    assert "second.yaml" in error.message

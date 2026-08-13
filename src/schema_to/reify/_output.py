@@ -1,5 +1,9 @@
+"""Filename and artifact-type selection for the schema-shaped targets."""
+
 from typing import TYPE_CHECKING, Literal, NamedTuple, overload
 
+from schema_to.cst.json_schema import JsonSchemaDocument
+from schema_to.cst.openapi import OpenApiDocument
 from schema_to.io.sink import (
     Artifact,
     JsonSchemaArtifact,
@@ -12,7 +16,8 @@ from schema_to.io.sink import (
 
 if TYPE_CHECKING:
     from schema_to.io.media_type import MediaType
-    from schema_to.io.source import RawDoc
+
+__all__ = ["OutputInfo", "choose_output"]
 
 
 class OutputInfo[A: Artifact](NamedTuple):
@@ -22,7 +27,7 @@ class OutputInfo[A: Artifact](NamedTuple):
 
 @overload
 def choose_output(
-    doc: RawDoc,
+    doc: OpenApiDocument | JsonSchemaDocument,
     output_media_type: MediaType | None,
     *,
     kind: Literal["openapi"],
@@ -32,7 +37,7 @@ def choose_output(
 
 @overload
 def choose_output(
-    doc: RawDoc,
+    doc: OpenApiDocument | JsonSchemaDocument,
     output_media_type: MediaType | None,
     *,
     kind: Literal["schema"],
@@ -41,7 +46,7 @@ def choose_output(
 
 
 def choose_output(
-    doc: RawDoc,
+    doc: OpenApiDocument | JsonSchemaDocument,
     output_media_type: MediaType | None,
     *,
     kind: Literal["openapi", "schema"],
@@ -50,14 +55,16 @@ def choose_output(
     """Chooses a filename and the correct artifact type for JSON Schema or OpenAPI.
 
     Args:
-        doc: The source document.
+        doc: The parsed document being re-emitted.  Both its ID and its display name
+          are carried over from the `RawDoc` it was parsed from.
         output_media_type: A required media-type, currently required to be a YAML or JSON type.
-          If `None`, uses YAML if `doc.doc_id.endswith(".yaml")`, otherwise uses JSON.
+          If `None`, uses YAML if `doc.source_id.endswith(".yaml")`, otherwise uses JSON.
         kind: OpenAPI or JSON Schema.
         stem: Base filename, overriding the one derived from `doc`.
           Required when one source document yields several artifacts,
           which would otherwise share a filename.
     """
+    source_id = doc.source_id or ""
     # TODO: `writer` can support more, but this forces `.yaml` or `.json`.
     if output_media_type:
         is_yaml = output_media_type.type in {
@@ -65,7 +72,7 @@ def choose_output(
             "text",
         } and output_media_type.subtype.endswith(("+yaml", "yaml"))
     else:
-        is_yaml = doc.doc_id.endswith(".yaml")
+        is_yaml = source_id.endswith(".yaml")
     ext = ".yaml" if is_yaml else ".json"
     artifact_type: type[Artifact]
     if kind == "openapi":

@@ -77,9 +77,8 @@ def transpile(
     router = TranspilerRouter()
     try:
         templates = _load_templates(template or [])
-        route = router.route_schema_maps if schema_map else router.route
-        transpilers = route(
-            to, output_media_type=output_media_type, templates=templates, roots=root_set
+        transpilers = router.route(
+            to, output_media_type, templates=templates, roots=root_set, schema_map=schema_map
         )
     except (RoutingError, ValueError, OSError) as exc:
         echo(f"error: {exc}", err=True)

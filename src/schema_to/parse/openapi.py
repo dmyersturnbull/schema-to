@@ -97,11 +97,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     # -- Document root -------------------------------------------------------
 
     def _build_document(
-        self,
-        data: dict[str, JsonValue],
-        *,
-        source_id: str,
-        display_name: str | None,  # ruff:ignore[unused-method-argument]  # OpenApiDocument derives its name from `info.title`; kept for symmetry with other parsers
+        self, data: dict[str, JsonValue], *, source_id: str, display_name: str | None
     ) -> Result[OpenApiDocument]:
         errors: list[TranspilationError] = []
 
@@ -186,6 +182,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 webhooks=webhooks,
                 extensions=extensions,
                 source_id=source_id,
+                display_name=display_name,
                 source_ref=SourceRef(source_id, ""),
             )
         )
