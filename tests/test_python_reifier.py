@@ -12,8 +12,8 @@ from schema_to.result import Ok
 
 
 def _emit(fn: FunctionDef) -> str:
-    module = PythonModule(declarations=[fn])
-    result = PythonReifier(artifact_id="m.py").apply(module)
+    module = PythonModule(name="m", declarations=[fn])
+    result = PythonReifier().apply(module)
     assert isinstance(result, Ok)
     return result.value[0].content.decode("utf-8")
 

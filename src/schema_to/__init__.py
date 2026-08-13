@@ -32,13 +32,13 @@ match pipeline.process():
 | `schema_to.resolve.json_schema` | `JsonSchemaRefResolver` |
 | `schema_to.generate.pydantic` | `PydanticGenerator` |
 | `schema_to.generate.sql` | `PostgresGenerator` |
-| `schema_to.reify.python` | `PythonReifier`, `PythonModuleSetReifier` |
+| `schema_to.reify.python` | `PythonReifier`, `PythonPackageReifier` |
 | `schema_to.reify.sql` | `SqlReifier` |
 | `schema_to.reify.json_schema` | `JsonSchemaReifier`, `OpenApiReifier` |
 | `schema_to.transpile.factory` | `TranspilerRouter` — builds a `Transpiler` per target |
-| `schema_to.transpile.schema_map` | `SchemaMapExpander` |
+| `schema_to.transpile.schema_map` | `SchemaMapExpander`, `SchemaMapMerger` |
 | `schema_to.transpile.extract` | `OpenApiComponentExtractor` |
-| `schema_to.pipeline` | `Stage`, `Each`, `Flatten`, `Transpiler`, `Pipeline` |
+| `schema_to.pipeline` | `Stage`, `Expander`, `Reducer`, `Each`, `Transpiler`, `Pipeline` |
 | `schema_to.result` | `Ok`, `Err`, `Result` |
 | `schema_to.errors` | `TranspilationError` subclasses |
 """
@@ -90,24 +90,26 @@ from schema_to.parse.openapi import OpenApiParser
 from schema_to.pipeline import (
     Append,
     Each,
+    Expander,
     Flatten,
     Pipeline,
     ProcessSummary,
+    Reducer,
     Reifier,
     Stage,
     Transformer,
     Transpiler,
 )
 from schema_to.reify.json_schema import JsonSchemaReifier, OpenApiReifier
-from schema_to.reify.python import PythonModuleSetReifier, PythonReifier
+from schema_to.reify.python import PythonPackageAssembler, PythonPackageReifier, PythonReifier
 from schema_to.reify.sql import SqlReifier
-from schema_to.resolve.json_schema import JsonSchemaMapSetResolver, JsonSchemaRefResolver
+from schema_to.resolve.json_schema import JsonSchemaMapRefResolver, JsonSchemaRefResolver
 from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 from schema_to.serialize.openapi import OpenApiSerializer
-from schema_to.transpile.extract import OpenApiComponentExtractor, openapi_extract
+from schema_to.transpile.extract import OpenApiComponentExtractor
 from schema_to.transpile.factory import RoutingError, TranspilerRouter
-from schema_to.transpile.schema_map import SchemaMapExpander
+from schema_to.transpile.schema_map import SchemaMapExpander, SchemaMapMerger
 
 __all__ = [
     "Append",
@@ -127,6 +129,7 @@ __all__ = [
     "EndpointContext",
     # Result
     "Err",
+    "Expander",
     # Generators
     "FastApiTransformer",
     "FileDataSink",
@@ -140,7 +143,7 @@ __all__ = [
     # Artifacts
     "JsonSchemaArtifact",
     "JsonSchemaJsonArtifact",
-    "JsonSchemaMapSetResolver",
+    "JsonSchemaMapRefResolver",
     # Parsers
     "JsonSchemaParser",
     "JsonSchemaRawDoc",
@@ -170,10 +173,12 @@ __all__ = [
     "PostgresTransformer",
     "ProcessSummary",
     "PydanticTransformer",
-    "PythonModuleSetReifier",
+    "PythonPackageAssembler",
+    "PythonPackageReifier",
     # Reifiers
     "PythonReifier",
     "RawDoc",
+    "Reducer",
     "ReificationError",
     "Reifier",
     "ResolutionError",
@@ -182,6 +187,7 @@ __all__ = [
     # Composition root
     "RoutingError",
     "SchemaMapExpander",
+    "SchemaMapMerger",
     "SchemaValidationError",
     "SourceLocation",
     "SqlReifier",
@@ -192,5 +198,4 @@ __all__ = [
     "TranspilationWarning",
     "Transpiler",
     "TranspilerRouter",
-    "openapi_extract",
 ]

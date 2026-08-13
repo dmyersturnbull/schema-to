@@ -32,6 +32,9 @@ Supported targets:
   - `pg-jsonschema`
     Like `postgres`, plus `pg_jsonschema` `CHECK` constraints validating each
     JSON/JSONB column against its sub-schema.
+  - `json-schema`
+    OpenAPI 3.1 → one standalone `.schema.json` / `.schema.yaml` per
+    `components/schemas` entry.
   - `fastapi`
     OpenAPI 3.1 → FastAPI application module (route stubs + security wiring).
     Route bodies are filled from each operation's `x-fastapi-body` Jinja extension when present,
@@ -55,10 +58,11 @@ from schema_to.parse.json_schema import JsonSchemaMapParser, JsonSchemaParser
 from schema_to.parse.openapi import OpenApiParser
 from schema_to.pipeline import Append, Each, Flatten, Stage, Transpiler
 from schema_to.reify.json_schema import JsonSchemaReifier, OpenApiReifier
-from schema_to.reify.python import PythonModuleSetReifier, PythonReifier
+from schema_to.reify.python import PythonPackageAssembler, PythonPackageReifier, PythonReifier
 from schema_to.reify.sql import SqlReifier
-from schema_to.resolve.json_schema import JsonSchemaMapSetResolver, JsonSchemaRefResolver
-from schema_to.transpile.schema_map import SchemaMapExpander
+from schema_to.resolve.json_schema import JsonSchemaMapRefResolver, JsonSchemaRefResolver
+from schema_to.transpile.extract import OpenApiComponentExtractor
+from schema_to.transpile.schema_map import SchemaMapExpander, SchemaMapMerger
 
 __all__ = ["RoutingError", "TranspilerRouter"]
 
@@ -82,7 +86,7 @@ class TranspilerRouter:
     """Assembles the stages a target is made of into the transpilers that run it."""
 
     SUPPORTED_TARGETS: ClassVar[frozenset[str]] = frozenset(
-        {"fastapi", "pass-thru", "pydantic", "postgres", "pg-jsonschema"}
+        {"fastapi", "json-schema", "pass-thru", "pydantic", "postgres", "pg-jsonschema"}
     )
 
     def route(
@@ -137,6 +141,10 @@ class TranspilerRouter:
         match target_name:
             case "fastapi":
                 return [Transpiler(OpenApiRawDoc, self._fastapi(templates=templates, roots=roots))]
+            case "json-schema":
+                return [
+                    Transpiler(OpenApiRawDoc, self._openapi_components(output_media_type, roots))
+                ]
             case "pass-thru":
                 return [
                     Transpiler(OpenApiRawDoc, self._openapi_pass_thru(output_media_type)),
@@ -166,16 +174,17 @@ class TranspilerRouter:
             validate_json = target_name == "pg-jsonschema"
             table_set = self._postgres_table_set(validate_json=validate_json, roots=roots)
             return [Transpiler(SchemaMapRawDoc, table_set)]
-        if target_name == "fastapi":
+        if target_name in {"fastapi", "json-schema"}:
             # An OpenAPI description is not a map of named schemas, so there is nothing
-            # here for this combination to read; every document falls through unclaimed.
+            # here for these to read; every document falls through unclaimed.
             return []
         if target_name == "pass-thru":
             # Re-emitting a schema never follows a `$ref`, so there is nothing to seed.
-            emit = SchemaMapExpander(roots=roots).then(self._schema_pass_thru(output_media_type))
+            expand = Each(SchemaMapExpander(roots=roots)).then(Flatten())
+            emit = expand.then(self._schema_pass_thru(output_media_type))
             return [Transpiler(SchemaMapRawDoc, emit)]
         resolver = JsonSchemaRefResolver()
-        expand = SchemaMapExpander(resolver=resolver, roots=roots)
+        expand = Each(SchemaMapExpander(resolver=resolver, roots=roots)).then(Flatten())
         models = self._pydantic(resolver=resolver, roots=roots)
         return [Transpiler(SchemaMapRawDoc, expand.then(models))]
 
@@ -195,16 +204,24 @@ class TranspilerRouter:
         emit = OpenApiParser().then(OpenApiReifier(output_media_type=output_media_type))
         return Each(emit).then(Flatten())
 
+    def _openapi_components(
+        self, output_media_type: MediaType, roots: frozenset[str] | None
+    ) -> Stage[Sequence[OpenApiRawDoc], Sequence[JsonSchemaArtifact]]:
+        """Each `components/schemas` entry, written as a standalone JSON Schema file."""
+        emit = Each(JsonSchemaReifier(output_media_type=output_media_type)).then(Flatten())
+        per_doc = OpenApiParser().then(OpenApiComponentExtractor(roots=roots)).then(emit)
+        return Each(per_doc).then(Flatten())
+
     def _pydantic(
         self, *, resolver: JsonSchemaRefResolver, roots: frozenset[str] | None
     ) -> Stage[Sequence[JsonSchemaRawDoc], Sequence[PythonArtifact]]:
-        """One module per schema, reified as a batch so several cannot share a file name."""
+        """A module per schema, collected into the package they are written as."""
         per_schema = (
             JsonSchemaParser()
             .then(resolver)
             .then(PydanticTransformer(resolver=resolver, roots=roots))
         )
-        return Each(per_schema).then(PythonModuleSetReifier(default_name="models.py"))
+        return Each(per_schema).then(PythonPackageAssembler()).then(PythonPackageReifier())
 
     def _postgres(
         self, *, resolver: JsonSchemaRefResolver, validate_json: bool, roots: frozenset[str] | None
@@ -220,14 +237,21 @@ class TranspilerRouter:
     def _postgres_table_set(
         self, *, validate_json: bool, roots: frozenset[str] | None
     ) -> Stage[Sequence[SchemaMapRawDoc], Sequence[SqlArtifact]]:
-        """One migration for the whole set: an ordering needs every table to be known."""
-        resolver = JsonSchemaRefResolver()
+        """One migration for the whole set: an ordering needs every table to be known.
+
+        Registration and validation are separate passes over the batch because a `$ref`
+        into a sibling file cannot resolve until that file is registered, and the files
+        are read in whatever order the directory gives.
+        """
+        maps = JsonSchemaMapRefResolver(inner=JsonSchemaRefResolver())
         return (
             Each(JsonSchemaMapParser())
-            .then(JsonSchemaMapSetResolver(resolver=resolver))
+            .then(Each(maps.registering()))
+            .then(Each(maps))
+            .then(SchemaMapMerger())
             .then(
                 PostgresTableSetTransformer(
-                    resolver=resolver, validate_json=validate_json, roots=roots
+                    resolver=maps.inner, validate_json=validate_json, roots=roots
                 )
             )
             .then(SqlReifier(artifact_name="schema.sql"))
@@ -240,7 +264,7 @@ class TranspilerRouter:
         per_doc = (
             OpenApiParser()
             .then(FastApiTransformer(body_backend=backend, roots=roots))
-            .then(PythonReifier(artifact_id="main.py"))
+            .then(PythonReifier())
         )
         # The support modules belong to the run rather than to any one document, so
         # they are appended once the batch is reified rather than once per document.

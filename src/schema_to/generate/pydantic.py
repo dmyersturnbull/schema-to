@@ -174,12 +174,24 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
         imports = _build_imports(declarations)
         return Ok(
             PythonModule(
+                name=_module_name(input),
                 imports=imports,
                 declarations=declarations,
                 source_ids=(input.source_id,),
-                display_name=input.display_name,
             )
         )
+
+
+def _module_name(doc: JsonSchemaDocument) -> str:
+    """Name the module after the document, then the source ID's last segment.
+
+    Unlike the root class, the module is not named after `title`: a title describes
+    the schema, whereas the file the models land in is the document they came from,
+    and two documents titled alike would otherwise write one file.
+    """
+    if doc.display_name:
+        return safe_python_field_name(doc.display_name)
+    return safe_python_field_name(doc.source_id.rstrip("/").rsplit("/", 1)[-1])
 
 
 def _root_class_name(doc: JsonSchemaDocument) -> str:

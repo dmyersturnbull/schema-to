@@ -10,7 +10,7 @@ The output style is:
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import override
 
 from schema_to.ast.python import (
@@ -22,18 +22,18 @@ from schema_to.ast.python import (
     Parameter,
     PythonDocString,
     PythonModule,
+    PythonPackage,
     PythonTypeAnnotation,
     SimpleImport,
     TypeAliasDef,
     VarDef,
 )
-from schema_to.errors import ReificationError, TranspilationError
-from schema_to.generate._names import safe_python_field_name
+from schema_to.errors import ReificationError
 from schema_to.io.sink import PythonArtifact
-from schema_to.pipeline import Reifier
+from schema_to.pipeline import Each, Flatten, Reducer, Reifier, Stage
 from schema_to.result import Err, Ok, Result
 
-__all__ = ["PythonModuleSetReifier", "PythonReifier"]
+__all__ = ["PythonPackageAssembler", "PythonPackageReifier", "PythonReifier"]
 
 _INDENT = "    "
 
@@ -42,11 +42,9 @@ _INDENT = "    "
 class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     """Serialise a `PythonModule` AST to a single `.py` `Artifact`.
 
-    Attributes:
-        artifact_id: Base file name for the output artifact (e.g. `"models.py"`).
+    The file is named after the module, which is the only name it could be: two
+    modules written side by side must differ, and only the module knows what it is of.
     """
-
-    artifact_id: str
 
     @override
     def apply(self, input: PythonModule) -> Result[Sequence[PythonArtifact]]:
@@ -57,7 +55,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
         return Ok(
             [
                 PythonArtifact(
-                    artifact_id=self.artifact_id,
+                    artifact_id=f"{input.name}.py",
                     content=source.encode("utf-8"),
                     source_ids=input.source_ids,
                 )
@@ -256,35 +254,29 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
 
 
 @dataclass(frozen=True, slots=True)
-class PythonModuleSetReifier(Reifier[Sequence[PythonModule], PythonArtifact]):
-    """Serialises a batch of modules, naming each file so the batch does not collide.
-
-    One module keeps `default_name`, which is what a caller transpiling one schema
-    asked for.  Several cannot all keep it: they would overwrite one another in the
-    sink, leaving whichever ran last.  So each is named after the document it came
-    from, falling back to `default_name` for a document that had no name.
-
-    Attributes:
-        default_name: File name for a lone module, and the fallback for an unnamed one.
-    """
-
-    default_name: str = "models.py"
+class PythonPackageAssembler(Reducer[PythonModule, PythonPackage]):
+    """Collects the modules a run generated into the package they are written as."""
 
     @override
-    def apply(self, input: Sequence[PythonModule]) -> Result[Sequence[PythonArtifact]]:
-        artifacts: list[PythonArtifact] = []
-        errors: list[TranspilationError] = []
-        for module in input:
-            result = PythonReifier(artifact_id=self._name_for(module, len(input))).apply(module)
-            if isinstance(result, Err):
-                errors.extend(result.errors)
-            else:
-                artifacts.extend(result.value)
-        if errors:
-            return Err(tuple(errors))
-        return Ok(artifacts)
+    def apply(self, input: Sequence[PythonModule]) -> Result[PythonPackage]:
+        source_ids = tuple(dict.fromkeys(sid for module in input for sid in module.source_ids))
+        return Ok(PythonPackage(modules=list(input), source_ids=source_ids))
 
-    def _name_for(self, module: PythonModule, batch_size: int) -> str:
-        if batch_size < 2 or not module.display_name:
-            return self.default_name
-        return f"{safe_python_field_name(module.display_name)}.py"
+
+@dataclass(frozen=True, slots=True)
+class PythonPackageReifier(Reifier[PythonPackage, PythonArtifact]):
+    """Serialises every module of a package, one `.py` artifact each.
+
+    Attributes:
+        modules: How each module is reified and the results concatenated.  The default
+            is `PythonReifier` over the batch; a caller wanting a different per-module
+            reifier composes one rather than subclassing this.
+    """
+
+    modules: Stage[Sequence[PythonModule], Sequence[PythonArtifact]] = field(
+        default_factory=lambda: Each(PythonReifier()).then(Flatten())
+    )
+
+    @override
+    def apply(self, input: PythonPackage) -> Result[Sequence[PythonArtifact]]:
+        return self.modules.apply(input.modules)

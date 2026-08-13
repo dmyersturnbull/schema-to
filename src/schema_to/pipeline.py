@@ -63,9 +63,11 @@ __all__ = [
     "Append",
     "DocParser",
     "Each",
+    "Expander",
     "Flatten",
     "Pipeline",
     "ProcessSummary",
+    "Reducer",
     "RefResolver",
     "Reifier",
     "Stage",
@@ -186,6 +188,52 @@ class _RecoverStage[X, Y](Stage[X, Y]):
         return self.first.warnings
 
 
+class _RegisteringStage[C: CstNode](Stage[C, C]):
+    """Internal: result of `RefResolver.registering()`."""
+
+    def __init__(self, /, resolver: RefResolver[C]) -> None:
+        self.resolver = resolver
+
+    @override
+    def apply(self, /, input: C) -> Result[C]:
+        self.resolver.register(input)
+        return Ok(input)
+
+
+# ---------------------------------------------------------------------------
+# Cardinality kinds
+# ---------------------------------------------------------------------------
+
+
+class Expander[X, Y](Stage[X, Sequence[Y]]):
+    """A stage that produces many outputs from one input.
+
+    The dual of `Reducer`, and the Kleisli arrow of the list monad: `X → Result[[Y]]`.
+    `Each(e).then(Flatten())` lifts one over a batch, mapping and then joining.
+
+    Splitting a schema-map file into its named schemas is one, and so is reifying an
+    AST root into the several files it describes — `Reifier` is the specialisation of
+    this kind whose outputs are artifacts.
+    """
+
+    @abstractmethod
+    def apply(self, input: X) -> Result[Sequence[Y]]:
+        raise NotImplementedError
+
+
+class Reducer[X, Y](Stage[Sequence[X], Y]):
+    """A stage that produces one output from many inputs.
+
+    The dual of `Expander`, and a fold over the batch.  It is the only kind that can
+    express an output the whole set determines: a migration whose foreign keys cannot
+    be ordered until every table is known has no per-document formulation.
+    """
+
+    @abstractmethod
+    def apply(self, input: Sequence[X]) -> Result[Y]:
+        raise NotImplementedError
+
+
 # ---------------------------------------------------------------------------
 # Batch combinators
 # ---------------------------------------------------------------------------
@@ -228,8 +276,13 @@ class Each[X, Y](Stage[Sequence[X], Sequence[Y]]):
 
 @final
 @dataclass(frozen=True, slots=True)
-class Flatten[Y](Stage[Sequence[Sequence[Y]], Sequence[Y]]):
-    """Concatenates the batches produced by `Each` over a stage that yields several items."""
+class Flatten[Y](Reducer[Sequence[Y], Sequence[Y]]):
+    """Concatenates the batches produced by `Each` over an `Expander`.
+
+    `Each(e)` where `e` is an `Expander` gives a batch of batches; this is the join
+    that flattens it back to one, so `Each(e).then(Flatten())` is an expansion lifted
+    over a whole batch.
+    """
 
     @override
     def apply(self, /, input: Sequence[Sequence[Y]]) -> Result[Sequence[Y]]:
@@ -299,6 +352,17 @@ class RefResolver[C: CstNode](Stage[C, C]):
         """Add a parsed CST to the resolution registry."""
         raise NotImplementedError
 
+    def registering(self) -> Stage[C, C]:
+        """Return a stage that registers each document and passes it through unchanged.
+
+        Registration and validation are separate passes because a reference may point
+        from any document in a set into any other: checking one before the last is
+        registered would fail on a forward reference.  Splitting them into two stages
+        is what lets a caller write `Each(r.registering()).then(Each(r))` and get the
+        two passes in the right order, without a class that hard-codes both.
+        """
+        return _RegisteringStage(self)
+
 
 class Transformer[C: CstNode, A: AstNode](Stage[C, A]):
     """Transforms a resolved `CstT` into a target-language `AstT`.
@@ -320,7 +384,7 @@ class Transformer[C: CstNode, A: AstNode](Stage[C, A]):
         raise NotImplementedError
 
 
-class Reifier[X, O: Artifact](Stage[X, Sequence[O]]):
+class Reifier[X, O: Artifact](Expander[X, O]):
     """Serialises a generated root node into one or more `Artifact`s.
 
     The input is normally an AST root (`PythonModule`, `SqlScript`),
@@ -328,7 +392,8 @@ class Reifier[X, O: Artifact](Stage[X, Sequence[O]]):
 
     A single root typically produces one artifact,
     but a reifier may split output across multiple files
-    (e.g. one `.py` per top-level class, or a `.sql` plus a `.ts` twin).
+    (e.g. one `.py` per module of a package, or a `.sql` plus a `.ts` twin),
+    which is why this is an `Expander` rather than a plain one-to-one stage.
     """
 
     @abstractmethod

@@ -42,11 +42,11 @@ from schema_to.generate._pg_keywords import (
     read_table_keywords,
 )
 from schema_to.generate.sql import ColumnBuilder
-from schema_to.pipeline import Stage
+from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Mapping
     from collections.abc import Set as AbstractSet
 
     from schema_to.core import JsonValue
@@ -87,8 +87,17 @@ class TableSpec:
 
 
 @dataclass
-class PostgresTableSetTransformer(Stage[Sequence[JsonSchemaMapDocument], SqlScript]):
-    """Generates one `SqlScript` from every `x-pg-table` schema across several documents.
+class PostgresTableSetTransformer(Transformer[JsonSchemaMapDocument, SqlScript]):
+    """Generates one `SqlScript` from every `x-pg-table` schema in a map document.
+
+    The input is one document because the set was already folded into one by
+    `SchemaMapMerger`: a migration needs every table at once — foreign keys have no
+    ordering until they do — but *collecting* the set is not this generator's job, and
+    a table set built from a single file is the same problem as one built from twenty.
+
+    Each schema is flattened against the file it was written in rather than against
+    the document holding it, which is what keeps a merged set's references working:
+    `#/other` in a file means that file's `other`, wherever the schema ends up.
 
     Attributes:
         resolver: Resolves `$ref` across the document set.  Register every document
@@ -110,14 +119,14 @@ class PostgresTableSetTransformer(Stage[Sequence[JsonSchemaMapDocument], SqlScri
         return list(self._warnings)
 
     @override
-    def apply(self, input: Sequence[JsonSchemaMapDocument]) -> Result[SqlScript]:
+    def apply(self, input: JsonSchemaMapDocument) -> Result[SqlScript]:
         self._warnings.clear()
         try:
             return Ok(self._apply(input))
         except GenerationError as exc:
             return Err((exc,))
 
-    def _apply(self, input: Sequence[JsonSchemaMapDocument]) -> SqlScript:
+    def _apply(self, input: JsonSchemaMapDocument) -> SqlScript:
         specs = self._collect(input)
         _reject_duplicate_names(specs)
         self._check_reference_targets(specs)
@@ -129,7 +138,7 @@ class PostgresTableSetTransformer(Stage[Sequence[JsonSchemaMapDocument], SqlScri
         preamble = "CREATE EXTENSION IF NOT EXISTS pg_jsonschema;" if self.validate_json else None
         return SqlScript(
             statements=(*tables, *indexes),
-            source_ids=tuple(doc.source_id for doc in input),
+            source_ids=tuple(dict.fromkeys(spec.source_id for spec in ordered)),
             preamble=preamble,
         )
 
@@ -137,16 +146,15 @@ class PostgresTableSetTransformer(Stage[Sequence[JsonSchemaMapDocument], SqlScri
     # Selection
     # ------------------------------------------------------------------
 
-    def _collect(self, docs: Iterable[JsonSchemaMapDocument]) -> list[TableSpec]:
+    def _collect(self, doc: JsonSchemaMapDocument) -> list[TableSpec]:
         """Return a spec for every schema marked with `x-pg-table`, in document order."""
         specs: list[TableSpec] = []
-        for doc in docs:
-            for name, schema in doc.schemas.items():
-                if self.roots is not None and name not in self.roots:
-                    continue
-                spec = self._as_spec(name, schema, source_id=doc.source_id)
-                if spec is not None:
-                    specs.append(spec)
+        for name, schema in doc.schemas.items():
+            if self.roots is not None and name not in self.roots:
+                continue
+            spec = self._as_spec(name, schema, source_id=_origin_of(schema, doc))
+            if spec is not None:
+                specs.append(spec)
         return specs
 
     def _as_spec(self, name: str, schema: JsonSchema, *, source_id: str) -> TableSpec | None:
@@ -378,6 +386,13 @@ def _with_columns(request: IndexRequest, columns: tuple[str, ...]) -> IndexReque
 # ---------------------------------------------------------------------------
 # Ordering
 # ---------------------------------------------------------------------------
+
+
+def _origin_of(schema: JsonSchema, doc: JsonSchemaMapDocument) -> str:
+    """Return the file a schema was written in, which its references resolve against."""
+    if schema.source_ref is not None:
+        return schema.source_ref.source_id
+    return doc.source_id
 
 
 def _reject_duplicate_names(specs: Sequence[TableSpec]) -> None:

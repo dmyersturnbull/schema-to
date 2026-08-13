@@ -42,12 +42,7 @@ class JsonSchemaReifier(Reifier[JsonSchemaDocument, JsonSchemaArtifact]):
 
     @override
     def apply(self, input: JsonSchemaDocument) -> Result[Sequence[JsonSchemaArtifact]]:
-        filename, artifact_cls = choose_output(
-            source_id=input.source_id,
-            display_name=input.display_name,
-            output_media_type=self.output_media_type,
-            kind="schema",
-        )
+        filename, artifact_cls = choose_output(input, self.output_media_type, kind="schema")
         data = self.serializer.serialize_document(input)
         content = self.writer.write_bytes(data, artifact_cls.media_type)
         artifact = artifact_cls(
@@ -72,12 +67,7 @@ class OpenApiReifier(Reifier[OpenApiDocument, OpenApiArtifact]):
 
     @override
     def apply(self, input: OpenApiDocument) -> Result[Sequence[OpenApiArtifact]]:
-        filename, artifact_cls = choose_output(
-            source_id=input.source_id or "",
-            display_name=input.display_name,
-            output_media_type=self.output_media_type,
-            kind="openapi",
-        )
+        filename, artifact_cls = choose_output(input, self.output_media_type, kind="openapi")
         data = self.serializer.serialize(input)
         content = self.writer.write_bytes(data, artifact_cls.media_type)
         artifact = artifact_cls(

@@ -62,7 +62,7 @@ def _parse_and_generate(data: object) -> str:
     assert isinstance(ast_r, Ok), (
         f"Generation failed: {[getattr(e, 'message', str(e)) for e in ast_r.errors]}"
     )
-    reify_r = PythonReifier(artifact_id="models.py").apply(ast_r.value)
+    reify_r = PythonReifier().apply(ast_r.value)
     assert isinstance(reify_r, Ok)
     return reify_r.value[0].content.decode("utf-8")
 

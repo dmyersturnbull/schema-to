@@ -1,41 +1,39 @@
 """Lifting the component schemas out of an OpenAPI document, as standalone schemas.
 
-The stage's output is a JSON Schema document per `components/schemas` entry, which is
-what the JSON Schema reifier writes and what any JSON-Schema-shaped target consumes.
-Composing it in front of one of those is what turns "extract the schemas" into a
-target, which is all `openapi_extract` does.
-
-This target is not reachable from `--to`, so it is assembled here rather than in
-`transpile.factory`; it stands as the worked example of building a `Transpiler` out of
-stages by hand.
+The output is a JSON Schema document per `components/schemas` entry — the same thing
+a JSON Schema file parses to — so anything that reads JSON Schema reads these.
+Composing this in front of the JSON Schema reifier is the `json-schema` target;
+composing it in front of a generator would be an OpenAPI-driven Pydantic or SQL target,
+which is why it is a stage of its own rather than a step inside one.
 """
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, override
+from dataclasses import dataclass
+from typing import override
 
 from schema_to.cst.base import SourceRef
 from schema_to.cst.json_schema import JsonSchemaDocument
 from schema_to.cst.openapi import OpenApiDocument
-from schema_to.io.sink import JsonSchemaArtifact
-from schema_to.io.source import OpenApiRawDoc
-from schema_to.parse.openapi import OpenApiParser
-from schema_to.pipeline import Each, Flatten, Stage, Transpiler
-from schema_to.reify.json_schema import JsonSchemaReifier
+from schema_to.pipeline import Expander
 from schema_to.result import Ok, Result
 
-if TYPE_CHECKING:
-    from schema_to.io.media_type import MediaType
-
-__all__ = ["OpenApiComponentExtractor", "openapi_extract"]
+__all__ = ["OpenApiComponentExtractor"]
 
 
-class OpenApiComponentExtractor(Stage[OpenApiDocument, Sequence[JsonSchemaDocument]]):
+@dataclass(frozen=True, slots=True)
+class OpenApiComponentExtractor(Expander[OpenApiDocument, JsonSchemaDocument]):
     """Yields one standalone JSON Schema document per `components/schemas` entry.
 
-    Each carries the entry's name as its display name, which is what the reifier
+    Each carries the entry's name as its display name, which is what a reifier
     downstream names the file after, and a `SourceRef` back to the position it was
     lifted from, so a diagnostic can still point into the original document.
+
+    Attributes:
+        roots: If given, only components named here are lifted out. `None` lifts every
+            one.
     """
+
+    roots: frozenset[str] | None = None
 
     @override
     def apply(self, input: OpenApiDocument) -> Result[Sequence[JsonSchemaDocument]]:
@@ -49,20 +47,6 @@ class OpenApiComponentExtractor(Stage[OpenApiDocument, Sequence[JsonSchemaDocume
                     source_ref=SourceRef(source_id, f"/components/schemas/{name}"),
                 )
                 for name, schema in input.components.schemas.items()
+                if self.roots is None or name in self.roots
             ]
         )
-
-
-def openapi_extract(
-    output_media_type: MediaType | None = None,
-) -> Transpiler[OpenApiRawDoc, JsonSchemaArtifact]:
-    """Build a transpiler writing each OpenAPI `components/schemas` entry to its own file.
-
-    Each artifact is named `<schema-name>.schema.json` (or `.yaml`).
-    """
-    per_doc = (
-        OpenApiParser()
-        .then(OpenApiComponentExtractor())
-        .then(Each(JsonSchemaReifier(output_media_type=output_media_type)).then(Flatten()))
-    )
-    return Transpiler(OpenApiRawDoc, Each(per_doc).then(Flatten()))

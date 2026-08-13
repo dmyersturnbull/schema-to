@@ -125,3 +125,16 @@ def test_pg_jsonschema_check_has_no_unresolved_refs() -> None:
     # pg_jsonschema cannot fetch a remote ref, so none may survive into the check.
     assert "$ref" not in sql
     assert "^2" in sql
+
+
+def test_one_schema_name_may_not_be_used_in_two_files() -> None:
+    """A set of schema-map files is one namespace, so the merge has to reject a clash."""
+    first = _doc({"thing": {"type": "object", "x-pg-table": "a"}}, "first")
+    second = _doc({"thing": {"type": "object", "x-pg-table": "b"}}, "second")
+    transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
+    result = transpiler.transpile_all([first, second])
+    assert isinstance(result, Err)
+    [error] = result.errors
+    assert "thing" in error.message
+    assert "first.yaml" in error.message
+    assert "second.yaml" in error.message

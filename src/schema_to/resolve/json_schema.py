@@ -18,7 +18,6 @@ after `apply` has confirmed the document is valid.
 """
 
 import urllib.parse
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, override
 
@@ -34,7 +33,7 @@ from schema_to.cst.json_schema import (
     ObjectSchema,
 )
 from schema_to.errors import ResolutionError, SourceLocation, TranspilationError
-from schema_to.pipeline import RefResolver, Stage
+from schema_to.pipeline import RefResolver
 from schema_to.resolve._resolver import Resolver
 from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
@@ -42,7 +41,7 @@ from schema_to.serialize.json_schema import JsonSchemaSerializer
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-__all__ = ["JsonSchemaMapSetResolver", "JsonSchemaRefResolver"]
+__all__ = ["JsonSchemaMapRefResolver", "JsonSchemaRefResolver"]
 
 
 def _escape(name: str) -> str:
@@ -349,33 +348,25 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
 
 
 @dataclass(frozen=True, slots=True)
-class JsonSchemaMapSetResolver(
-    Stage[Sequence[JsonSchemaMapDocument], Sequence[JsonSchemaMapDocument]]
-):
-    """Registers a whole set of schema-map documents, then validates their references.
+class JsonSchemaMapRefResolver(RefResolver[JsonSchemaMapDocument]):
+    """The schema-map face of a `JsonSchemaRefResolver`.
 
-    The two passes are what make the set the unit rather than each file: a `$ref` into
-    a sibling cannot resolve until that sibling is registered, so checking during
-    registration would fail on any forward reference to a file that happens to sort
-    later.
+    A `JsonSchemaRefResolver` indexes both kinds of document into one registry, which
+    is what lets a reference cross between them; this exposes its map half as an
+    ordinary `RefResolver`, so a set of map documents registers and validates through
+    the same two-pass composition as any other:
 
-    The documents are returned unchanged; what the stage produces is the populated
-    resolver, which whatever generates from these documents must be given too.
+    ```python
+    Each(maps.registering()).then(Each(maps))
+    ```
     """
 
-    resolver: JsonSchemaRefResolver
+    inner: JsonSchemaRefResolver
 
     @override
-    def apply(
-        self, input: Sequence[JsonSchemaMapDocument]
-    ) -> Result[Sequence[JsonSchemaMapDocument]]:
-        for document in input:
-            self.resolver.register_map(document)
-        errors: list[TranspilationError] = []
-        for document in input:
-            result = self.resolver.apply_map(document)
-            if isinstance(result, Err):
-                errors.extend(result.errors)
-        if errors:
-            return Err(tuple(errors))
-        return Ok(input)
+    def register(self, cst: JsonSchemaMapDocument) -> None:
+        self.inner.register_map(cst)
+
+    @override
+    def apply(self, input: JsonSchemaMapDocument) -> Result[JsonSchemaMapDocument]:
+        return self.inner.apply_map(input)

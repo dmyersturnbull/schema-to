@@ -434,7 +434,7 @@ def test_roots_keeps_only_named_component_schemas() -> None:
     assert isinstance(r1, Ok)
     result = transformer.apply(r1.value)
     assert isinstance(result, Ok)
-    src = PythonReifier(artifact_id="main.py").apply(result.value)
+    src = PythonReifier().apply(result.value)
     assert isinstance(src, Ok)
     content = src.value[0].content.decode("utf-8")
     assert "class Pet(BaseModel):" in content

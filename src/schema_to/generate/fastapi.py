@@ -290,6 +290,9 @@ class _GenCtx:
         imports = _build_imports(declarations, self.extra_imports)
         return Ok(
             PythonModule(
+                # A FastAPI application is entered through one module, and `main` is
+                # what every deployment recipe for one expects to import.
+                name="main",
                 imports=imports,
                 declarations=declarations,
                 source_ids=(self.doc.source_id or "",),

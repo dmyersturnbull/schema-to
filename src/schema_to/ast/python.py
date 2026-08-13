@@ -29,6 +29,7 @@ __all__ = [
     "PyImport",
     "PythonDocString",
     "PythonModule",
+    "PythonPackage",
     "PythonTypeAnnotation",
     "SimpleImport",
     "TypeAliasDef",
@@ -311,17 +312,37 @@ type PyDeclaration = TypeAliasDef | ClassDef | FunctionDef | VarDef
 class PythonModule(AstNode):
     """The root node of a Python output file.
 
+    A module has a name for the same reason an imported one does: it is the identity
+    the file is written under, and two modules in a package cannot share it.  Deciding
+    it belongs to whatever generates the module, which is the only thing that knows
+    what the module is *of*; the reifier only spells it as a file name.
+
     Attributes:
+        name: Module name, without the `.py` suffix, as a Python identifier.
         imports: Import statements, emitted before any declarations.
         declarations: Top-level declarations in emission order.
         source_ids: Source `RawDoc` identifiers that produced this module.
         module_doc: Module-level docstring.
-        display_name: Short name of the document this module was generated from.
-            It is what the file is named after when one name will not do for the batch.
     """
 
+    name: str
     imports: Sequence[PyImport] = field(default_factory=list)
     declarations: Sequence[PyDeclaration] = field(default_factory=list)
     source_ids: tuple[str, ...] = ()
     module_doc: str | None = None
-    display_name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PythonPackage(AstNode):
+    """A set of Python modules written together.
+
+    The unit a run of several schemas produces, and the reason module names have to
+    be distinct: the modules land side by side, so two of one name would be one file.
+
+    Attributes:
+        modules: The modules, in emission order.
+        source_ids: Source `RawDoc` identifiers that produced this package.
+    """
+
+    modules: Sequence[PythonModule]
+    source_ids: tuple[str, ...] = ()

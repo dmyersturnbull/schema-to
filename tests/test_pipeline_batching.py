@@ -119,9 +119,8 @@ def test_schema_map_expands_to_one_document_per_named_schema() -> None:
         media_type=MediaTypes.json,
         display_name="catalog",
     )
-    expanding = Transpiler(
-        SchemaMapRawDoc, SchemaMapExpander().then(Each(_OneArtifact()).then(Flatten()))
-    )
+    expand = Each(SchemaMapExpander()).then(Flatten())
+    expanding = Transpiler(SchemaMapRawDoc, expand.then(Each(_OneArtifact()).then(Flatten())))
     sink = _run([doc], [expanding])
     assert {a.artifact_id for a in sink.artifacts} == {"a-data.json", "b-data.json"}
 
@@ -133,7 +132,7 @@ def test_expanded_document_ids_name_the_file_and_the_schema() -> None:
         content=orjson.dumps({"a-data": {"type": "object"}}),
         media_type=MediaTypes.json,
     )
-    expanded = SchemaMapExpander().apply([doc])
+    expanded = SchemaMapExpander().apply(doc)
     assert isinstance(expanded, Ok)
     [virtual] = expanded.value
     assert virtual.doc_id == "file:///catalog.yaml#/a-data"
@@ -178,10 +177,9 @@ def test_roots_expands_only_named_schemas_but_siblings_still_resolve() -> None:
     )
     result = transpiler.transpile_all([doc])
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    # `stamp` was filtered out, so only one virtual document remains — named
-    # `models.py`, the configured default, since disambiguating names only kicks
-    # in for a batch of more than one.
-    assert {a.artifact_id for a in result.value} == {"models.py"}
+    # `stamp` was filtered out, so only `thing` becomes a virtual document — and so
+    # only its module is written, even though `stamp` still resolved.
+    assert {a.artifact_id for a in result.value} == {"thing.py"}
 
 
 def test_expansion_without_a_resolver_seeds_nothing() -> None:
@@ -191,10 +189,10 @@ def test_expansion_without_a_resolver_seeds_nothing() -> None:
         content=orjson.dumps({"a": {"type": "object"}}),
         media_type=MediaTypes.json,
     )
-    assert isinstance(SchemaMapExpander().apply([doc]), Ok)
+    assert isinstance(SchemaMapExpander().apply(doc), Ok)
 
 
-def test_one_document_keeps_the_configured_artifact_name() -> None:
+def test_a_module_is_named_after_its_document() -> None:
     doc = JsonSchemaRawDoc(
         doc_id="test://a",
         content=orjson.dumps({"type": "object"}),
@@ -203,7 +201,7 @@ def test_one_document_keeps_the_configured_artifact_name() -> None:
     )
     result = transpiler_for("pydantic").transpile_all([doc])
     assert isinstance(result, Ok)
-    assert [a.artifact_id for a in result.value] == ["models.py"]
+    assert [a.artifact_id for a in result.value] == ["thing.py"]
 
 
 def test_several_documents_are_named_apart() -> None:
