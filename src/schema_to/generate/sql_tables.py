@@ -92,10 +92,14 @@ class PostgresTableSetTransformer:
         resolver: Resolves `$ref` across the document set.  Register every document
             with it before generating, or references between files will not resolve.
         validate_json: Emit `pg_jsonschema` `CHECK` constraints for JSON columns.
+        roots: If given, only schemas named here are considered for a table, even if
+            marked `x-pg-table`; unnamed ones are still available for `$ref`
+            resolution. `None` considers every schema, as before.
     """
 
     resolver: JsonSchemaRefResolver | None = None
     validate_json: bool = False
+    roots: frozenset[str] | None = None
     _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
 
     @property
@@ -134,6 +138,8 @@ class PostgresTableSetTransformer:
         specs: list[TableSpec] = []
         for doc in docs:
             for name, schema in doc.schemas.items():
+                if self.roots is not None and name not in self.roots:
+                    continue
                 spec = self._as_spec(name, schema, source_id=doc.source_id)
                 if spec is not None:
                     specs.append(spec)

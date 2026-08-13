@@ -35,6 +35,7 @@ class JsonSchemaToPydanticTranspiler(Transpiler[JsonSchemaRawDoc, PythonArtifact
     generator: PydanticTransformer = field(default_factory=PydanticTransformer)
     reifier: PythonReifier = field(default_factory=lambda: PythonReifier(artifact_id="models.py"))
     output_name: str = "models.py"
+    roots: frozenset[str] | None = None
 
     @override
     @property
@@ -74,7 +75,7 @@ class JsonSchemaToPydanticTranspiler(Transpiler[JsonSchemaRawDoc, PythonArtifact
         if isinstance(r2, Err):
             return r2
         # Stage 3: generate
-        gen = PydanticTransformer(resolver=self.resolver)
+        gen = PydanticTransformer(resolver=self.resolver, roots=self.roots)
         r3 = gen.apply(r2.value)
         if isinstance(r3, Err):
             return r3

@@ -13,6 +13,7 @@ import pytest
 
 from schema_to.errors import GenerationError
 from schema_to.generate._pg_keywords import read_property_keywords, read_table_keywords
+from schema_to.generate.sql_tables import PostgresTableSetTransformer
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import SchemaMapRawDoc
 from schema_to.result import Err, Ok
@@ -78,6 +79,19 @@ def test_only_marked_schemas_become_tables() -> None:
     sql = _sql(_doc({"thing-data": _THING, "thing-patch": {"type": "object"}}))
     assert "CREATE TABLE IF NOT EXISTS thing (" in sql
     assert "thing_patch" not in sql
+
+
+def test_roots_narrows_marked_schemas_considered_for_a_table() -> None:
+    """`roots` further restricts the `x-pg-table` selection to named schemas."""
+    other = {"type": "object", "x-pg-table": "other", "properties": {"id": {"type": "string"}}}
+    transpiler = SchemaMapSetToPostgresTranspiler(
+        generator=PostgresTableSetTransformer(roots=frozenset({"thing-data"}))
+    )
+    result = transpiler.transpile_all([_doc({"thing-data": _THING, "other-data": other})])
+    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
+    sql = result.value[0].content.decode("utf-8")
+    assert "CREATE TABLE IF NOT EXISTS thing (" in sql
+    assert "CREATE TABLE IF NOT EXISTS other (" not in sql
 
 
 def test_table_name_comes_from_the_keyword() -> None:

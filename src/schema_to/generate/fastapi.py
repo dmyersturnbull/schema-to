@@ -236,10 +236,14 @@ class FastApiTransformer(Transformer[OpenApiDocument, PythonModule]):
     Attributes:
         body_backend: Strategy that fills each route body.
           Defaults to `NullBodyBackend`, which leaves the reifier's `...` stub.
+        roots: If given, only `components/schemas` entries named here become their
+            own Pydantic model; the rest are still available for `$ref` resolution.
+            `None` emits every entry, as before. Routes are unaffected.
         _warnings: Accumulated non-fatal diagnostics from the most recent `apply` call.
     """
 
     body_backend: EndpointBodyBackend = field(default_factory=NullBodyBackend)
+    roots: frozenset[str] | None = None
     _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
 
     @property
@@ -248,7 +252,9 @@ class FastApiTransformer(Transformer[OpenApiDocument, PythonModule]):
 
     def apply(self, input: OpenApiDocument) -> Result[PythonModule]:
         self._warnings.clear()
-        ctx = _GenCtx(doc=input, warnings=self._warnings, body_backend=self.body_backend)
+        ctx = _GenCtx(
+            doc=input, warnings=self._warnings, body_backend=self.body_backend, roots=self.roots
+        )
         return ctx.build()
 
 
@@ -264,6 +270,7 @@ class _GenCtx:
     doc: OpenApiDocument
     warnings: list[TranspilationWarning]
     body_backend: EndpointBodyBackend
+    roots: frozenset[str] | None = None
     extra_imports: list[PyImport] = field(default_factory=list)
 
     def build(self) -> Result[PythonModule]:
@@ -295,6 +302,8 @@ class _GenCtx:
     def _generate_models(self) -> list[TypeAliasDef | ClassDef | FunctionDef | VarDef]:
         decls: list[TypeAliasDef | ClassDef | FunctionDef | VarDef] = []
         for name, schema in self.doc.components.schemas.items():
+            if self.roots is not None and name not in self.roots:
+                continue
             doc = JsonSchemaDocument(root=schema, source_id=name, display_name=name)
             transformer = PydanticTransformer()
             result = transformer.apply(doc)

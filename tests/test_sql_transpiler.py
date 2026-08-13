@@ -597,6 +597,24 @@ def test_defs_table_precedes_root() -> None:
     assert src.index("leaf") < src.index("root")
 
 
+def test_roots_keeps_only_named_defs() -> None:
+    """`roots` narrows generated `$defs` tables; the root table is unaffected."""
+    schema = {
+        "type": "object",
+        "title": "Root",
+        "$defs": {"Kept": {"type": "object"}, "Dropped": {"type": "object"}},
+    }
+    transpiler = JsonSchemaToPostgresTranspiler(
+        generator=PostgresTransformer(roots=frozenset({"Kept"}))
+    )
+    result = transpiler.transpile(_doc(schema))
+    assert isinstance(result, Ok)
+    src = result.value[0].content.decode("utf-8")
+    assert "CREATE TABLE IF NOT EXISTS kept" in src
+    assert "CREATE TABLE IF NOT EXISTS dropped" not in src
+    assert "CREATE TABLE IF NOT EXISTS root" in src
+
+
 # ---------------------------------------------------------------------------
 # COMMENT ON emission
 # ---------------------------------------------------------------------------

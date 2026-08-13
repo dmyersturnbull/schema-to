@@ -82,18 +82,30 @@ class TranspilerRouter:
         output_media_type: MediaType,
         *,
         templates: Mapping[str, str] | None = None,
+        roots: frozenset[str] | None = None,
     ) -> Sequence[Transpiler]:
         """Return the transpilers for target `target_name`, reading schema-map documents.
 
         A schema map is a set of schemas, so each target is met on its own terms: one
         that treats the whole set as the unit consumes it directly, and one whose unit
         is a single schema is wrapped so it sees the schemas one at a time.
+
+        Args:
+            roots: If given, only schemas named here are transpiled; the rest are
+                still available for `$ref` resolution. `None` transpiles every
+                schema, as before.
         """
         if target_name in _TABLE_SET_TARGETS:
-            generator = PostgresTableSetTransformer(validate_json=target_name == "pg-jsonschema")
+            generator = PostgresTableSetTransformer(
+                validate_json=target_name == "pg-jsonschema", roots=roots
+            )
             return [SchemaMapSetToPostgresTranspiler(generator=generator)]
-        inner = self.route(target_name, output_media_type, templates=templates)
-        return [SchemaMapExpandingTranspiler(inner=t) for t in inner if _takes_json_schema(t)]
+        inner = self.route(target_name, output_media_type, templates=templates, roots=roots)
+        return [
+            SchemaMapExpandingTranspiler(inner=t, roots=roots)
+            for t in inner
+            if _takes_json_schema(t)
+        ]
 
     def route(
         self,
@@ -101,6 +113,7 @@ class TranspilerRouter:
         output_media_type: MediaType,
         *,
         templates: Mapping[str, str] | None = None,
+        roots: frozenset[str] | None = None,
     ) -> Sequence[Transpiler]:
         """Return the ordered list of transpilers for target `to`.
 
@@ -109,6 +122,10 @@ class TranspilerRouter:
             output_media_type: Media type for re-emitted schema sources.
             templates: Named endpoint-body Jinja templates (`fastapi` target),
                 registered from the CLI's `--template <name>=<path>`.
+            roots: If given, restricts which named schema nodes become their own
+                artifact — a `$defs` entry (JSON Schema) or a `components/schemas`
+                entry (OpenAPI). Unnamed schemas remain available for `$ref`
+                resolution. `None` generates every one, as before.
 
         Raises:
             RoutingError: If `target_name` is not recognized or supported.
@@ -117,7 +134,9 @@ class TranspilerRouter:
             case "fastapi":
                 backend = TemplateBodyBackend(named_templates=templates or {})
                 return [
-                    OpenApiToFastApiTranspiler(generator=FastApiTransformer(body_backend=backend))
+                    OpenApiToFastApiTranspiler(
+                        generator=FastApiTransformer(body_backend=backend, roots=roots)
+                    )
                 ]
             case "pass-thru":
                 return [
@@ -125,13 +144,13 @@ class TranspilerRouter:
                     JsonSchemaPassThruTranspiler(output_media_type=output_media_type),
                 ]
             case "pydantic":
-                return [JsonSchemaToPydanticTranspiler()]
+                return [JsonSchemaToPydanticTranspiler(roots=roots)]
             case "postgres":
-                return [JsonSchemaToPostgresTranspiler()]
+                return [JsonSchemaToPostgresTranspiler(generator=PostgresTransformer(roots=roots))]
             case "pg-jsonschema":
                 return [
                     JsonSchemaToPostgresTranspiler(
-                        generator=PostgresTransformer(validate_json=True)
+                        generator=PostgresTransformer(validate_json=True, roots=roots)
                     )
                 ]
             case _:
