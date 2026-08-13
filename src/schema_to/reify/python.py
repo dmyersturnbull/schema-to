@@ -9,8 +9,9 @@ The output style is:
 - Fields as `name: Annotation` or `name: Annotation = default`
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import override
 
 from schema_to.ast.python import (
     ClassDef,
@@ -26,15 +27,13 @@ from schema_to.ast.python import (
     TypeAliasDef,
     VarDef,
 )
-from schema_to.errors import ReificationError
+from schema_to.errors import ReificationError, TranspilationError
+from schema_to.generate._names import safe_python_field_name
 from schema_to.io.sink import PythonArtifact
 from schema_to.pipeline import Reifier
 from schema_to.result import Err, Ok, Result
 
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-
-__all__ = ["PythonReifier"]
+__all__ = ["PythonModuleSetReifier", "PythonReifier"]
 
 _INDENT = "    "
 
@@ -49,6 +48,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
 
     artifact_id: str
 
+    @override
     def apply(self, input: PythonModule) -> Result[Sequence[PythonArtifact]]:
         try:
             source = self._emit_module(input)
@@ -253,3 +253,38 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     # ruff:ignore[unused-method-argument]  # Defined for overriding.
     def _emit_method_stub(self, m: FunctionDef) -> list[str]:
         return ["pass"]
+
+
+@dataclass(frozen=True, slots=True)
+class PythonModuleSetReifier(Reifier[Sequence[PythonModule], PythonArtifact]):
+    """Serialises a batch of modules, naming each file so the batch does not collide.
+
+    One module keeps `default_name`, which is what a caller transpiling one schema
+    asked for.  Several cannot all keep it: they would overwrite one another in the
+    sink, leaving whichever ran last.  So each is named after the document it came
+    from, falling back to `default_name` for a document that had no name.
+
+    Attributes:
+        default_name: File name for a lone module, and the fallback for an unnamed one.
+    """
+
+    default_name: str = "models.py"
+
+    @override
+    def apply(self, input: Sequence[PythonModule]) -> Result[Sequence[PythonArtifact]]:
+        artifacts: list[PythonArtifact] = []
+        errors: list[TranspilationError] = []
+        for module in input:
+            result = PythonReifier(artifact_id=self._name_for(module, len(input))).apply(module)
+            if isinstance(result, Err):
+                errors.extend(result.errors)
+            else:
+                artifacts.extend(result.value)
+        if errors:
+            return Err(tuple(errors))
+        return Ok(artifacts)
+
+    def _name_for(self, module: PythonModule, batch_size: int) -> str:
+        if batch_size < 2 or not module.display_name:
+            return self.default_name
+        return f"{safe_python_field_name(module.display_name)}.py"

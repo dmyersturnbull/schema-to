@@ -5,10 +5,17 @@ A schema-map file is a *set* of schemas, so every target needs an answer to
 
 - A target whose unit is one schema — Pydantic models, a pass-thru re-emit — takes
   the schemas one at a time.  That is this module: each document is split into one
-  virtual document per named schema, and the inner transpiler sees only those.
+  virtual document per named schema, and the stage that follows sees only those.
 - A target whose unit is the whole set — a PostgreSQL migration, whose foreign keys
-  cannot be ordered until every table is known — consumes the batch directly.
-  See `transpile.sql_tables`.
+  cannot be ordered until every table is known — consumes the batch directly, with
+  no expansion at all.  See `generate.sql_tables`.
+
+Because expansion is a stage from documents to documents, it composes in front of a
+per-schema target rather than wrapping it:
+
+```python
+SchemaMapExpander(resolver=resolver).then(per_schema_stage)
+```
 
 A virtual document keeps the file it came from in its ID
 (`…/catalog.yaml#/author-data`), so a diagnostic names the real file *and* the schema
@@ -17,12 +24,12 @@ pointer a sibling file's `$ref` would use, so the ID stays a real address.
 
 Splitting a file would ordinarily break the references written *within* it: `#/other`
 means "the `other` member of this document", and once the file is split, each schema
-*is* the document.  So the unsplit documents are registered with the inner
-transpiler's resolver before it runs — it is never handed them, but its inputs point
-into them.  The URI math then works out on its own, because a virtual document's ID
-is the file's URI plus a fragment: resolving `#/other` against
-`…/catalog.yaml#/author-data` replaces the fragment and yields `…/catalog.yaml#/other`,
-which is exactly where the sibling was registered.
+*is* the document.  So the unsplit documents are registered with the resolver the
+following stages use — it is never handed them, but its inputs point into them.  The
+URI math then works out on its own, because a virtual document's ID is the file's URI
+plus a fragment: resolving `#/other` against `…/catalog.yaml#/author-data` replaces
+the fragment and yields `…/catalog.yaml#/other`, which is exactly where the sibling
+was registered.
 
 Seeding rather than inlining keeps references shared.  Inlining each schema until it
 stands alone would also work, but it erases every reference to fix the few that broke
@@ -30,65 +37,58 @@ stands alone would also work, but it erases every reference to fix the few that 
 target whose purpose is named types is the whole game.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, override
 
 from schema_to.io.core import DefaultJsonLikeWriter, JsonLikeWriter
 from schema_to.io.source import JsonSchemaRawDoc, SchemaMapRawDoc
 from schema_to.parse.json_schema import JsonSchemaMapParser
-from schema_to.pipeline import Transpiler
-from schema_to.resolve.json_schema import ResolvesRefs
+from schema_to.pipeline import Stage
+from schema_to.resolve.json_schema import JsonSchemaRefResolver
 from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Sequence
+    from collections.abc import Iterator
 
     from schema_to.cst.json_schema import JsonSchemaMapDocument
-    from schema_to.errors import TranspilationError, TranspilationWarning
-    from schema_to.io.sink import Artifact
+    from schema_to.errors import TranspilationError
 
-__all__ = ["SchemaMapExpandingTranspiler"]
+__all__ = ["SchemaMapExpander"]
 
 _SERIALIZER = JsonSchemaSerializer()
 
 
 @dataclass(frozen=True, slots=True)
-class SchemaMapExpandingTranspiler[O: Artifact](Transpiler[SchemaMapRawDoc, O]):
-    """Presents each named schema of a schema-map document to a per-schema transpiler.
+class SchemaMapExpander(Stage[Sequence[SchemaMapRawDoc], Sequence[JsonSchemaRawDoc]]):
+    """Splits each schema-map document into one virtual document per named schema.
+
+    Every document is parsed before any is expanded: a reference may point from any
+    one file into any other, so all of them have to be registered before the first
+    schema is handed on.
 
     Attributes:
-        inner: The transpiler that handles one schema at a time.
+        resolver: Registered with the unsplit documents, so references written within
+            a file still resolve once it is split.  `None` when the stages that follow
+            do not resolve references and there is nothing to seed.
         parser: Parses the schema map.  Injected for testability.
-        writer: Re-encodes each named schema as bytes for `inner` to parse back.
-        roots: If given, only schemas named here are expanded into a virtual document
-            for `inner`; the rest are still registered, so a `$ref` into one of them
-            still resolves. `None` expands every schema, as before.
+        writer: Re-encodes each named schema as bytes for the next stage to parse back.
+        roots: If given, only schemas named here are expanded; the rest are still
+            registered, so a `$ref` into one of them still resolves. `None` expands
+            every schema.
     """
 
-    inner: Transpiler[JsonSchemaRawDoc, O]
+    resolver: JsonSchemaRefResolver | None = None
     parser: JsonSchemaMapParser = field(default_factory=JsonSchemaMapParser)
     writer: JsonLikeWriter = field(default_factory=DefaultJsonLikeWriter)
     roots: frozenset[str] | None = None
 
     @override
-    def accepts(self, doc: SchemaMapRawDoc) -> bool:
-        return isinstance(doc, SchemaMapRawDoc)
-
-    @override
-    def transpile(self, doc: SchemaMapRawDoc) -> Result[Sequence[O]]:
-        return self.transpile_all([doc])
-
-    @override
-    def transpile_all(self, docs: Sequence[SchemaMapRawDoc]) -> Result[Sequence[O]]:
-        """Parse every document, seed the resolver, then expand and delegate.
-
-        The order matters: `inner` may resolve a reference from any one file into any
-        other, so every file has to be registered before the first is transpiled.
-        """
+    def apply(self, input: Sequence[SchemaMapRawDoc]) -> Result[Sequence[JsonSchemaRawDoc]]:
         parsed: list[tuple[SchemaMapRawDoc, JsonSchemaMapDocument]] = []
         errors: list[TranspilationError] = []
-        for doc in docs:
+        for doc in input:
             result = self.parser.apply(doc)
             if isinstance(result, Err):
                 errors.extend(result.errors)
@@ -97,31 +97,14 @@ class SchemaMapExpandingTranspiler[O: Artifact](Transpiler[SchemaMapRawDoc, O]):
         if errors:
             return Err(tuple(errors))
         self._seed(cst for _, cst in parsed)
-        expanded = [v for doc, cst in parsed for v in self._virtual_docs(cst, doc)]
-        return self.inner.transpile_all(expanded)
+        return Ok([v for doc, cst in parsed for v in self._virtual_docs(cst, doc)])
 
-    def _seed(self, documents: Iterable[JsonSchemaMapDocument]) -> None:
-        """Register the unsplit documents so references written within them still resolve.
-
-        A transpiler that does not resolve references has nothing to seed, and is
-        left alone.
-        """
-        if not isinstance(self.inner, ResolvesRefs):
+    def _seed(self, documents: Iterator[JsonSchemaMapDocument]) -> None:
+        """Register the unsplit documents so references written within them still resolve."""
+        if self.resolver is None:
             return
         for document in documents:
-            self.inner.resolver.register_map(document)
-
-    @property
-    @override
-    def warnings(self) -> Sequence[TranspilationWarning]:
-        return list(self.inner.warnings)
-
-    def expand(self, doc: SchemaMapRawDoc) -> Result[Sequence[JsonSchemaRawDoc]]:
-        """Split one document into a virtual `JsonSchemaRawDoc` per named schema."""
-        parsed = self.parser.apply(doc)
-        if isinstance(parsed, Err):
-            return parsed
-        return Ok(list(self._virtual_docs(parsed.value, doc)))
+            self.resolver.register_map(document)
 
     def _virtual_docs(
         self, parsed: JsonSchemaMapDocument, doc: SchemaMapRawDoc

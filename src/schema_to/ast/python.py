@@ -316,9 +316,12 @@ class PythonModule(AstNode):
         declarations: Top-level declarations in emission order.
         source_ids: Source `RawDoc` identifiers that produced this module.
         module_doc: Module-level docstring.
+        display_name: Short name of the document this module was generated from.
+            It is what the file is named after when one name will not do for the batch.
     """
 
     imports: Sequence[PyImport] = field(default_factory=list)
     declarations: Sequence[PyDeclaration] = field(default_factory=list)
     source_ids: tuple[str, ...] = ()
     module_doc: str | None = None
+    display_name: str | None = None

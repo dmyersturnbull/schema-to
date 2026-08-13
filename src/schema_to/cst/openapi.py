@@ -610,6 +610,8 @@ class OpenApiDocument(CstNode):
         webhooks: Map of webhook name to `PathItem` (OAS 3.1 addition).
         extensions: `x-*` extension fields.
         source_id: Matches `RawDoc.source_id`.
+        display_name: Short name for the document, carried over from the `RawDoc`.
+            It is what a re-emitted file is named after.
         source_ref: Points to the document root (`""`).
     """
 
@@ -624,4 +626,5 @@ class OpenApiDocument(CstNode):
     webhooks: Mapping[str, PathItem] = field(default_factory=dict)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict)
     source_id: str | None = None
+    display_name: str | None = None
     source_ref: SourceRef | None = None

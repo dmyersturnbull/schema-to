@@ -4,14 +4,8 @@ import orjson
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import openapi_doc_st
 
-from schema_to import (
-    JsonSchemaParser,
-    JsonSchemaRawDoc,
-    MediaTypes,
-    Ok,
-    OpenApiExtractTranspiler,
-    OpenApiRawDoc,
-)
+from schema_to import JsonSchemaParser, JsonSchemaRawDoc, MediaTypes, Ok, OpenApiRawDoc
+from schema_to.transpile.extract import openapi_extract
 
 _JS_PARSER = JsonSchemaParser()
 
@@ -39,7 +33,7 @@ def _make_json_schema_doc(data: object, source_id: str = "test://doc") -> JsonSc
 def test_openapi_extract_schemas(openapi: dict) -> None:
     """Extracted artifact count matches component schema count, IDs match names, and each extracted schema re-parses successfully."""
     doc = _make_openapi_doc(openapi)
-    transpiler = OpenApiExtractTranspiler()
+    transpiler = openapi_extract()
 
     result = transpiler.transpile(doc)
     assert isinstance(result, Ok), f"Extract failed: {result}"
@@ -66,7 +60,7 @@ def test_openapi_extract_yaml_output() -> None:
         "info": {"title": "Test", "version": "1.0"},
         "components": {"schemas": {"Foo": {"type": "object"}}},
     }
-    transpiler = OpenApiExtractTranspiler(output_media_type=MediaTypes.json_schema_yaml)
+    transpiler = openapi_extract(MediaTypes.json_schema_yaml)
     result = transpiler.transpile(_make_openapi_doc(openapi))
     assert isinstance(result, Ok)
     artifact = result.value[0]

@@ -18,8 +18,9 @@ after `apply` has confirmed the document is valid.
 """
 
 import urllib.parse
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, override
 
 from referencing import Registry, Resource
 from referencing.exceptions import Unresolvable
@@ -33,7 +34,7 @@ from schema_to.cst.json_schema import (
     ObjectSchema,
 )
 from schema_to.errors import ResolutionError, SourceLocation, TranspilationError
-from schema_to.pipeline import RefResolver
+from schema_to.pipeline import RefResolver, Stage
 from schema_to.resolve._resolver import Resolver
 from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
@@ -41,20 +42,7 @@ from schema_to.serialize.json_schema import JsonSchemaSerializer
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-__all__ = ["JsonSchemaRefResolver", "ResolvesRefs"]
-
-
-@runtime_checkable
-class ResolvesRefs(Protocol):
-    """A transpiler that resolves `$ref` through a resolver it exposes.
-
-    Exposing the resolver is what lets a caller register documents the transpiler
-    will never be handed but whose contents its inputs point into — a schema-map
-    file split into per-schema documents, whose `#/sibling` references still mean
-    "the sibling in that file".
-    """
-
-    resolver: JsonSchemaRefResolver
+__all__ = ["JsonSchemaMapSetResolver", "JsonSchemaRefResolver"]
 
 
 def _escape(name: str) -> str:
@@ -358,3 +346,36 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         if doc_uri in self._docs or doc_uri in self._map_docs:
             return doc_uri
         return self._id_to_source.get(doc_uri)
+
+
+@dataclass(frozen=True, slots=True)
+class JsonSchemaMapSetResolver(
+    Stage[Sequence[JsonSchemaMapDocument], Sequence[JsonSchemaMapDocument]]
+):
+    """Registers a whole set of schema-map documents, then validates their references.
+
+    The two passes are what make the set the unit rather than each file: a `$ref` into
+    a sibling cannot resolve until that sibling is registered, so checking during
+    registration would fail on any forward reference to a file that happens to sort
+    later.
+
+    The documents are returned unchanged; what the stage produces is the populated
+    resolver, which whatever generates from these documents must be given too.
+    """
+
+    resolver: JsonSchemaRefResolver
+
+    @override
+    def apply(
+        self, input: Sequence[JsonSchemaMapDocument]
+    ) -> Result[Sequence[JsonSchemaMapDocument]]:
+        for document in input:
+            self.resolver.register_map(document)
+        errors: list[TranspilationError] = []
+        for document in input:
+            result = self.resolver.apply_map(document)
+            if isinstance(result, Err):
+                errors.extend(result.errors)
+        if errors:
+            return Err(tuple(errors))
+        return Ok(input)

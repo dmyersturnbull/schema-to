@@ -3,9 +3,9 @@
 import ast
 
 import orjson
+from tests.targets import transpiler_for
 
 from schema_to import MediaTypes, Ok, OpenApiRawDoc
-from schema_to.transpile.fastapi import OpenApiToFastApiTranspiler
 
 _SPEC = {
     "openapi": "3.1.0",
@@ -48,7 +48,7 @@ def _src() -> str:
         media_type=MediaTypes.json,
         display_name="api",
     )
-    result = OpenApiToFastApiTranspiler().transpile(doc)
+    result = transpiler_for("fastapi", selects=OpenApiRawDoc).transpile(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     return result.value[0].content.decode("utf-8")
 

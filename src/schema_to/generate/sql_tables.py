@@ -13,8 +13,9 @@ within it are made `DEFERRABLE INITIALLY DEFERRED` — checked at commit rather 
 per statement, which is what lets one transaction satisfy both directions.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from schema_to.ast.sql import (
     ColumnConstraint,
@@ -41,10 +42,11 @@ from schema_to.generate._pg_keywords import (
     read_table_keywords,
 )
 from schema_to.generate.sql import ColumnBuilder
+from schema_to.pipeline import Stage
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping, Sequence
+    from collections.abc import Iterable, Mapping
     from collections.abc import Set as AbstractSet
 
     from schema_to.core import JsonValue
@@ -85,7 +87,7 @@ class TableSpec:
 
 
 @dataclass
-class PostgresTableSetTransformer:
+class PostgresTableSetTransformer(Stage[Sequence[JsonSchemaMapDocument], SqlScript]):
     """Generates one `SqlScript` from every `x-pg-table` schema across several documents.
 
     Attributes:
@@ -103,9 +105,11 @@ class PostgresTableSetTransformer:
     _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
 
     @property
+    @override
     def warnings(self) -> Sequence[TranspilationWarning]:
         return list(self._warnings)
 
+    @override
     def apply(self, input: Sequence[JsonSchemaMapDocument]) -> Result[SqlScript]:
         self._warnings.clear()
         try:

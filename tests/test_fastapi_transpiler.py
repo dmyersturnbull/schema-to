@@ -13,6 +13,7 @@ import orjson
 import pytest
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import openapi_doc_st
+from tests.targets import transpiler_for
 
 from schema_to import MediaTypes, Ok, OpenApiParser, OpenApiRawDoc, PythonReifier
 from schema_to.ast.python import FunctionDef, PythonModule, PythonTypeAnnotation, VarDef
@@ -25,7 +26,6 @@ from schema_to.generate.fastapi import (
     _op_fn_name,
     _ref_to_class_name,
 )
-from schema_to.transpile.fastapi import OpenApiToFastApiTranspiler
 
 _PARSER = OpenApiParser()
 _HTTP_METHODS = frozenset(["get", "post", "put", "delete", "patch", "options", "head", "trace"])
@@ -57,7 +57,7 @@ def _generate(data: object) -> PythonModule:
 
 def _transpile(data: object) -> str:
     """Run the full pipeline and return the emitted Python source."""
-    transpiler = OpenApiToFastApiTranspiler()
+    transpiler = transpiler_for("fastapi", selects=OpenApiRawDoc)
     result = transpiler.transpile(_doc(data))
     assert isinstance(result, Ok), (
         f"Transpile failed: {[getattr(e, 'message', str(e)) for e in result.errors]}"

@@ -14,13 +14,13 @@ import orjson
 import pytest
 from hypothesis import HealthCheck, given, settings
 from tests.strategies import json_schema_with_defs_st, object_schema_st
+from tests.targets import transpiler_for
 
 from schema_to import (
     Err,
     JsonSchemaParser,
     JsonSchemaRawDoc,
     JsonSchemaRefResolver,
-    JsonSchemaToPydanticTranspiler,
     MediaTypes,
     Ok,
     OpenApiRawDoc,
@@ -42,7 +42,7 @@ def _doc(data: object, source_id: str = "test://schema") -> JsonSchemaRawDoc:
 
 def _transpile(data: object, source_id: str = "test://schema") -> str:
     """Run the full pipeline and return the emitted Python source."""
-    transpiler = JsonSchemaToPydanticTranspiler()
+    transpiler = transpiler_for("pydantic")
     result = transpiler.transpile(_doc(data, source_id))
     assert isinstance(result, Ok), (
         f"Transpile failed: {[getattr(e, 'message', str(e)) for e in result.errors]}"
@@ -241,7 +241,7 @@ def test_roots_keeps_only_named_defs() -> None:
             "Dropped": {"type": "object", "properties": {"b": {"type": "string"}}},
         },
     }
-    transpiler = JsonSchemaToPydanticTranspiler(roots=frozenset({"Kept"}))
+    transpiler = transpiler_for("pydantic", roots=frozenset({"Kept"}))
     result = transpiler.transpile(_doc(schema))
     assert isinstance(result, Ok)
     src = result.value[0].content.decode("utf-8")
@@ -253,7 +253,7 @@ def test_roots_keeps_only_named_defs() -> None:
 def test_roots_none_keeps_every_def() -> None:
     """Omitting `roots` keeps today's behaviour of emitting every `$defs` entry."""
     schema = {"type": "object", "title": "Root", "$defs": {"A": {"type": "object"}}}
-    transpiler = JsonSchemaToPydanticTranspiler(roots=None)
+    transpiler = transpiler_for("pydantic", roots=None)
     result = transpiler.transpile(_doc(schema))
     assert isinstance(result, Ok)
     assert "class A(BaseModel):" in result.value[0].content.decode("utf-8")
@@ -534,7 +534,7 @@ def test_display_name_fallback() -> None:
         media_type=MediaTypes.json,
         display_name="user_profile",
     )
-    transpiler = JsonSchemaToPydanticTranspiler()
+    transpiler = transpiler_for("pydantic")
     result = transpiler.transpile(doc)
     assert isinstance(result, Ok)
     src = result.value[0].content.decode("utf-8")
@@ -584,11 +584,11 @@ def test_boolean_false_schema_fails() -> None:
 
 def test_transpiler_rejects_openapi() -> None:
     openapi = {"openapi": "3.1.0", "info": {"title": "T", "version": "1"}}
-    transpiler = JsonSchemaToPydanticTranspiler()
+    transpiler = transpiler_for("pydantic")
     doc = OpenApiRawDoc(
         doc_id="test://schema", content=orjson.dumps(openapi), media_type=MediaTypes.json
     )
-    assert not transpiler.accepts(doc)  # ty:ignore[invalid-argument-type]
+    assert not transpiler.accepts(doc)
 
 
 # ---------------------------------------------------------------------------
@@ -684,7 +684,7 @@ def test_all_of_composed_schema_becomes_a_model() -> None:
         ),
         media_type=MediaTypes.json,
     )
-    result = JsonSchemaToPydanticTranspiler().transpile(doc)
+    result = transpiler_for("pydantic").transpile(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     src = result.value[0].content.decode("utf-8")
     assert "class Battery(BaseModel):" in src
@@ -706,7 +706,7 @@ def test_composition_does_not_inline_referenced_models() -> None:
         ),
         media_type=MediaTypes.json,
     )
-    result = JsonSchemaToPydanticTranspiler().transpile(doc)
+    result = transpiler_for("pydantic").transpile(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     src = result.value[0].content.decode("utf-8")
     # The shared definition keeps its own declaration, and the field names it.
@@ -727,7 +727,7 @@ def test_a_bare_ref_declaration_stays_an_alias() -> None:
         ),
         media_type=MediaTypes.json,
     )
-    result = JsonSchemaToPydanticTranspiler().transpile(doc)
+    result = transpiler_for("pydantic").transpile(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     src = result.value[0].content.decode("utf-8")
     assert "class Named(BaseModel):" in src

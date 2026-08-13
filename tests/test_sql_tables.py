@@ -10,14 +10,13 @@ Covers:
 
 import orjson
 import pytest
+from tests.targets import transpiler_for
 
 from schema_to.errors import GenerationError
 from schema_to.generate._pg_keywords import read_property_keywords, read_table_keywords
-from schema_to.generate.sql_tables import PostgresTableSetTransformer
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import SchemaMapRawDoc
 from schema_to.result import Err, Ok
-from schema_to.transpile.sql_tables import SchemaMapSetToPostgresTranspiler
 
 
 def _doc(data: object, name: str = "main") -> SchemaMapRawDoc:
@@ -30,21 +29,23 @@ def _doc(data: object, name: str = "main") -> SchemaMapRawDoc:
 
 
 def _sql(*docs: SchemaMapRawDoc) -> str:
-    transpiler = SchemaMapSetToPostgresTranspiler()
+    transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
     result = transpiler.transpile_all(docs)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     return result.value[0].content.decode("utf-8")
 
 
 def _warnings(*docs: SchemaMapRawDoc) -> list[str]:
-    transpiler = SchemaMapSetToPostgresTranspiler()
+    transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
     result = transpiler.transpile_all(docs)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     return [w.code for w in transpiler.warnings if w.code]
 
 
 def _errors(*docs: SchemaMapRawDoc) -> list[str]:
-    result = SchemaMapSetToPostgresTranspiler().transpile_all(docs)
+    result = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True).transpile_all(
+        docs
+    )
     assert isinstance(result, Err)
     return [getattr(e, "message", str(e)) for e in result.errors]
 
@@ -84,8 +85,8 @@ def test_only_marked_schemas_become_tables() -> None:
 def test_roots_narrows_marked_schemas_considered_for_a_table() -> None:
     """`roots` further restricts the `x-pg-table` selection to named schemas."""
     other = {"type": "object", "x-pg-table": "other", "properties": {"id": {"type": "string"}}}
-    transpiler = SchemaMapSetToPostgresTranspiler(
-        generator=PostgresTableSetTransformer(roots=frozenset({"thing-data"}))
+    transpiler = transpiler_for(
+        "postgres", selects=SchemaMapRawDoc, schema_map=True, roots=frozenset({"thing-data"})
     )
     result = transpiler.transpile_all([_doc({"thing-data": _THING, "other-data": other})])
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]

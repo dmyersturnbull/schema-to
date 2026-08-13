@@ -173,7 +173,12 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
 
         imports = _build_imports(declarations)
         return Ok(
-            PythonModule(imports=imports, declarations=declarations, source_ids=(input.source_id,))
+            PythonModule(
+                imports=imports,
+                declarations=declarations,
+                source_ids=(input.source_id,),
+                display_name=input.display_name,
+            )
         )
 
 
