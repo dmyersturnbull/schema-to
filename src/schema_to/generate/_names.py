@@ -26,9 +26,9 @@ def safe_python_class_name(name: str) -> str:
     """Return a valid, non-keyword Python class name derived from *name*.
 
     Applies PascalCase conversion, strips remaining non-identifier characters,
-    prepends `Model` if the result starts with a digit, and appends `_` if
-    the result is a Python keyword.  Falls back to `Model` when the input
-    yields no identifier characters at all.
+    prepends `Model` if the result starts with a digit,
+    and appends `_` if the result is a Python keyword.
+    Falls back to `Model` when the input yields no identifier characters at all.
     """
     pascal = to_pascal(name) or "Model"
     pascal = _NON_IDENT.sub("", pascal) or "Model"
@@ -86,9 +86,8 @@ def safe_sql_identifier(name: str) -> str:
 
 # Words PostgreSQL will not accept as a bare column or table name.
 # Drawn from the `reserved` and `type_func_name` categories of the keyword table in
-# https://www.postgresql.org/docs/current/sql-keywords-appendix.html — the two that a
-# name must be quoted to escape.  The `non_reserved` and `col_name` categories are
-# usable bare and are deliberately absent.
+# https://www.postgresql.org/docs/current/sql-keywords-appendix.html.
+# The `non_reserved` and `col_name` categories are usable bare.
 _SQL_RESERVED: frozenset[str] = frozenset(
     [
         "all",
@@ -201,14 +200,13 @@ _BARE_IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]*$")
 def quote_sql_identifier(name: str) -> str:
     """Return *name* ready to appear in SQL, double-quoted only when it has to be.
 
-    Quoting is not free: a quoted identifier is case-sensitive and must then be quoted
-    everywhere it appears.  So quote only what PostgreSQL would otherwise reject — a
-    reserved word such as `end` or `group`, or a name with characters outside
-    `[a-z0-9_]` — and leave ordinary names bare, which keeps generated DDL readable
-    and hand-editable.
+    Quoting is not free:
+    a quoted identifier is case-sensitive and must then be quoted everywhere it appears.  So quote only what PostgreSQL would otherwise reject — a
+    reserved word such as `end` or `group`, or a name with characters outside `[a-z0-9_]` —
+    and leave ordinary names bare, which keeps generated DDL readable and hand-editable.
 
-    A name already containing a double quote is assumed to be a qualified or
-    pre-quoted expression (`myschema.things`) and is passed through untouched.
+    A name already containing a double quote is assumed to be a qualified or pre-quoted expression
+    (`myschema.things`) and is passed through untouched.
     """
     if "." in name or '"' in name:
         return name

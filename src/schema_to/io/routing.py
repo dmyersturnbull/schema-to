@@ -64,18 +64,21 @@ def peek_doc_type(content: bytes) -> DocType | None:
 def is_schema_map(content: bytes) -> bool:
     """Peek at raw bytes to decide whether they could be a map of named schemas.
 
-    The evidence is negative rather than positive, because a map of named schemas has
-    no marker of its own — it is an object whose keys are arbitrary names. What it is
-    *not* is decidable, though:
+    The evidence is negative rather than positive,
+    because a map of named schemas has no marker of its own —
+    it is an object whose keys are arbitrary names.
+    What it is **not** is decidable, though:
 
     - an OpenAPI document, which declares `openapi: <version>` at the top level;
-    - a single JSON Schema, which puts its keywords at the top level, whereas a
-      schema map puts names there and keywords one level down;
+    - a single JSON Schema, which puts its keywords at the top level,
+      whereas a schema map puts names there and keywords one level down;
     - anything that is not a JSON or YAML object at all.
 
-    So a top-level JSON Schema keyword rules the file out, and a *second*-level one
-    is what a schema map looks like. A file with neither — an empty object, or a
-    config file of plain strings — is not claimed either.
+    So a top-level JSON Schema keyword rules the file out,
+    and a *second*-level one is what a schema map looks like.
+    A file with neither —
+    an empty object, or a config file of plain strings —
+    is not claimed either.
     """
     data = _try_parse(content)
     if not isinstance(data, dict):

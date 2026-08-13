@@ -2,7 +2,7 @@
 
 Each node type holds the set of keywords defined by the specification, grouped by vocabulary.
 The flat `ObjectSchema` avoids indirection through vocabulary sub-objects,
- so that serializers and parsers can iterate `dataclasses.fields()` directly.
+so that serializers and parsers can iterate `dataclasses.fields()` directly.
 """
 
 from dataclasses import dataclass, field
@@ -133,10 +133,10 @@ type SchemaKeywordValue = (
 )
 
 
-# Keywords whose value is one self-contained assertion, so two schemas cannot contribute
-# complementary halves of one: either a schema sets it or it does not.
-# `properties` and `required` are absent because they accumulate, and `allOf`/`anyOf`/`oneOf`
-# because they are the composition being resolved.
+# Keywords whose value is one self-contained assertion,
+# so two schemas cannot contribute complementary halves of one.
+# `properties` and `required` are absent because they accumulate,
+# and `allOf`/`anyOf`/`oneOf` because they are the composition being resolved.
 SINGULAR_KEYWORDS: frozenset[str] = frozenset(
     {
         "title",
@@ -163,15 +163,16 @@ SINGULAR_KEYWORDS: frozenset[str] = frozenset(
 
 
 # The subset of `SINGULAR_KEYWORDS` that documents a schema rather than constraining it.
-# Losing one to a merge costs prose; losing any of the others costs validation.
+# Losing one to a merge only costs prose.
 DOC_KEYWORDS: frozenset[str] = frozenset({"title", "description"})
 
 
 def is_object_schema(schema: JsonSchema) -> TypeIs[ObjectSchema]:
     """Return `True` if *schema* describes a JSON object (a table/model).
 
-    True when `object` is among the declared types, or when no type is declared
-    but `properties` are present (a common shorthand for an object schema).
+    True when `object` is among the declared types,
+    or when no type is declared but `properties` are present
+    (a common shorthand for an object schema).
     """
     if not isinstance(schema, ObjectSchema):
         return False

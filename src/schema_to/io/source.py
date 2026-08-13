@@ -1,9 +1,13 @@
 """Abstract data-source types.
 
 A `DataSource` is an abstract, lazily-iterable supplier of `RawDoc`s.
-Concrete implementations may represent a single file, a directory tree,
-an HTTP endpoint, an in-memory buffer, or any other origin — the pipeline
-never assumes a filesystem is present.
+Concrete implementations may represent
+a single file,
+a directory tree,
+an HTTP endpoint,
+an in-memory buffer,
+or any other origin;
+the pipeline never assumes a filesystem is present.
 """
 
 from abc import ABC, abstractmethod
@@ -56,9 +60,7 @@ class JsonSchemaRawDoc(RawDoc):
 class SchemaMapRawDoc(RawDoc):
     """A `RawDoc` whose root is a map of names to JSON Schema 2020-12 schemas.
 
-    Distinct from `JsonSchemaRawDoc`, whose root is itself a schema:
-    the two cannot be told apart by content, since a map of named schemas is
-    indistinguishable from a schema whose keywords are all unrecognised.
+    Distinct from `JsonSchemaRawDoc`, whose root is itself a schema.
     """
 
 
@@ -70,8 +72,10 @@ class OpenApiRawDoc(RawDoc):
 class DataSource[I: RawDoc](ABC):
     """A lazily-iterable supplier of raw documents.
 
-    A single `DataSource` may yield any number of documents: zero (empty),
-    one (a single file or URL), or many (a directory, glob, or API listing).
+    A single `DataSource` may yield any number of documents:
+    zero (empty),
+    one (a single file or URL),
+    or many (a directory, glob, or API listing).
     Sources are consumed exactly once per `Pipeline.process()` call.
     """
 

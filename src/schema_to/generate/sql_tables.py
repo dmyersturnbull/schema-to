@@ -1,16 +1,20 @@
 """Generator: a set of schema-map documents → one PostgreSQL DDL script.
 
-Where `generate.sql` maps one document to one table, this maps a whole tree of
-schema files to the set of tables they describe — the unit a migration actually is.
+Where `generate.sql` maps one document to one table,
+this maps a whole tree of schema files to the set of tables they describe —
+the unit a migration actually is.
 
-Only schemas carrying `x-pg-table` become tables, so a tree may hold as many
-request bodies, patch documents, and shared primitives as it likes without any of
-them turning into a table.  See `generate._pg_keywords` for the keyword vocabulary.
+Only schemas carrying `x-pg-table` become tables,
+so a tree may hold as many request bodies, patch documents, and shared primitives as it likes,
+without any of them turning into a table.
+See `generate._pg_keywords` for the keyword vocabulary.
 
-Tables are emitted in dependency order: a table is declared after every table its
-foreign keys reference.  A reference cycle has no such order, so the foreign keys
-within it are made `DEFERRABLE INITIALLY DEFERRED` — checked at commit rather than
-per statement, which is what lets one transaction satisfy both directions.
+Tables are emitted in dependency order:
+A table is declared after every table its foreign keys reference.
+A reference cycle has no such order, so the foreign keys within it are made
+`DEFERRABLE INITIALLY DEFERRED` —
+checked at commit rather than per statement,
+which is what lets one transaction satisfy both directions.
 """
 
 from dataclasses import dataclass, field
@@ -73,9 +77,9 @@ class TableSpec:
     def primary_key(self) -> tuple[str, ...]:
         """The key columns: the declared ones, else `id` when the schema has one.
 
-        Almost every resource is keyed by `id`, so requiring `x-pg-primary-key` on each
-        would be noise that is wrong nowhere and stated everywhere. A schema keyed on
-        anything else has to say so.
+        Almost every resource is keyed by `id`,
+        so requiring `x-pg-primary-key` on each would be noise that is wrong nowhere and stated everywhere.
+        A schema keyed on anything else has to say so.
         """
         if self.keywords.primary_key:
             return self.keywords.primary_key
@@ -89,8 +93,9 @@ class PostgresTableSetTransformer:
     """Generates one `SqlScript` from every `x-pg-table` schema across several documents.
 
     Attributes:
-        resolver: Resolves `$ref` across the document set.  Register every document
-            with it before generating, or references between files will not resolve.
+        resolver: Resolves `$ref` across the document set.
+            Register every document with it before generating,
+            or references between files will not resolve.
         validate_json: Emit `pg_jsonschema` `CHECK` constraints for JSON columns.
     """
 
@@ -171,8 +176,9 @@ class PostgresTableSetTransformer:
     def _check_reference_targets(self, specs: Sequence[TableSpec]) -> None:
         """Warn about foreign keys pointing at tables no schema in this set declares.
 
-        A warning, not an error: the target may be a table managed outside this
-        schema set, which is legitimate but worth surfacing, since a typo looks the same.
+        A warning, not an error:
+        The target may be a table managed outside this schema set,
+        which is legitimate but worth surfacing, since a typo looks the same.
         """
         declared = {spec.table_name for spec in specs}
         for spec in specs:
@@ -193,8 +199,8 @@ class PostgresTableSetTransformer:
             if not spec.primary_key:
                 self._warnings.append(
                     TranspilationWarning(
-                        f"Table {spec.table_name!r} has no `id` property and no "
-                        f"`x-pg-primary-key`, so it is generated without a primary key.",
+                        f"Table {spec.table_name!r} has no `id` property and no `x-pg-primary-key`, "
+                        f"so it is generated without a primary key.",
                         code="no-primary-key",
                         location=SourceLocation(spec.source_id, ""),
                     )
@@ -206,9 +212,10 @@ class PostgresTableSetTransformer:
         for name in sorted(cycles):
             self._warnings.append(
                 TranspilationWarning(
-                    f"Table {name!r} takes part in a foreign-key cycle, so it cannot be "
-                    f"declared after everything it references; its keys within the cycle "
-                    f"are DEFERRABLE INITIALLY DEFERRED and are checked at commit.",
+                    f"Table {name!r} takes part in a foreign-key cycle, "
+                    f"so it cannot be declared after everything it references; "
+                    f"its keys within the cycle are DEFERRABLE INITIALLY DEFERRED "
+                    f"and are checked at commit.",
                     code="reference-cycle",
                     location=SourceLocation(by_name[name].source_id, ""),
                 )
@@ -388,8 +395,8 @@ def _in_dependency_order(specs: Sequence[TableSpec]) -> tuple[list[TableSpec], s
 
     Ties keep the input order, which keeps output stable across runs.
 
-    Returns the ordered tables and the names of every table taking part in a
-    reference cycle, which by definition cannot all follow their dependencies.
+    Returns the ordered tables and the names of every table taking part in a reference cycle,
+    which by definition cannot all follow their dependencies.
     """
     by_name = {spec.table_name: spec for spec in specs}
     ordered: list[TableSpec] = []

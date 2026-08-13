@@ -31,8 +31,8 @@ __all__ = [
 def enum_member[E: Enum](enum_cls: type[E], value: object) -> E | None:
     """Return the `enum_cls` member whose value equals `value`, or `None`.
 
-    Avoids constructing the enum in a `try`/`except ValueError`, which would
-    also swallow unrelated `ValueError`s.
+    Avoids constructing the enum in a `try`/`except ValueError`,
+    which would also swallow unrelated `ValueError`s.
     """
     return next((member for member in enum_cls if member.value == value), None)
 

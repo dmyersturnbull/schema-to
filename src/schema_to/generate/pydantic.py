@@ -50,6 +50,7 @@ from schema_to.generate._names import (
     safe_python_field_name,
     split_class_name,
 )
+from schema_to.generate._python_utils import NONE, nullable, ANY, PRIMITIVE_MAP, STR, literal
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 
@@ -63,31 +64,6 @@ __all__ = ["PydanticTransformer"]
 # ---------------------------------------------------------------------------
 # Type annotation helpers
 # ---------------------------------------------------------------------------
-
-_ANY = PythonTypeAnnotation("Any", module="typing")
-_NONE = PythonTypeAnnotation("None")
-_STR = PythonTypeAnnotation("str")
-_INT = PythonTypeAnnotation("int")
-_FLOAT = PythonTypeAnnotation("float")
-_BOOL = PythonTypeAnnotation("bool")
-
-_PRIMITIVE_MAP: dict[JsonSchemaType, PythonTypeAnnotation] = {
-    JsonSchemaType.STRING: _STR,
-    JsonSchemaType.INTEGER: _INT,
-    JsonSchemaType.NUMBER: _FLOAT,
-    JsonSchemaType.BOOLEAN: _BOOL,
-    JsonSchemaType.NULL: _NONE,
-}
-
-
-def _nullable(ann: PythonTypeAnnotation) -> PythonTypeAnnotation:
-    return PythonTypeAnnotation(ann.name, args=ann.args, module=ann.module, nullable=True)
-
-
-def _literal(*values: object) -> PythonTypeAnnotation:
-    args = [PythonTypeAnnotation(repr(v)) for v in values]
-    return PythonTypeAnnotation("Literal", args=args, module="typing")
-
 
 def _has_split_properties(schema: JsonSchema) -> bool:
     """Return True if *schema* has any `readOnly` or `writeOnly` property."""
@@ -329,8 +305,8 @@ class _GenCtx:
     ) -> PythonTypeAnnotation:
         """Return the Python type annotation for a field's schema."""
         ann = self._annotation_inner(schema, variant=variant)
-        if not required and not ann.nullable and ann != _NONE:
-            ann = _nullable(ann)
+        if not required and not ann.nullable and ann != NONE:
+            ann = nullable(ann)
         return ann
 
     def _ref_to_class_name(self, ref: str, *, variant: Literal["read", "write"] | None) -> str:
@@ -351,13 +327,13 @@ class _GenCtx:
         self, schema: JsonSchema, *, variant: Literal["read", "write"] | None = None
     ) -> PythonTypeAnnotation:
         if isinstance(schema, BooleanSchema):
-            return _ANY if schema.value else PythonTypeAnnotation("Never", module="typing")
+            return ANY if schema.value else PythonTypeAnnotation("Never", module="typing")
         if schema.ref:
             return PythonTypeAnnotation(self._ref_to_class_name(schema.ref, variant=variant))
         if schema.enum is not None:
-            return _literal(*schema.enum)
+            return literal(*schema.enum)
         if schema.const is not None:
-            return _literal(schema.const.value)
+            return literal(schema.const.value)
         ann = self._annotation_from_applicators(schema, variant=variant)
         if ann is not None:
             return ann
@@ -376,14 +352,14 @@ class _GenCtx:
                     code="anyof-fallback",
                     schema=schema,
                 )
-                return _ANY
+                return ANY
         if schema.all_of is not None:
             if len(schema.all_of) == 1:
                 return self._annotation_inner(schema.all_of[0], variant=variant)
             self._warn(
                 "allOf with multiple branches uses Any.", code="allof-fallback", schema=schema
             )
-            return _ANY
+            return ANY
         return None
 
     def _annotation_from_type(
@@ -393,7 +369,7 @@ class _GenCtx:
             return self._type_set_annotation(schema.type, schema, variant=variant)
         if schema.type is not None:
             return self._single_type_annotation(schema.type, schema, variant=variant)
-        return _ANY
+        return ANY
 
     def _single_type_annotation(
         self, t: JsonSchemaType, schema: ObjectSchema, *, variant: Literal["read", "write"] | None
@@ -402,13 +378,13 @@ class _GenCtx:
             if schema.items is not None:
                 item_ann = self._annotation_inner(schema.items, variant=variant)
             elif schema.prefix_items:
-                item_ann = _ANY
+                item_ann = ANY
             else:
-                item_ann = _ANY
+                item_ann = ANY
             return PythonTypeAnnotation("list", args=[item_ann])
         if t == JsonSchemaType.OBJECT:
-            return PythonTypeAnnotation("dict", args=[_STR, _ANY])
-        return _PRIMITIVE_MAP.get(t, _ANY)
+            return PythonTypeAnnotation("dict", args=[STR, ANY])
+        return PRIMITIVE_MAP.get(t, ANY)
 
     def _type_set_annotation(
         self,
@@ -420,16 +396,16 @@ class _GenCtx:
         non_null = types - {JsonSchemaType.NULL}
         has_null = JsonSchemaType.NULL in types
         if not non_null:
-            return _NONE
+            return NONE
         if len(non_null) == 1:
             base = self._single_type_annotation(next(iter(non_null)), schema, variant=variant)
-            return _nullable(base) if has_null else base
+            return nullable(base) if has_null else base
         self._warn(
             f"type array {sorted(str(t) for t in types)} maps to Any.",
             code="multi-type-fallback",
             schema=schema,
         )
-        return _nullable(_ANY) if has_null else _ANY
+        return nullable(ANY) if has_null else ANY
 
     def _nullable_union(
         self, schemas: list[JsonSchema], *, variant: Literal["read", "write"] | None
@@ -444,7 +420,7 @@ class _GenCtx:
             if not (isinstance(s, ObjectSchema) and s.type == JsonSchemaType.NULL)
         ]
         if null_count == 1 and len(non_null) == 1:
-            return _nullable(self._annotation_inner(non_null[0], variant=variant))
+            return nullable(self._annotation_inner(non_null[0], variant=variant))
         if null_count == 0 and len(schemas) == 1:
             return self._annotation_inner(schemas[0], variant=variant)
         return None

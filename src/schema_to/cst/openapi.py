@@ -48,11 +48,6 @@ __all__ = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# Primitive enumerations
-# ---------------------------------------------------------------------------
-
-
 class HttpMethod(StrEnum):
     """HTTP methods as used in OpenAPI path items."""
 
@@ -93,22 +88,9 @@ class ApiKeyLocation(StrEnum):
     COOKIE = auto()
 
 
-# ---------------------------------------------------------------------------
-# Supporting objects
-# ---------------------------------------------------------------------------
-
-
 @dataclass(frozen=True, slots=True)
 class Contact(CstNode):
-    """[Contact Object](https://spec.openapis.org/oas/v3.1.0#contact-object).
-
-    Attributes:
-        name: The identifying name of the contact person/organisation.
-        url: URL pointing to contact information.
-        email: Email address of the contact person/organisation.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Contact Object](https://spec.openapis.org/oas/v3.1.0#contact-object)."""
 
     name: str | None = None
     url: str | None = None
@@ -119,15 +101,7 @@ class Contact(CstNode):
 
 @dataclass(frozen=True, slots=True)
 class License(CstNode):
-    """[License Object](https://spec.openapis.org/oas/v3.1.0#license-object).
-
-    Attributes:
-        name: The license name used for the API (required by the spec).
-        identifier: An [SPDX](https://spdx.org/licenses/) identifier, e.g. `"MIT"`.
-        url: URL to the license text.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[License Object](https://spec.openapis.org/oas/v3.1.0#license-object)."""
 
     name: str
     identifier: str | None = None
@@ -138,19 +112,7 @@ class License(CstNode):
 
 @dataclass(frozen=True, slots=True)
 class Info(CstNode):
-    """[Info Object](https://spec.openapis.org/oas/v3.1.0#info-object).
-
-    Attributes:
-        title: The title of the API (required).
-        version: The version of the OpenAPI document (required).
-        summary: Short summary of the API.
-        description: Longer description; CommonMark is allowed.
-        terms_of_service: URL to the Terms of Service.
-        contact: Contact information for the API.
-        license_: License information for the API.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Info Object](https://spec.openapis.org/oas/v3.1.0#info-object)."""
 
     title: str
     version: str
@@ -165,15 +127,7 @@ class Info(CstNode):
 
 @dataclass(frozen=True, slots=True)
 class ServerVariable(CstNode):
-    """[Server Variable Object](https://spec.openapis.org/oas/v3.1.0#server-variable-object).
-
-    Attributes:
-        default: The default value to use if no value is provided (required).
-        enum: An enumeration of allowable string values.
-        description: Optional description; CommonMark allowed.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Server Variable Object](https://spec.openapis.org/oas/v3.1.0#server-variable-object)."""
 
     default: str
     enum: Sequence[str] | None = None
@@ -184,15 +138,7 @@ class ServerVariable(CstNode):
 
 @dataclass(frozen=True, slots=True)
 class Server(CstNode):
-    """[Server Object](https://spec.openapis.org/oas/v3.1.0#server-object).
-
-    Attributes:
-        url: URL of the target host, possibly with template variables.
-        description: Optional description; CommonMark allowed.
-        variables: Map from variable name to `ServerVariable`.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Server Object](https://spec.openapis.org/oas/v3.1.0#server-object)."""
 
     url: str
     description: str | None = None
@@ -203,14 +149,7 @@ class Server(CstNode):
 
 @dataclass(frozen=True, slots=True)
 class ExternalDocumentation(CstNode):
-    """[External Documentation Object](https://spec.openapis.org/oas/v3.1.0#external-documentation-object).
-
-    Attributes:
-        url: URL for the target documentation (required).
-        description: Short description; CommonMark allowed.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[External Documentation Object](https://spec.openapis.org/oas/v3.1.0#external-documentation-object)."""
 
     url: str
     description: str | None = None
@@ -220,15 +159,7 @@ class ExternalDocumentation(CstNode):
 
 @dataclass(frozen=True, slots=True)
 class Tag(CstNode):
-    """[Tag Object](https://spec.openapis.org/oas/v3.1.0#tag-object).
-
-    Attributes:
-        name: Name of the tag (required).
-        description: Short description; CommonMark allowed.
-        external_docs: Additional external documentation.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Tag Object](https://spec.openapis.org/oas/v3.1.0#tag-object)."""
 
     name: str
     description: str | None = None
@@ -237,24 +168,9 @@ class Tag(CstNode):
     source_ref: SourceRef | None = None
 
 
-# ---------------------------------------------------------------------------
-# Parameter, Header, Encoding, and MediaType
-# ---------------------------------------------------------------------------
-
-
 @dataclass(frozen=True, slots=True)
 class Header(CstNode):
-    """[Header Object](https://spec.openapis.org/oas/v3.1.0#header-object).
-
-    Attributes:
-        schema: JSON Schema for the header value.
-        content: Per-media-type serialization, mutually exclusive with `schema`.
-        description: CommonMark description.
-        required: Defaults to `False`.
-        deprecated: Marks the header as deprecated.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Header Object](https://spec.openapis.org/oas/v3.1.0#header-object)."""
 
     schema: JsonSchema | None = None
     content: Mapping[str, MediaTypeObject] = field(default_factory=dict)
@@ -267,17 +183,7 @@ class Header(CstNode):
 
 @dataclass(frozen=True, slots=True)
 class Encoding(CstNode):
-    """[Encoding Object](https://spec.openapis.org/oas/v3.1.0#encoding-object).
-
-    Attributes:
-        content_type: Content-Type for encoding a specific property.
-        headers: Additional headers, excluding `Content-Type`.
-        style: Serialisation style.
-        explode: Whether arrays/objects generate separate parameters.
-        allow_reserved: Allow reserved characters without percent-encoding.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Encoding Object](https://spec.openapis.org/oas/v3.1.0#encoding-object)."""
 
     content_type: str | None = None
     headers: Mapping[str, Header] = field(default_factory=dict)
@@ -290,16 +196,7 @@ class Encoding(CstNode):
 
 @dataclass(frozen=True, slots=True)
 class MediaTypeObject(CstNode):
-    """[Media Type Object](https://spec.openapis.org/oas/v3.1.0#media-type-object).
-
-    Attributes:
-        schema: JSON Schema describing the media type.
-        example: Example value (mutually exclusive with `examples`).
-        examples: Named example objects (mutually exclusive with `example`).
-        encoding: Per-property encoding hints for `multipart` and `form` bodies.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Media Type Object](https://spec.openapis.org/oas/v3.1.0#media-type-object)."""
 
     schema: JsonSchema | None = None
     example: JsonValue | None = None
@@ -311,22 +208,7 @@ class MediaTypeObject(CstNode):
 
 @dataclass(frozen=True, slots=True)
 class Parameter(CstNode):
-    """[Parameter Object](https://spec.openapis.org/oas/v3.1.0#parameter-object).
-
-    Attributes:
-        name: Parameter name (required).
-        in_: Location of the parameter (required).
-        schema: JSON Schema for the parameter value.
-        content: Per-media-type serialization, mutually exclusive with `schema`.
-        description: CommonMark description.
-        required: Must be `True` for path parameters.
-        deprecated: Marks the parameter as deprecated.
-        allow_empty_value: Allows empty-string values (query only).
-        style: Serialisation style.
-        explode: Whether arrays/objects generate separate parameters.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Parameter Object](https://spec.openapis.org/oas/v3.1.0#parameter-object)."""
 
     name: str
     in_: ParameterLocation
@@ -344,15 +226,7 @@ class Parameter(CstNode):
 
 @dataclass(frozen=True, slots=True)
 class RequestBody(CstNode):
-    """[Request Body Object](https://spec.openapis.org/oas/v3.1.0#request-body-object).
-
-    Attributes:
-        content: Map from media-type string to `MediaTypeObject` (required).
-        description: CommonMark description.
-        required: Whether the body is mandatory. Defaults to `False`.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Request Body Object](https://spec.openapis.org/oas/v3.1.0#request-body-object)."""
 
     content: Mapping[str, MediaTypeObject]
     description: str | None = None
@@ -363,16 +237,7 @@ class RequestBody(CstNode):
 
 @dataclass(frozen=True, slots=True)
 class Response(CstNode):
-    """[Response Object](https://spec.openapis.org/oas/v3.1.0#response-object).
-
-    Attributes:
-        description: Short description of the response (required).
-        headers: Map of header name to `Header`.
-        content: Map of media-type string to `MediaTypeObject`.
-        links: Map of link name to `Link`.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Response Object](https://spec.openapis.org/oas/v3.1.0#response-object)."""
 
     description: str
     headers: Mapping[str, Header] = field(default_factory=dict)
@@ -384,18 +249,7 @@ class Response(CstNode):
 
 @dataclass(frozen=True, slots=True)
 class Link(CstNode):
-    """[Link Object](https://spec.openapis.org/oas/v3.1.0#link-object).
-
-    Attributes:
-        operation_ref: Relative or absolute URI reference to an OAS operation.
-        operation_id: The `operationId` of an existing operation.
-        parameters: Map from parameter name to its value expression.
-        request_body: Value expression for the request body.
-        description: CommonMark description.
-        server: Target server for this link.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Link Object](https://spec.openapis.org/oas/v3.1.0#link-object)."""
 
     operation_ref: str | None = None
     operation_id: str | None = None
@@ -407,30 +261,9 @@ class Link(CstNode):
     source_ref: SourceRef | None = None
 
 
-# ---------------------------------------------------------------------------
-# Operations and paths
-# ---------------------------------------------------------------------------
-
-
 @dataclass(frozen=True, slots=True)
 class Operation(CstNode):
-    """[Operation Object](https://spec.openapis.org/oas/v3.1.0#operation-object).
-
-    Attributes:
-        responses: Map from HTTP status code (or `"default"`) to `Response` (required).
-        tags: List of tag names for grouping.
-        summary: Short summary.
-        description: CommonMark description.
-        external_docs: Additional external documentation.
-        operation_id: Unique string identifier for the operation.
-        parameters: List of parameters applicable to this operation.
-        request_body: The request body, if applicable.
-        deprecated: Marks the operation as deprecated.
-        security: Overrides the top-level security requirements.
-        servers: Alternative servers for this operation.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Operation Object](https://spec.openapis.org/oas/v3.1.0#operation-object)."""
 
     responses: Mapping[str, Response]
     tags: Sequence[str] = field(default_factory=list)
@@ -452,19 +285,7 @@ type SecurityRequirement = Mapping[str, Sequence[str]]
 
 @dataclass(frozen=True, slots=True)
 class PathItem(CstNode):
-    """[Path Item Object](https://spec.openapis.org/oas/v3.1.0#path-item-object).
-
-    Each HTTP method is a separate optional field mirroring the spec.
-
-    Attributes:
-        summary: Optional summary applied to all operations in this path.
-        description: CommonMark description.
-        get/put/post/delete/options/head/patch/trace: Per-method operations.
-        parameters: Parameters shared across all operations in this path.
-        servers: Alternative servers for all operations in this path.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Path Item Object](https://spec.openapis.org/oas/v3.1.0#path-item-object)."""
 
     summary: str | None = None
     description: str | None = None
@@ -482,23 +303,9 @@ class PathItem(CstNode):
     source_ref: SourceRef | None = None
 
 
-# ---------------------------------------------------------------------------
-# Security schemes
-# ---------------------------------------------------------------------------
-
-
 @dataclass(frozen=True, slots=True)
 class OAuthFlow(CstNode):
-    """A single [OAuth Flow Object](https://spec.openapis.org/oas/v3.1.0#oauth-flow-object).
-
-    Attributes:
-        scopes: Map from scope name to short description (required).
-        authorization_url: URL for the `authorization_code` and `implicit` flows.
-        token_url: URL for `password`, `clientCredentials`, and `authorizationCode`.
-        refresh_url: URL for obtaining refresh tokens.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """A single [OAuth Flow Object](https://spec.openapis.org/oas/v3.1.0#oauth-flow-object)."""
 
     scopes: Mapping[str, str]
     authorization_url: str | None = None
@@ -531,20 +338,7 @@ class OAuthFlows(CstNode):
 
 @dataclass(frozen=True, slots=True)
 class SecurityScheme(CstNode):
-    """[Security Scheme Object](https://spec.openapis.org/oas/v3.1.0#security-scheme-object).
-
-    Attributes:
-        type_: Security scheme type (required).
-        description: CommonMark description.
-        name: API key name (`apiKey` type only).
-        in_: Location of the API key (`apiKey` type only).
-        scheme: HTTP authentication scheme (`http` type only), e.g. `"bearer"`.
-        bearer_format: Format hint for `Bearer` tokens.
-        flows: OAuth flow definitions (`oauth2` type only).
-        open_id_connect_url: OpenID Connect Discovery URL.
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
-    """
+    """[Security Scheme Object](https://spec.openapis.org/oas/v3.1.0#security-scheme-object)."""
 
     type_: SecuritySchemeType
     description: str | None = None
@@ -558,28 +352,11 @@ class SecurityScheme(CstNode):
     source_ref: SourceRef | None = None
 
 
-# ---------------------------------------------------------------------------
-# Components and document root
-# ---------------------------------------------------------------------------
-
-
 @dataclass(frozen=True, slots=True)
 class Components(CstNode):
     """[Components Object](https://spec.openapis.org/oas/v3.1.0#components-object).
 
     A registry of reusable objects referenced via `$ref` elsewhere in the document.
-
-    Attributes:
-        schemas: Reusable JSON Schema definitions.
-        responses: Reusable response objects.
-        parameters: Reusable parameter objects.
-        request_bodies: Reusable request body objects.
-        headers: Reusable header objects.
-        security_schemes: Reusable security scheme definitions.
-        links: Reusable link objects.
-        path_items: Reusable path item objects (OAS 3.1 addition).
-        extensions: `x-*` extension fields.
-        source_ref: Origin in the source document.
     """
 
     schemas: Mapping[str, JsonSchema] = field(default_factory=dict)
@@ -596,22 +373,7 @@ class Components(CstNode):
 
 @dataclass(frozen=True, slots=True)
 class OpenApiDocument(CstNode):
-    """The root of a parsed OpenAPI 3.1 document.
-
-    Attributes:
-        openapi: The OpenAPI Specification version string (required), e.g. `"3.1.0"`.
-        info: Metadata about the API (required).
-        paths: Map from path template to `PathItem`.
-        components: Container for reusable objects.
-        servers: List of server objects; defaults to `[{url: "/"}]` if absent.
-        security: Default security requirements for all operations.
-        tags: List of tag objects for grouping operations.
-        external_docs: Additional external documentation.
-        webhooks: Map of webhook name to `PathItem` (OAS 3.1 addition).
-        extensions: `x-*` extension fields.
-        source_id: Matches `RawDoc.source_id`.
-        source_ref: Points to the document root (`""`).
-    """
+    """The root of a parsed OpenAPI 3.1 document."""
 
     openapi: str
     info: Info

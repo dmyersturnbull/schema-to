@@ -258,8 +258,8 @@ class FileDataSourceFactory[I: RawDoc]:
 class FileDataSink[O: Artifact](DataSink[O]):
     """A `DataSink` that writes each `Artifact` as a file under a root directory.
 
-    `artifact.artifact_id` is treated as a relative path from `root`.  Parent
-    directories are created automatically when `create_dirs` is `True`.
+    `artifact.artifact_id` is treated as a relative path from `root`.
+    Parent directories are created automatically when `create_dirs` is `True`.
 
     Attributes:
         root: Base directory for all written files.

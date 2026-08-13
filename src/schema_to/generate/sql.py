@@ -1,7 +1,7 @@
 """Generator: JSON Schema 2020-12 CST → PostgreSQL DDL AST.
 
-Mapping rules
--------------
+## Mapping rules
+
 - The root schema and each `$defs` entry are flattened (see `generate._compose`)
   and become a `CREATE TABLE` statement if the result is `object`-typed.
   Flattening merges `allOf` branches and, given a resolver, follows `$ref`,
@@ -241,9 +241,8 @@ class ColumnBuilder:
             schema, base_uri=_base_uri(schema)
         )
         self._warnings.extend(standalone.warnings)
-        schema_json = orjson.dumps(JsonSchemaSerializer().serialize(standalone.schema)).decode(
-            "utf-8"
-        )
+        to_dump = JsonSchemaSerializer().serialize(standalone.schema)
+        schema_json = orjson.dumps(to_dump).decode("utf-8")
         fn = "jsonb_matches_schema" if data_type.base == PgDataType.JSONB else "json_matches_schema"
         escaped = schema_json.replace("'", "''")
         json_check = f"{fn}('{escaped}', {col_name})"

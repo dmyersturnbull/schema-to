@@ -1,10 +1,9 @@
 """General REST conventions for mapping OpenAPI paths/operations to intent.
 
-These helpers are deliberately persistence-agnostic and carry no awareness of
-any particular query convention (no notion of `where`/`select`/etc. lives here —
-that belongs to templates and their runtime library).  They classify a path and
-method into a REST operation and derive a resource name from a path, and are
-exposed to endpoint-body templates as Jinja globals.
+These helpers are deliberately persistence-agnostic,
+and they carry no awareness of any particular query convention.
+They classify a path and method into a REST operation and derive a resource name from a path,
+and are exposed to endpoint-body templates as Jinja globals.
 """
 
 from enum import StrEnum, auto

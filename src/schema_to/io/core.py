@@ -65,11 +65,11 @@ class JsonLikeReader(ABC):
         Args:
             content: Text or bytes.
             media_type: IANA media-type of the content.
-              Implementations MAY infer the text encoding of bytes from a `charset` param.
+                Implementations MAY infer the text encoding of bytes from a `charset` param.
 
         Raises:
             ReadError: If the content is invalid.
-              Implementations MUST raise an instance of this class (or a subtype).
+                Implementations MUST raise an instance of this class (or a subtype).
             UnsupportedMediaTypeError: If the media-type `media_type` is not supported.
         """
         raise NotImplementedError
@@ -114,7 +114,7 @@ class JsonLikeWriter(ABC):
         Args:
             data: Value to serialize.
             media_type: IANA media-type of the content.
-              Implementations MAY vary the encoding using a `charset` param.
+                Implementations MAY vary the encoding using a `charset` param.
 
         Raises:
             WriteError: If serialization failed.
