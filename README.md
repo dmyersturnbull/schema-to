@@ -102,25 +102,6 @@ The Python API emphasizes composition and immutability:
 - **Immutable types:** Inputs, intermediate representations (CST, AST), and outputs are immutable. Changes produce new instances.
 - **Composable stages:** Each pipeline stage (read → resolve → generate → reify) exposes a clean API for custom extensions.
 
-**Example with multiple sources:**
-
-```python
-from schema_to import Pipeline, JsonSchemaSource, OpenAPISource, PostgresTarget, TypeScriptTarget
-
-# Build a multi-target pipeline
-pipeline = Pipeline(
-    [
-        JsonSchemaSource("schemas/"),  # Read all .schema.json files
-        OpenAPISource("api.openapi.yaml"),  # Also include OpenAPI
-        PostgresTarget(output="migrations/"),
-        TypeScriptTarget(output="types/"),
-    ]
-)
-
-# Process all sources in a single pass
-pipeline.process()
-```
-
 ## Architecture
 
 ```mermaid
