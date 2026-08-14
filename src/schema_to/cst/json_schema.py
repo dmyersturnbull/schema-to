@@ -5,6 +5,7 @@ The flat `ObjectSchema` avoids indirection through vocabulary sub-objects,
  so that serializers and parsers can iterate `dataclasses.fields()` directly.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from typing import TYPE_CHECKING, Literal, TypeIs, assert_type
@@ -12,8 +13,7 @@ from typing import TYPE_CHECKING, Literal, TypeIs, assert_type
 from schema_to.cst.base import CstNode, SourceRef
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
-    from collections.abc import Set as AbstractSet
+    from collections.abc import Mapping, Set
 
     from schema_to.core import JsonValue
 
@@ -56,7 +56,7 @@ class JsonSchemaType(StrEnum):
 
 
 # A schema's `type` keyword is either a single type or a non-empty set of types.
-type SchemaType = JsonSchemaType | frozenset[JsonSchemaType]
+type SchemaType = JsonSchemaType | Set[JsonSchemaType]
 
 
 # ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ class _JsonSchema(CstNode):
     Use `JsonSchema` instead.
     """
 
-    def get_types(self) -> frozenset[JsonSchemaType]:
+    def get_types(self) -> Set[JsonSchemaType]:
         """Return the schema's types as a frozenset, or empty frozenset if unset."""
         match self:
             case BooleanSchema():
@@ -118,8 +118,8 @@ type SchemaKeywordValue = (
     | int
     | float
     | JsonSchemaType
-    | frozenset[JsonSchemaType]
-    | frozenset[str]
+    | Set[JsonSchemaType]
+    | Set[str]
     | DefaultValue
     | ConstValue
     | JsonSchema
@@ -127,7 +127,7 @@ type SchemaKeywordValue = (
     | Sequence[JsonSchema]
     | Mapping[str, JsonSchema]
     | Mapping[str, bool]
-    | Mapping[str, frozenset[str]]
+    | Mapping[str, Set[str]]
     | Mapping[str, JsonValue]
     | None
 )
@@ -137,7 +137,7 @@ type SchemaKeywordValue = (
 # complementary halves of one: either a schema sets it or it does not.
 # `properties` and `required` are absent because they accumulate, and `allOf`/`anyOf`/`oneOf`
 # because they are the composition being resolved.
-SINGULAR_KEYWORDS: frozenset[str] = frozenset(
+SINGULAR_KEYWORDS: Set[str] = frozenset(
     {
         "title",
         "description",
@@ -164,7 +164,7 @@ SINGULAR_KEYWORDS: frozenset[str] = frozenset(
 
 # The subset of `SINGULAR_KEYWORDS` that documents a schema rather than constraining it.
 # Losing one to a merge costs prose; losing any of the others costs validation.
-DOC_KEYWORDS: frozenset[str] = frozenset({"title", "description"})
+DOC_KEYWORDS: Set[str] = frozenset({"title", "description"})
 
 
 def is_object_schema(schema: JsonSchema) -> TypeIs[ObjectSchema]:
@@ -288,10 +288,10 @@ class ObjectSchema(_JsonSchema):
     property_names: JsonSchema | None = field(
         default=None, metadata={"key": "propertyNames", "kind": "optional_schema"}
     )
-    required: frozenset[str] | None = field(
+    required: Set[str] | None = field(
         default=None, metadata={"key": "required", "kind": "str_frozenset"}
     )
-    dependent_required: Mapping[str, frozenset[str]] | None = field(
+    dependent_required: Mapping[str, Set[str]] | None = field(
         default=None, metadata={"key": "dependentRequired", "kind": "dep_required_map"}
     )
     dependent_schemas: Mapping[str, JsonSchema] | None = field(
@@ -352,9 +352,7 @@ class ObjectSchema(_JsonSchema):
     source_ref: SourceRef | None = field(default=None, metadata={})
 
     def get_boolean_applicator(
-        self,
-        *,
-        only: AbstractSet[BooleanApplicatorKeyword | BooleanApplicatorLiteral] | None = None,
+        self, *, only: Set[BooleanApplicatorKeyword | BooleanApplicatorLiteral] | None = None
     ) -> tuple[BooleanApplicatorKeyword | None, Sequence[JsonSchema]]:
         """Return the type and value of `not`/`anyOf`/`oneOf`/`allOf` defined on this schema.
 
@@ -376,7 +374,7 @@ class ObjectSchema(_JsonSchema):
             BooleanApplicatorKeyword.ALL_OF: self.all_of,
         }.items():
             if app in only:
-                if isinstance(values, list):
+                if isinstance(values, Sequence):
                     return app, values
                 if isinstance(values, (BooleanSchema, ObjectSchema)):
                     return app, [values]
@@ -402,11 +400,11 @@ class ObjectSchema(_JsonSchema):
         """Return `pattern_properties`, or empty if unset."""
         return self.pattern_properties or {}
 
-    def get_required(self) -> frozenset[str]:
+    def get_required(self) -> Set[str]:
         """Return `required`, or empty if unset."""
         return self.required or frozenset()
 
-    def get_dependent_required(self) -> Mapping[str, frozenset[str]]:
+    def get_dependent_required(self) -> Mapping[str, Set[str]]:
         """Return `dependent_required`, or empty if unset."""
         return self.dependent_required or {}
 

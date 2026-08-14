@@ -55,7 +55,7 @@ from schema_to.pipeline import DocParser
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
-    from schema_to.core import JsonValue
+    from schema_to.core import JsonArray, JsonObject, JsonValue
     from schema_to.cst.json_schema import BooleanSchema, JsonSchema, ObjectSchema
     from schema_to.io.core import JsonLikeReader
 
@@ -89,7 +89,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 )
             )
         return self._build_document(
-            cast("dict[str, JsonValue]", data),  # narrowed by isinstance above; ty can't see it
+            cast("JsonObject", data),  # narrowed by isinstance above; ty can't see it
             source_id=input.doc_id,
             display_name=input.display_name,
         )
@@ -97,7 +97,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     # -- Document root -------------------------------------------------------
 
     def _build_document(
-        self, data: dict[str, JsonValue], *, source_id: str, display_name: str | None
+        self, data: JsonObject, *, source_id: str, display_name: str | None
     ) -> Result[OpenApiDocument]:
         errors: list[TranspilationError] = []
 
@@ -116,7 +116,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         else:
             info = extract(
                 self._build_info(
-                    cast("dict[str, JsonValue]", data["info"]), source_id=source_id, pointer="/info"
+                    cast("JsonObject", data["info"]), source_id=source_id, pointer="/info"
                 ),
                 errors,
             )
@@ -129,7 +129,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
 
         components = extract(
             self._build_components(
-                cast("dict[str, JsonValue]", data.get("components") or {}),
+                cast("JsonObject", data.get("components") or {}),
                 source_id=source_id,
                 pointer="/components",
             ),
@@ -139,23 +139,23 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         servers = self._build_server_list(data, source_id=source_id, pointer="")
         tags = self._build_tags(data, source_id=source_id, pointer="")
 
-        security: list[dict] = []
+        security: list[dict] = []  # TODO: Don't use raw `dict`.
         raw_security = data.get("security")
-        if isinstance(raw_security, list):
+        if isinstance(raw_security, MutableSequence):
             security.extend(
                 {
-                    k: list(cast("list[JsonValue]", v)) if isinstance(v, list) else v
+                    k: list(cast("JsonArray", v)) if isinstance(v, list) else v
                     for k, v in item.items()
                 }
                 for item in as_json_list(raw_security)
-                if isinstance(item, dict)
+                if isinstance(item, MutableMapping)
             )
 
         external_docs: ExternalDocumentation | None = None
         if isinstance(data.get("externalDocs"), dict):
             external_docs = extract(
                 self._build_external_docs(
-                    cast("dict[str, JsonValue]", data["externalDocs"]),
+                    cast("JsonObject", data["externalDocs"]),
                     source_id=source_id,
                     pointer="/externalDocs",
                 ),
@@ -190,12 +190,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     # -- Paths / webhooks helper ---------------------------------------------
 
     def _build_path_map(
-        self,
-        data: dict[str, JsonValue],
-        key: str,
-        *,
-        source_id: str,
-        errors: list[TranspilationError],
+        self, data: JsonObject, key: str, *, source_id: str, errors: list[TranspilationError]
     ) -> dict[str, PathItem]:
         result: dict[str, PathItem] = {}
         raw = data.get(key)
@@ -206,7 +201,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
             if isinstance(pi_data, dict):
                 pi = extract(
                     self._build_path_item(
-                        cast("dict[str, JsonValue]", pi_data), source_id=source_id, pointer=pi_ptr
+                        cast("JsonObject", pi_data), source_id=source_id, pointer=pi_ptr
                     ),
                     errors,
                 )
@@ -223,9 +218,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
 
     # -- Info ----------------------------------------------------------------
 
-    def _build_info(
-        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
-    ) -> Result[Info]:
+    def _build_info(self, data: JsonObject, *, source_id: str, pointer: str) -> Result[Info]:
         errors: list[TranspilationError] = []
         title = data.get("title")
         version = data.get("version")
@@ -247,7 +240,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
 
         contact: Contact | None = None
         if isinstance(data.get("contact"), dict):
-            c = cast("dict[str, JsonValue]", data["contact"])
+            c = cast("JsonObject", data["contact"])
             contact = Contact(
                 name=str_field(c, "name"),
                 url=str_field(c, "url"),
@@ -258,7 +251,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
 
         license_: License | None = None
         if isinstance(data.get("license"), dict):
-            lic = cast("dict[str, JsonValue]", data["license"])
+            lic = cast("JsonObject", data["license"])
             license_ = License(
                 name=str_or(lic, "name"),
                 identifier=str_field(lic, "identifier"),
@@ -285,28 +278,24 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
 
     # -- Servers / tags / external docs -------------------------------------
 
-    def _build_server_list(
-        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
-    ) -> list[Server]:
+    def _build_server_list(self, data: JsonObject, *, source_id: str, pointer: str) -> list[Server]:
         raw = data.get("servers")
         if not isinstance(raw, list):
             return []
         return [
             self._extract_server(
-                cast("dict[str, JsonValue]", s),
-                source_id=source_id,
-                pointer=ptr(pointer, "servers", i),
+                cast("JsonObject", s), source_id=source_id, pointer=ptr(pointer, "servers", i)
             )
             for i, s in enumerate(raw)
             if isinstance(s, dict)
         ]
 
-    def _extract_server(self, s: dict[str, JsonValue], *, source_id: str, pointer: str) -> Server:
+    def _extract_server(self, s: JsonObject, *, source_id: str, pointer: str) -> Server:
         variables: dict[str, ServerVariable] = {}
         if isinstance(s.get("variables"), dict):
-            for vname, vdata in cast("dict[str, JsonValue]", s["variables"]).items():
+            for vname, vdata in cast("JsonObject", s["variables"]).items():
                 if isinstance(vdata, dict):
-                    vd = cast("dict[str, JsonValue]", vdata)
+                    vd = cast("JsonObject", vdata)
                     raw_enum = vd.get("enum")
                     variables[vname] = ServerVariable(
                         default=str_or(vd, "default"),
@@ -325,7 +314,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
             source_ref=SourceRef(source_id, pointer),
         )
 
-    def _build_tags(self, data: dict[str, JsonValue], *, source_id: str, pointer: str) -> list[Tag]:
+    def _build_tags(self, data: JsonObject, *, source_id: str, pointer: str) -> list[Tag]:
         tags: list[Tag] = []
         raw = data.get("tags")
         if not isinstance(raw, list):
@@ -333,11 +322,11 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         for i, t in enumerate(as_json_list(raw)):
             if not isinstance(t, dict):
                 continue
-            td = cast("dict[str, JsonValue]", t)
+            td = cast("JsonObject", t)
             tag_ptr = ptr(pointer, "tags", i)
             ext_docs: ExternalDocumentation | None = None
             if isinstance(td.get("externalDocs"), dict):
-                ed = cast("dict[str, JsonValue]", td["externalDocs"])
+                ed = cast("JsonObject", td["externalDocs"])
                 ext_docs = ExternalDocumentation(
                     url=str_or(ed, "url"),
                     description=str_field(ed, "description"),
@@ -356,7 +345,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         return tags
 
     def _build_external_docs(
-        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
+        self, data: JsonObject, *, source_id: str, pointer: str
     ) -> Result[ExternalDocumentation]:
         url = data.get("url")
         if not isinstance(url, str):
@@ -380,7 +369,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     # -- Paths / operations --------------------------------------------------
 
     def _build_path_item(
-        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
+        self, data: JsonObject, *, source_id: str, pointer: str
     ) -> Result[PathItem]:
         errors: list[TranspilationError] = []
         method_ops: dict[str, Operation] = {}
@@ -388,7 +377,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
             if method_str in data and isinstance(data[method_str], dict):
                 op = extract(
                     self._build_operation(
-                        cast("dict[str, JsonValue]", data[method_str]),
+                        cast("JsonObject", data[method_str]),
                         source_id=source_id,
                         pointer=ptr(pointer, method_str),
                     ),
@@ -425,7 +414,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         )
 
     def _build_operation(
-        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
+        self, data: JsonObject, *, source_id: str, pointer: str
     ) -> Result[Operation]:
         errors: list[TranspilationError] = []
 
@@ -437,9 +426,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                     rptr = ptr(pointer, "responses", status)
                     resp = extract(
                         self._build_response(
-                            cast("dict[str, JsonValue]", resp_data),
-                            source_id=source_id,
-                            pointer=rptr,
+                            cast("JsonObject", resp_data), source_id=source_id, pointer=rptr
                         ),
                         errors,
                     )
@@ -461,7 +448,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         if isinstance(data.get("requestBody"), dict):
             request_body = extract(
                 self._build_request_body(
-                    cast("dict[str, JsonValue]", data["requestBody"]),
+                    cast("JsonObject", data["requestBody"]),
                     source_id=source_id,
                     pointer=ptr(pointer, "requestBody"),
                 ),
@@ -472,7 +459,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         if isinstance(data.get("externalDocs"), dict):
             external_docs = extract(
                 self._build_external_docs(
-                    cast("dict[str, JsonValue]", data["externalDocs"]),
+                    cast("JsonObject", data["externalDocs"]),
                     source_id=source_id,
                     pointer=ptr(pointer, "externalDocs"),
                 ),
@@ -481,7 +468,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
 
         servers = self._build_server_list(data, source_id=source_id, pointer=pointer)
 
-        security: list[dict] | None = None
+        security: list[dict] | None = None  # TODO: Don't use raw `dict`.
         raw_sec = data.get("security")
         if isinstance(raw_sec, list):
             security = [dict(req) for req in as_json_list(raw_sec) if isinstance(req, dict)]
@@ -515,12 +502,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     # -- Parameters / request body / responses / media types ----------------
 
     def _build_parameter_list(
-        self,
-        data: dict[str, JsonValue],
-        *,
-        source_id: str,
-        pointer: str,
-        errors: list[TranspilationError],
+        self, data: JsonObject, *, source_id: str, pointer: str, errors: list[TranspilationError]
     ) -> list[Parameter]:
         parameters: list[Parameter] = []
         raw = data.get("parameters")
@@ -532,7 +514,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
             pptr = ptr(pointer, "parameters", i)
             p = extract(
                 self._build_parameter(
-                    cast("dict[str, JsonValue]", p_data), source_id=source_id, pointer=pptr
+                    cast("JsonObject", p_data), source_id=source_id, pointer=pptr
                 ),
                 errors,
             )
@@ -541,7 +523,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         return parameters
 
     def _build_parameter(
-        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
+        self, data: JsonObject, *, source_id: str, pointer: str
     ) -> Result[Parameter]:
         name = data.get("name")
         in_ = data.get("in")
@@ -604,12 +586,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         )
 
     def _build_content_map(
-        self,
-        data: dict[str, JsonValue],
-        *,
-        source_id: str,
-        pointer: str,
-        errors: list[TranspilationError],
+        self, data: JsonObject, *, source_id: str, pointer: str, errors: list[TranspilationError]
     ) -> dict[str, MediaTypeObject]:
         """Parse a `content` map (media-type string → `MediaTypeObject`)."""
         content_raw = data.get("content")
@@ -620,7 +597,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
             if isinstance(mt_data, dict):
                 mt = extract(
                     self._build_media_type_obj(
-                        cast("dict[str, JsonValue]", mt_data),
+                        cast("JsonObject", mt_data),
                         source_id=source_id,
                         pointer=ptr(pointer, "content", media_type_str),
                     ),
@@ -631,7 +608,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         return content
 
     def _build_request_body(
-        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
+        self, data: JsonObject, *, source_id: str, pointer: str
     ) -> Result[RequestBody]:
         errors: list[TranspilationError] = []
         content = self._build_content_map(data, source_id=source_id, pointer=pointer, errors=errors)
@@ -648,7 +625,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         )
 
     def _build_response(
-        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
+        self, data: JsonObject, *, source_id: str, pointer: str
     ) -> Result[Response]:
         errors: list[TranspilationError] = []
         description = data.get("description", "")
@@ -669,21 +646,15 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         )
 
     def _build_response_headers(
-        self,
-        data: dict[
-            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
-        ],
-        errors: list[TranspilationError],
-        pointer: str,
-        source_id: str,
+        self, data: JsonObject, errors: list[TranspilationError], pointer: str, source_id: str
     ) -> dict[str, Header]:
         headers: dict[str, Header] = {}
         if isinstance(data.get("headers"), dict):
-            for hname, hdata in cast("dict[str, JsonValue]", data["headers"]).items():
+            for hname, hdata in cast("JsonObject", data["headers"]).items():
                 if isinstance(hdata, dict):
                     h = extract(
                         self._build_header(
-                            cast("dict[str, JsonValue]", hdata),
+                            cast("JsonObject", hdata),
                             source_id=source_id,
                             pointer=ptr(pointer, "headers", hname),
                         ),
@@ -693,9 +664,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                         headers[hname] = h
         return headers
 
-    def _build_header(
-        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
-    ) -> Result[Header]:
+    def _build_header(self, data: JsonObject, *, source_id: str, pointer: str) -> Result[Header]:
         errors: list[TranspilationError] = []
         schema = None
         schema_data = data.get("schema")
@@ -722,7 +691,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         )
 
     def _build_media_type_obj(
-        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
+        self, data: JsonObject, *, source_id: str, pointer: str
     ) -> Result[MediaTypeObject]:
         errors: list[TranspilationError] = []
         schema = None
@@ -750,7 +719,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     # -- Components ----------------------------------------------------------
 
     def _build_components(
-        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
+        self, data: JsonObject, *, source_id: str, pointer: str
     ) -> Result[Components]:
         if not isinstance(data, dict):
             return Ok(Components())
@@ -788,10 +757,10 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     ) -> dict[str, SecurityScheme]:
         security_schemes: dict[str, SecurityScheme] = {}
         if isinstance(data.get("securitySchemes"), dict):
-            for name, ss_data in cast("dict[str, JsonValue]", data["securitySchemes"]).items():
+            for name, ss_data in cast("JsonObject", data["securitySchemes"]).items():
                 if isinstance(ss_data, dict):
                     scheme = self._build_security_scheme(
-                        cast("dict[str, JsonValue]", ss_data),
+                        cast("JsonObject", ss_data),
                         source_id=source_id,
                         pointer=ptr(pointer, "securitySchemes", name),
                     )
@@ -810,11 +779,11 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     ) -> dict[str, Header]:
         headers: dict[str, Header] = {}
         if isinstance(data.get("headers"), dict):
-            for name, h_data in cast("dict[str, JsonValue]", data["headers"]).items():
+            for name, h_data in cast("JsonObject", data["headers"]).items():
                 if isinstance(h_data, dict):
                     h = extract(
                         self._build_header(
-                            cast("dict[str, JsonValue]", h_data),
+                            cast("JsonObject", h_data),
                             source_id=source_id,
                             pointer=ptr(pointer, "headers", name),
                         ),
@@ -835,11 +804,11 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     ) -> dict[str, RequestBody]:
         request_bodies: dict[str, RequestBody] = {}
         if isinstance(data.get("requestBodies"), dict):
-            for name, rb_data in cast("dict[str, JsonValue]", data["requestBodies"]).items():
+            for name, rb_data in cast("JsonObject", data["requestBodies"]).items():
                 if isinstance(rb_data, dict):
                     rb = extract(
                         self._build_request_body(
-                            cast("dict[str, JsonValue]", rb_data),
+                            cast("JsonObject", rb_data),
                             source_id=source_id,
                             pointer=ptr(pointer, "requestBodies", name),
                         ),
@@ -860,11 +829,11 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     ) -> dict[str, Response]:
         responses: dict[str, Response] = {}
         if isinstance(data.get("responses"), dict):
-            for name, r_data in cast("dict[str, JsonValue]", data["responses"]).items():
+            for name, r_data in cast("JsonObject", data["responses"]).items():
                 if isinstance(r_data, dict):
                     r = extract(
                         self._build_response(
-                            cast("dict[str, JsonValue]", r_data),
+                            cast("JsonObject", r_data),
                             source_id=source_id,
                             pointer=ptr(pointer, "responses", name),
                         ),
@@ -885,11 +854,11 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     ) -> dict[str, Parameter]:
         parameters: dict[str, Parameter] = {}
         if isinstance(data.get("parameters"), dict):
-            for name, p_data in cast("dict[str, JsonValue]", data["parameters"]).items():
+            for name, p_data in cast("JsonObject", data["parameters"]).items():
                 if isinstance(p_data, dict):
                     p = extract(
                         self._build_parameter(
-                            cast("dict[str, JsonValue]", p_data),
+                            cast("JsonObject", p_data),
                             source_id=source_id,
                             pointer=ptr(pointer, "parameters", name),
                         ),
@@ -910,7 +879,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     ) -> dict[str, BooleanSchema | ObjectSchema]:
         schemas: dict[str, JsonSchema] = {}
         if isinstance(data.get("schemas"), dict):
-            for name, s_data in cast("dict[str, JsonValue]", data["schemas"]).items():
+            for name, s_data in cast("JsonObject", data["schemas"]).items():
                 s = extract(
                     self.js.build_schema(
                         s_data, source_id=source_id, pointer=ptr(pointer, "schemas", name)
@@ -922,7 +891,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         return schemas
 
     def _build_security_scheme(
-        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
+        self, data: JsonObject, *, source_id: str, pointer: str
     ) -> SecurityScheme | None:
         scheme_type = enum_member(SecuritySchemeType, data.get("type"))
         if scheme_type is None:
@@ -947,7 +916,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     ) -> OAuthFlows | None:
         if not isinstance(data, Mapping):
             return None
-        flows = cast("dict[str, JsonValue]", data)
+        flows = cast("JsonObject", data)
         return OAuthFlows(
             implicit=self._build_oauth_flow(
                 flows.get("implicit"), source_id=source_id, pointer=ptr(pointer, "implicit")
@@ -974,13 +943,10 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     ) -> OAuthFlow | None:
         if not isinstance(data, Mapping):
             return None
-        flow = cast("dict[str, JsonValue]", data)
+        flow = cast("JsonObject", data)
         raw_scopes = flow.get("scopes")
         scopes: dict[str, str] = (
-            {
-                k: v if isinstance(v, str) else ""
-                for k, v in cast("dict[str, JsonValue]", raw_scopes).items()
-            }
+            {k: v if isinstance(v, str) else "" for k, v in cast("JsonObject", raw_scopes).items()}
             if isinstance(raw_scopes, Mapping)
             else {}
         )

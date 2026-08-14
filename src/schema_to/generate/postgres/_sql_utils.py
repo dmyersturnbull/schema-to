@@ -1,4 +1,5 @@
 import re
+from collections.abc import Set
 
 from caseutil import to_snake
 
@@ -28,7 +29,7 @@ def safe_sql_identifier(name: str) -> str:
 # https://www.postgresql.org/docs/current/sql-keywords-appendix.html — the two that a
 # name must be quoted to escape.  The `non_reserved` and `col_name` categories are
 # usable bare and are deliberately absent.
-_SQL_RESERVED: frozenset[str] = frozenset(
+_SQL_RESERVED: Set[str] = frozenset(
     [
         "all",
         "analyse",

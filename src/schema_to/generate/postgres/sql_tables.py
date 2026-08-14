@@ -46,8 +46,7 @@ from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-    from collections.abc import Set as AbstractSet
+    from collections.abc import Mapping, Set
 
     from schema_to.core import JsonValue
     from schema_to.cst.json_schema import JsonSchema
@@ -110,7 +109,7 @@ class PostgresTableSetTransformer(Transformer[JsonSchemaMapDocument, SqlScript])
 
     resolver: JsonSchemaRefResolver | None = None
     validate_json: bool = False
-    roots: frozenset[str] | None = None
+    roots: Set[str] | None = None
     _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
 
     @property
@@ -218,7 +217,7 @@ class PostgresTableSetTransformer(Transformer[JsonSchemaMapDocument, SqlScript])
                     )
                 )
 
-    def _warn_cycles(self, cycles: AbstractSet[str], specs: Sequence[TableSpec]) -> None:
+    def _warn_cycles(self, cycles: Set[str], specs: Sequence[TableSpec]) -> None:
         """Note that a foreign-key cycle forced its keys to be deferred."""
         by_name = {spec.table_name: spec for spec in specs}
         for name in sorted(cycles):
@@ -236,7 +235,7 @@ class PostgresTableSetTransformer(Transformer[JsonSchemaMapDocument, SqlScript])
     # Tables
     # ------------------------------------------------------------------
 
-    def _build_table(self, spec: TableSpec, cycles: AbstractSet[str]) -> CreateTableStmt:
+    def _build_table(self, spec: TableSpec, cycles: Set[str]) -> CreateTableStmt:
         required = spec.schema.get_required()
         builder = ColumnBuilder(resolver=self.resolver, validate_json=self.validate_json)
         columns: list[ColumnDef] = []
@@ -265,8 +264,8 @@ class PostgresTableSetTransformer(Transformer[JsonSchemaMapDocument, SqlScript])
         prop_schema: JsonSchema,
         *,
         builder: ColumnBuilder,
-        required: frozenset[str],
-        cycles: AbstractSet[str],
+        required: Set[str],
+        cycles: Set[str],
     ) -> ColumnDef | None:
         flat = self._flatten(prop_schema, base_uri=spec.source_id)
         where = f"property {prop_name!r} of schema {spec.schema_name!r}"

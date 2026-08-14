@@ -8,7 +8,7 @@ before being narrowed to their `RawDoc` subclasses.
 The
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Set
 from enum import Enum, auto
 from typing import cast
 
@@ -16,7 +16,7 @@ from schema_to.io.core import JsonReader, ReadError, YamlReader
 
 __all__ = ["DocType", "DocTypeGuesser", "is_schema_map", "peek_doc_type"]
 
-_JSON_SCHEMA_KEYWORDS: frozenset[str] = frozenset(
+_JSON_SCHEMA_KEYWORDS: Set[str] = frozenset(
     {
         "$schema",
         "$ref",

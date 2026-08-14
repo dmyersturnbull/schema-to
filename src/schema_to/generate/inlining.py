@@ -48,7 +48,7 @@ from schema_to.errors import SourceLocation, TranspilationWarning
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Mapping, Sequence, Set
 
     from schema_to.core import JsonValue
     from schema_to.cst.json_schema import ConstValue, JsonSchemaType, SchemaType
@@ -125,7 +125,7 @@ class SchemaFlattener:
     # ------------------------------------------------------------------
 
     def _flatten(
-        self, schema: JsonSchema, *, base_uri: str, seen: frozenset[str], depth: int
+        self, schema: JsonSchema, *, base_uri: str, seen: Set[str], depth: int
     ) -> JsonSchema:
         if isinstance(schema, BooleanSchema) or depth > _MAX_DEPTH:
             return schema
@@ -135,7 +135,7 @@ class SchemaFlattener:
         return own
 
     def _inline(
-        self, schema: JsonSchema, *, base_uri: str, seen: frozenset[str], depth: int
+        self, schema: JsonSchema, *, base_uri: str, seen: Set[str], depth: int
     ) -> JsonSchema:
         flat = self._flatten(schema, base_uri=base_uri, seen=seen, depth=depth)
         if isinstance(flat, BooleanSchema) or depth > _MAX_DEPTH:
@@ -144,7 +144,7 @@ class SchemaFlattener:
         return replace(flat, **children)
 
     def _inline_children(
-        self, schema: ObjectSchema, *, base_uri: str, seen: frozenset[str], depth: int
+        self, schema: ObjectSchema, *, base_uri: str, seen: Set[str], depth: int
     ) -> dict[str, _SubSchemaValue]:
         """Inline every keyword whose value holds sub-schemas.
 
@@ -170,7 +170,7 @@ class SchemaFlattener:
         return out
 
     def _parts(
-        self, schema: ObjectSchema, *, base_uri: str, seen: frozenset[str], depth: int
+        self, schema: ObjectSchema, *, base_uri: str, seen: Set[str], depth: int
     ) -> list[tuple[ObjectSchema, bool]]:
         """Return the flattened `$ref` target and `allOf` branches contributing to `schema`.
 
@@ -202,7 +202,7 @@ class SchemaFlattener:
         return parts
 
     def _resolve(
-        self, ref: str, *, base_uri: str, seen: frozenset[str], schema: ObjectSchema
+        self, ref: str, *, base_uri: str, seen: Set[str], schema: ObjectSchema
     ) -> JsonSchema | None:
         if ref in seen:
             self._warn(f"Ignoring recursive $ref {ref!r}.", code="recursive-ref", schema=schema)
@@ -326,7 +326,7 @@ def _intersect_types(base: ObjectSchema, other: ObjectSchema) -> SchemaType | No
     return _as_schema_type(base_types & other_types)
 
 
-def _as_schema_type(types: frozenset[JsonSchemaType]) -> SchemaType | None:
+def _as_schema_type(types: Set[JsonSchemaType]) -> SchemaType | None:
     if not types:
         return None
     if len(types) == 1:
@@ -334,7 +334,7 @@ def _as_schema_type(types: frozenset[JsonSchemaType]) -> SchemaType | None:
     return types
 
 
-def _union_or_none(a: frozenset[str] | None, b: frozenset[str] | None) -> frozenset[str] | None:
+def _union_or_none(a: Set[str] | None, b: Set[str] | None) -> Set[str] | None:
     if a is None or b is None:
         return a if b is None else b
     return a | b

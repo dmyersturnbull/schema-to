@@ -8,7 +8,7 @@ Errors are accumulated so that a single parse call returns the complete set of
 diagnostics rather than stopping at the first fault.
 """
 
-from collections.abc import Mapping, MutableSequence
+from collections.abc import Mapping, MutableSequence, Sequence, Set
 from dataclasses import dataclass, field, fields
 from typing import TYPE_CHECKING
 
@@ -32,7 +32,7 @@ from schema_to.pipeline import DocParser
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
-    from schema_to.core import JsonValue
+    from schema_to.core import JsonObject, JsonValue
     from schema_to.io.core import JsonLikeReader
 
 __all__ = ["JsonSchemaMapParser", "JsonSchemaParser"]
@@ -42,24 +42,19 @@ __all__ = ["JsonSchemaMapParser", "JsonSchemaParser"]
 # Used as the value type for the data-driven kwargs dict so that individual
 # assignments type-check without resorting to `Any` or `object`.
 type _SchemaFieldValue = (
-    str
-    | bool
-    | int
-    | float
-    | list[JsonValue]
+    JsonValue
     | JsonSchemaType
-    | frozenset[JsonSchemaType]
-    | frozenset[str]
+    | Set[JsonSchemaType]
+    | Set[str]
+    | Mapping[str, bool]  # Ty needs this explicitly for some reason.
     | DefaultValue
     | ConstValue
     | JsonSchema
-    | list[JsonSchema]
-    | dict[str, JsonSchema]
-    | dict[str, bool]
-    | dict[str, frozenset[str]]
-    | dict[str, JsonValue]
+    | Sequence[JsonSchema]
+    | Mapping[str, JsonSchema]
+    | Mapping[str, Set[str]]
+    | JsonObject
     | SourceRef
-    | None
 )
 
 
@@ -121,7 +116,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         )
 
     def _build_object_schema(
-        self, data: dict[str, JsonValue], *, source_id: str, pointer: str
+        self, data: JsonObject, *, source_id: str, pointer: str
     ) -> Result[JsonSchema]:
         """Build an `ObjectSchema` from a raw JSON object.
 
@@ -166,7 +161,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
     # ruff:ignore[complex-structure, too-many-branches]  # Shared structure
     def _parse_field_into(
         self,
-        data: dict[str, JsonValue],
+        data: JsonObject,
         field_name: str,
         json_key: str,
         kind: str,
@@ -232,7 +227,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
     # ruff:ignore[complex-structure, too-many-branches]  # Mostly shared structure
     def _parse_scalar_into(
         self,
-        data: dict[str, JsonValue],
+        data: JsonObject,
         field_name: str,
         json_key: str,
         kind: str,
@@ -285,7 +280,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     def _parse_bool_map(
         self,
-        data: dict[str, JsonValue],
+        data: JsonObject,
         key: str,
         *,
         source_id: str,
@@ -317,13 +312,13 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     def _parse_str_frozenset(
         self,
-        data: dict[str, JsonValue],
+        data: JsonObject,
         key: str,
         *,
         source_id: str,
         pointer: str,
         errors: list[TranspilationError],
-    ) -> frozenset[str] | None:
+    ) -> Set[str] | None:
         if key not in data:
             return None
         raw = data[key]
@@ -341,13 +336,13 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     def _parse_dep_required_map(
         self,
-        data: dict[str, JsonValue],
+        data: JsonObject,
         key: str,
         *,
         source_id: str,
         pointer: str,
         errors: list[TranspilationError],
-    ) -> dict[str, frozenset[str]] | None:
+    ) -> dict[str, Set[str]] | None:
         if key not in data:
             return None
         raw = data[key]
@@ -358,7 +353,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                 )
             )
             return None
-        result: dict[str, frozenset[str]] = {}
+        result: dict[str, Set[str]] = {}
         for prop, deps in as_json_dict(raw).items():
             if not isinstance(deps, MutableSequence) or not all(isinstance(s, str) for s in deps):
                 errors.append(
@@ -422,7 +417,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     def _build_optional_schema(
         self,
-        data: dict[str, JsonValue],
+        data: JsonObject,
         key: str,
         *,
         source_id: str,
@@ -439,7 +434,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     def _build_schema_list(
         self,
-        data: dict[str, JsonValue],
+        data: JsonObject,
         key: str,
         *,
         source_id: str,
@@ -467,7 +462,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 
     def _build_schema_map(
         self,
-        data: dict[str, JsonValue],
+        data: JsonObject,
         key: str,
         *,
         source_id: str,
@@ -526,7 +521,7 @@ class JsonSchemaMapParser(DocParser[SchemaMapRawDoc, JsonSchemaMapDocument]):
         return self._build_document(as_json_dict(raw), document=input)
 
     def _build_document(
-        self, data: dict[str, JsonValue], *, document: SchemaMapRawDoc
+        self, data: JsonObject, *, document: SchemaMapRawDoc
     ) -> Result[JsonSchemaMapDocument]:
         errors: list[TranspilationError] = []
         schemas: dict[str, JsonSchema] = {}

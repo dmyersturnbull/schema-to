@@ -57,7 +57,7 @@ from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Sequence, Set
 
     from schema_to.core import JsonValue
     from schema_to.resolve.json_schema import JsonSchemaRefResolver
@@ -407,7 +407,7 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
 
     resolver: JsonSchemaRefResolver | None = None
     validate_json: bool = False
-    roots: frozenset[str] | None = None
+    roots: Set[str] | None = None
     _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
 
     @property

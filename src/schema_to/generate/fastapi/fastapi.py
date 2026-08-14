@@ -14,6 +14,7 @@ Mapping rules
 """
 
 import re
+from collections.abc import Set
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -147,7 +148,7 @@ def _map_object_schema(schema: ObjectSchema) -> PythonTypeAnnotation:
     t = schema.type
     if t is None:
         return _ANY
-    if isinstance(t, frozenset):
+    if isinstance(t, Set):
         non_null = t - {JsonSchemaType.NULL}
         has_null = JsonSchemaType.NULL in t
         if not non_null:
@@ -243,7 +244,7 @@ class FastApiTransformer(Transformer[OpenApiDocument, PythonModule]):
     """
 
     body_backend: EndpointBodyBackend = field(default_factory=NullBodyBackend)
-    roots: frozenset[str] | None = None
+    roots: Set[str] | None = None
     _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
 
     @property
@@ -270,7 +271,7 @@ class _GenCtx:
     doc: OpenApiDocument
     warnings: list[TranspilationWarning]
     body_backend: EndpointBodyBackend
-    roots: frozenset[str] | None = None
+    roots: Set[str] | None = None
     extra_imports: list[PyImport] = field(default_factory=list)
 
     def build(self) -> Result[PythonModule]:

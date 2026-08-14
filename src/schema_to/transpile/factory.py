@@ -42,7 +42,7 @@ Supported targets:
     see `examples/postgres/` for a worked PostgreSQL set built on `query-dsl`.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass
 from typing import ClassVar
 
@@ -67,7 +67,7 @@ from schema_to.transpile.schema_map import SchemaMapExpander, SchemaMapMerger
 __all__ = ["RoutingError", "TranspilerRouter"]
 
 # Targets whose unit of output is the whole document set rather than one schema.
-_TABLE_SET_TARGETS: frozenset[str] = frozenset({"postgres", "pg-jsonschema"})
+_TABLE_SET_TARGETS: Set[str] = frozenset({"postgres", "pg-jsonschema"})
 
 
 class RoutingError(Exception):
@@ -85,7 +85,7 @@ class RoutingError(Exception):
 class TranspilerRouter:
     """Assembles the stages a target is made of into the transpilers that run it."""
 
-    SUPPORTED_TARGETS: ClassVar[frozenset[str]] = frozenset(
+    SUPPORTED_TARGETS: ClassVar[Set[str]] = frozenset(
         {"fastapi", "json-schema", "pass-thru", "pydantic", "postgres", "pg-jsonschema"}
     )
 
@@ -95,7 +95,7 @@ class TranspilerRouter:
         output_media_type: MediaType,
         *,
         templates: Mapping[str, str] | None = None,
-        roots: frozenset[str] | None = None,
+        roots: Set[str] | None = None,
         schema_map: bool = False,
     ) -> Sequence[Transpiler]:
         """Return the ordered list of transpilers for target `target_name`.
@@ -135,7 +135,7 @@ class TranspilerRouter:
         output_media_type: MediaType,
         *,
         templates: Mapping[str, str] | None,
-        roots: frozenset[str] | None,
+        roots: Set[str] | None,
     ) -> Sequence[Transpiler]:
         """Route documents that each hold one schema (or one OpenAPI description)."""
         match target_name:
@@ -162,7 +162,7 @@ class TranspilerRouter:
                 return [Transpiler(JsonSchemaRawDoc, sql)]
 
     def _route_schema_maps(
-        self, target_name: str, output_media_type: MediaType, *, roots: frozenset[str] | None
+        self, target_name: str, output_media_type: MediaType, *, roots: Set[str] | None
     ) -> Sequence[Transpiler]:
         """Route documents that each hold a map of named schemas.
 
@@ -205,7 +205,7 @@ class TranspilerRouter:
         return Each(emit).then(Flatten())
 
     def _openapi_components(
-        self, output_media_type: MediaType, roots: frozenset[str] | None
+        self, output_media_type: MediaType, roots: Set[str] | None
     ) -> Stage[Sequence[OpenApiRawDoc], Sequence[JsonSchemaArtifact]]:
         """Each `components/schemas` entry, written as a standalone JSON Schema file."""
         emit = Each(JsonSchemaReifier(output_media_type=output_media_type)).then(Flatten())
@@ -213,7 +213,7 @@ class TranspilerRouter:
         return Each(per_doc).then(Flatten())
 
     def _pydantic(
-        self, *, resolver: JsonSchemaRefResolver, roots: frozenset[str] | None
+        self, *, resolver: JsonSchemaRefResolver, roots: Set[str] | None
     ) -> Stage[Sequence[JsonSchemaRawDoc], Sequence[PythonArtifact]]:
         """A module per schema, collected into the package they are written as."""
         per_schema = (
@@ -224,7 +224,7 @@ class TranspilerRouter:
         return Each(per_schema).then(PythonPackageAssembler()).then(PythonPackageReifier())
 
     def _postgres(
-        self, *, resolver: JsonSchemaRefResolver, validate_json: bool, roots: frozenset[str] | None
+        self, *, resolver: JsonSchemaRefResolver, validate_json: bool, roots: Set[str] | None
     ) -> Stage[Sequence[JsonSchemaRawDoc], Sequence[SqlArtifact]]:
         per_schema = (
             JsonSchemaParser()
@@ -235,7 +235,7 @@ class TranspilerRouter:
         return Each(per_schema).then(Flatten())
 
     def _postgres_table_set(
-        self, *, validate_json: bool, roots: frozenset[str] | None
+        self, *, validate_json: bool, roots: Set[str] | None
     ) -> Stage[Sequence[SchemaMapRawDoc], Sequence[SqlArtifact]]:
         """One migration for the whole set: an ordering needs every table to be known.
 
@@ -258,7 +258,7 @@ class TranspilerRouter:
         )
 
     def _fastapi(
-        self, *, templates: Mapping[str, str] | None, roots: frozenset[str] | None
+        self, *, templates: Mapping[str, str] | None, roots: Set[str] | None
     ) -> Stage[Sequence[OpenApiRawDoc], Sequence[PythonArtifact]]:
         backend = TemplateBodyBackend(named_templates=templates or {})
         per_doc = (

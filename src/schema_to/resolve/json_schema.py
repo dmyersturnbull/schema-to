@@ -39,7 +39,7 @@ from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Set
 
 __all__ = ["JsonSchemaMapRefResolver", "JsonSchemaRefResolver"]
 
@@ -218,7 +218,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         """Return the CST node that declares the given `$anchor` or `$dynamicAnchor`."""
         return self._cst_by_anchor.get((source_id, anchor))
 
-    def registered_source_ids(self) -> frozenset[str]:
+    def registered_source_ids(self) -> Set[str]:
         """Return the set of source IDs currently in the registry."""
         return frozenset(self._docs) | frozenset(self._map_docs)
 

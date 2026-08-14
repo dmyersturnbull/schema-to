@@ -17,6 +17,7 @@ Mapping rules
 - Unsupported constructs emit `TranspilationWarning` and fall back to `Any`.
 """
 
+from collections.abc import Set
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
@@ -99,7 +100,7 @@ def _has_split_properties(schema: JsonSchema) -> bool:
     )
 
 
-def _compute_split_names(input: JsonSchemaDocument) -> frozenset[str]:
+def _compute_split_names(input: JsonSchemaDocument) -> Set[str]:
     """Return the canonical class names of schemas that need a Read/Write split."""
     names: set[str] = set()
     if isinstance(input.root, ObjectSchema) and input.root.defs:
@@ -129,7 +130,7 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
     """
 
     resolver: JsonSchemaRefResolver | None = None
-    roots: frozenset[str] | None = None
+    roots: Set[str] | None = None
     _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
 
     @property
@@ -221,7 +222,7 @@ class _GenCtx:
     resolver: JsonSchemaRefResolver | None
     warnings: list[TranspilationWarning]
     base_uri: str = ""
-    split_names: frozenset[str] = field(default_factory=frozenset)
+    split_names: Set[str] = field(default_factory=frozenset)
 
     def schema_to_declarations(
         self, schema: JsonSchema, name: str
@@ -412,7 +413,7 @@ class _GenCtx:
     def _annotation_from_type(
         self, schema: ObjectSchema, *, variant: Literal["read", "write"] | None
     ) -> PythonTypeAnnotation:
-        if isinstance(schema.type, frozenset):
+        if isinstance(schema.type, Set):
             return self._type_set_annotation(schema.type, schema, variant=variant)
         if schema.type is not None:
             return self._single_type_annotation(schema.type, schema, variant=variant)
@@ -435,7 +436,7 @@ class _GenCtx:
 
     def _type_set_annotation(
         self,
-        types: frozenset[JsonSchemaType],
+        types: Set[JsonSchemaType],
         schema: ObjectSchema,
         *,
         variant: Literal["read", "write"] | None,

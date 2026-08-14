@@ -11,7 +11,7 @@ from yaml12 import format_yaml, parse_yaml
 from schema_to.io.media_type import MediaType, MediaTypes
 
 if TYPE_CHECKING:
-    from collections.abc import Set as AbstractSet
+    from collections.abc import Set
 
     from schema_to.core import JsonValue
 
@@ -43,7 +43,7 @@ class WriteError(Exception):
 
 
 class UnsupportedMediaTypeError(Exception):
-    def __init__(self, *, media_type: MediaType, supported: AbstractSet[MediaType]) -> None:
+    def __init__(self, *, media_type: MediaType, supported: Set[MediaType]) -> None:
         super().__init__(
             f"Unsupported media type: {media_type}."
             f" Supported: {', '.join(mt.essence for mt in supported)}."

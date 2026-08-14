@@ -1,7 +1,7 @@
 """Serialize JSON Schema 2020-12 CST nodes back to JSON-compatible values."""
 
 import dataclasses
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
@@ -70,10 +70,6 @@ class JsonSchemaSerializer:
                 return v
             case JsonSchemaType() as t:
                 return str(t)
-            case frozenset(types_):
-                # `sorted` returns list[str]; list[str] ≤ list[JsonValue] ≤ JsonValue,
-                # but ty cannot see that subtype relationship, so we assert it with `cast`.
-                return cast("JsonValue", sorted(str(t) for t in types_))
             case str():
                 return value
             # Every scalar member of `SchemaKeywordValue` is matched above, so what reaches
@@ -84,6 +80,10 @@ class JsonSchemaSerializer:
             case Mapping() as mapping:
                 return self._map(cast("Mapping[str, SchemaKeywordValue]", mapping))
             case _:
+                if isinstance(value, Set):
+                    # `sorted` returns list[str]; list[str] ≤ list[JsonValue] ≤ JsonValue,
+                    # but ty cannot see that subtype relationship, so we assert it with `cast`.
+                    return cast("JsonValue", sorted(str(t) for t in value))
                 return value  # int, float, bool, None — all valid JSON scalars
 
     def _seq(self, seq: Sequence[SchemaKeywordValue]) -> JsonValue:
@@ -108,6 +108,6 @@ class JsonSchemaSerializer:
                 for k, v in mapping.items()
                 if isinstance(v, (BooleanSchema, ObjectSchema))
             }
-        if isinstance(first, frozenset):
-            return {k: sorted(v) for k, v in mapping.items() if isinstance(v, frozenset)}
+        if isinstance(first, Set):
+            return {k: sorted(v) for k, v in mapping.items() if isinstance(v, Set)}
         return cast("JsonValue", dict(mapping))

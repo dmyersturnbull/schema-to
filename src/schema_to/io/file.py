@@ -1,7 +1,7 @@
 """Filesystem-backed `DataSource` and `DataSink` implementations."""
 
 import glob
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Set
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
@@ -96,7 +96,7 @@ class DirectoryDataSource(DataSource):
     _: KW_ONLY
     recursive: bool
     include_hidden: bool = False
-    paths: frozenset[Path] = field(init=False, hash=False, repr=False)
+    paths: Set[Path] = field(init=False, hash=False, repr=False)
 
     def __post_init__(self) -> None:
         if not self.root.is_dir():
@@ -177,7 +177,7 @@ class SchemaMapDirectorySource(DataSource):
     _: KW_ONLY
     recursive: bool = True
     include_hidden: bool = False
-    exclude: frozenset[str] = frozenset()
+    exclude: Set[str] = frozenset()
 
     def __post_init__(self) -> None:
         if not self.root.is_dir():

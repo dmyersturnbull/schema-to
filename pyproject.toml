@@ -81,6 +81,7 @@ ignore = [
   "typing-only-first-party-import",
   "typing-only-third-party-import",
   "typing-only-standard-library-import",
+  "unaliased-collections-abc-set-import",
   "TD",
   "Q",
 ]

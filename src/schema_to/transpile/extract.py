@@ -7,7 +7,7 @@ composing it in front of a generator would be an OpenAPI-driven Pydantic or SQL 
 which is why it is a stage of its own rather than a step inside one.
 """
 
-from collections.abc import Sequence
+from collections.abc import Sequence, Set
 from dataclasses import dataclass
 from typing import override
 
@@ -33,7 +33,7 @@ class OpenApiComponentExtractor(Expander[OpenApiDocument, JsonSchemaDocument]):
             one.
     """
 
-    roots: frozenset[str] | None = None
+    roots: Set[str] | None = None
 
     @override
     def apply(self, input: OpenApiDocument) -> Result[Sequence[JsonSchemaDocument]]:

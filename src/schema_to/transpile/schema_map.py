@@ -39,7 +39,7 @@ stands alone would also work, but it erases every reference to fix the few that 
 target whose purpose is named types is the whole game.
 """
 
-from collections.abc import Sequence
+from collections.abc import Sequence, Set
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, override
 
@@ -81,7 +81,7 @@ class SchemaMapExpander(Expander[SchemaMapRawDoc, JsonSchemaRawDoc]):
     resolver: JsonSchemaRefResolver | None = None
     parser: JsonSchemaMapParser = field(default_factory=JsonSchemaMapParser)
     writer: JsonLikeWriter = field(default_factory=DefaultJsonLikeWriter)
-    roots: frozenset[str] | None = None
+    roots: Set[str] | None = None
 
     @override
     def apply(self, input: SchemaMapRawDoc) -> Result[Sequence[JsonSchemaRawDoc]]:

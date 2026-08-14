@@ -105,21 +105,17 @@ The Python API emphasizes composition and immutability:
 **Example with multiple sources:**
 
 ```python
-from schema_to import (
-    Pipeline,
-    JsonSchemaSource,
-    OpenAPISource,
-    PostgresTarget,
-    TypeScriptTarget,
-)
+from schema_to import Pipeline, JsonSchemaSource, OpenAPISource, PostgresTarget, TypeScriptTarget
 
 # Build a multi-target pipeline
-pipeline = Pipeline([
-    JsonSchemaSource("schemas/"),  # Read all .schema.json files
-    OpenAPISource("api.openapi.yaml"),  # Also include OpenAPI
-    PostgresTarget(output="migrations/"),
-    TypeScriptTarget(output="types/"),
-])
+pipeline = Pipeline(
+    [
+        JsonSchemaSource("schemas/"),  # Read all .schema.json files
+        OpenAPISource("api.openapi.yaml"),  # Also include OpenAPI
+        PostgresTarget(output="migrations/"),
+        TypeScriptTarget(output="types/"),
+    ]
+)
 
 # Process all sources in a single pass
 pipeline.process()
