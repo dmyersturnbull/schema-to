@@ -2,8 +2,8 @@
 
 import orjson
 from hypothesis import HealthCheck, given, settings
-from tests.strategies import openapi_doc_st
-from tests.targets import transpiler_for
+from tests._strategies import openapi_doc_st
+from tests._targets import transpiler_for
 
 from schema_to import JsonSchemaParser, JsonSchemaRawDoc, MediaTypes, Ok, OpenApiRawDoc
 

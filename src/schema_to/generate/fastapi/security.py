@@ -23,7 +23,7 @@ from schema_to.ast.python import (
 )
 from schema_to.cst.openapi import ApiKeyLocation, SecuritySchemeType
 from schema_to.errors import TranspilationWarning
-from schema_to.generate._names import safe_python_field_name
+from schema_to.generate._python_utils import safe_python_field_name
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence

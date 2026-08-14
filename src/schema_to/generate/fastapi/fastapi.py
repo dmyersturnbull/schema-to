@@ -47,16 +47,16 @@ from schema_to.cst.openapi import (
 )
 from schema_to.cst.openapi import Parameter as OasParameter
 from schema_to.errors import SourceLocation, TranspilationWarning
-from schema_to.generate._names import safe_python_class_name, safe_python_field_name
-from schema_to.generate.endpoint_body import (
+from schema_to.generate._python_utils import safe_python_class_name, safe_python_field_name
+from schema_to.generate.fastapi.endpoint_body import (
     EndpointBody,
     EndpointBodyBackend,
     NullBodyBackend,
     RouteParam,
     endpoint_context,
 )
-from schema_to.generate.pydantic import PydanticTransformer
-from schema_to.generate.security import build_security_module, route_security_params
+from schema_to.generate.fastapi.security import build_security_module, route_security_params
+from schema_to.generate.pydantic.pydantic import PydanticTransformer
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 

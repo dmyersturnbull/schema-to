@@ -17,7 +17,6 @@ The grammar::
 import re
 
 from psycopg import sql
-
 from query_dsl._compose import OPERATORS, Params, QueryError, Value, column_ref
 
 __all__ = ["parse_where"]

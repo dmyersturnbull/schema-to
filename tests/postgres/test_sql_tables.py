@@ -10,10 +10,10 @@ Covers:
 
 import orjson
 import pytest
-from tests.targets import transpiler_for
+from tests._targets import transpiler_for
 
 from schema_to.errors import GenerationError
-from schema_to.generate._pg_keywords import read_property_keywords, read_table_keywords
+from schema_to.generate.postgres._pg_keywords import read_property_keywords, read_table_keywords
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import SchemaMapRawDoc
 from schema_to.result import Err, Ok

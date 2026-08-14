@@ -7,7 +7,7 @@ import pytest
 
 from schema_to import JsonSchemaRawDoc, MediaTypes
 from schema_to.cst.json_schema import BooleanSchema, ObjectSchema, is_object_schema
-from schema_to.generate.resource import json_properties, property_names
+from schema_to.generate.fastapi.resource import json_properties, property_names
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.result import Ok
 

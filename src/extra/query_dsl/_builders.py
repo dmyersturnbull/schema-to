@@ -10,7 +10,6 @@ the others act on a primary key.
 from typing import TYPE_CHECKING
 
 from psycopg import sql
-
 from query_dsl._compose import Bound, Params, Value, adapt, order_by, select_list
 from query_dsl._where import parse_where
 

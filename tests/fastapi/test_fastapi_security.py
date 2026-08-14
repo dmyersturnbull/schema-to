@@ -3,7 +3,7 @@
 import ast
 
 import orjson
-from tests.targets import transpiler_for
+from tests._targets import transpiler_for
 
 from schema_to import MediaTypes, Ok, OpenApiRawDoc
 

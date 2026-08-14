@@ -31,14 +31,19 @@ from jinja2 import Environment, StrictUndefined, TemplateError, select_autoescap
 from schema_to.ast.python import FromImport, PythonTypeAnnotation, SimpleImport
 from schema_to.ast.python import Parameter as PyParameter
 from schema_to.errors import TranspilationWarning
-from schema_to.generate.endpoint_body import EndpointBody, EndpointBodyBackend
-from schema_to.generate.resource import json_properties
-from schema_to.generate.rest import RestOperation, infer_operation, is_item_path, resource_name
+from schema_to.generate.fastapi.endpoint_body import EndpointBody, EndpointBodyBackend
+from schema_to.generate.fastapi.resource import json_properties
+from schema_to.generate.fastapi.rest import (
+    RestOperation,
+    infer_operation,
+    is_item_path,
+    resource_name,
+)
 
 if TYPE_CHECKING:
     from schema_to.ast.python import PyImport
     from schema_to.core import JsonValue
-    from schema_to.generate.endpoint_body import EndpointContext
+    from schema_to.generate.fastapi.endpoint_body import EndpointContext
 
 __all__ = ["BODY_KEY", "IMPORTS_KEY", "PARAMS_KEY", "TEMPLATE_KEY", "TemplateBodyBackend"]
 

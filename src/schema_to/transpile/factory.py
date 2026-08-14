@@ -46,11 +46,11 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import ClassVar
 
-from schema_to.generate.fastapi import FastApiTransformer
-from schema_to.generate.pydantic import PydanticTransformer
-from schema_to.generate.sql import PostgresTransformer
-from schema_to.generate.sql_tables import PostgresTableSetTransformer
-from schema_to.generate.template_body import TemplateBodyBackend
+from schema_to.generate.fastapi.fastapi import FastApiTransformer
+from schema_to.generate.fastapi.template_body import TemplateBodyBackend
+from schema_to.generate.postgres.sql import PostgresTransformer
+from schema_to.generate.postgres.sql_tables import PostgresTableSetTransformer
+from schema_to.generate.pydantic.pydantic import PydanticTransformer
 from schema_to.io.media_type import MediaType
 from schema_to.io.sink import JsonSchemaArtifact, OpenApiArtifact, PythonArtifact, SqlArtifact
 from schema_to.io.source import JsonSchemaRawDoc, OpenApiRawDoc, SchemaMapRawDoc

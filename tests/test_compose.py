@@ -16,7 +16,7 @@ from schema_to.cst.json_schema import (
     ObjectSchema,
     is_object_schema,
 )
-from schema_to.generate._compose import SchemaFlattener
+from schema_to.generate.inlining import SchemaFlattener
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import JsonSchemaRawDoc, SchemaMapRawDoc
 from schema_to.parse.json_schema import JsonSchemaMapParser, JsonSchemaParser

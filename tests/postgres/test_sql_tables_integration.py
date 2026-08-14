@@ -5,7 +5,7 @@ These assert on whole scripts built from several documents.
 """
 
 import orjson
-from tests.targets import transpiler_for
+from tests._targets import transpiler_for
 
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import SchemaMapRawDoc
@@ -22,9 +22,8 @@ def _doc(data: object, name: str = "main") -> SchemaMapRawDoc:
 
 
 def _sql(*docs: SchemaMapRawDoc) -> str:
-    result = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True).transpile_all(
-        docs
-    )
+    transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
+    result = transpiler.transpile_all(docs)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     return result.value[0].content.decode("utf-8")
 

@@ -25,7 +25,7 @@ from schema_to.ast.sql import (
     SqlScript,
     TableConstraint,
 )
-from schema_to.generate._names import quote_sql_identifier as q
+from schema_to.generate.postgres._sql_utils import quote_sql_identifier as q
 from schema_to.io.sink import SqlArtifact
 from schema_to.pipeline import Reifier
 from schema_to.result import Ok, Result

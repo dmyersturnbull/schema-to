@@ -7,18 +7,15 @@ These tests exercise the parsers and serializers directly without going through 
 
 import orjson
 from hypothesis import HealthCheck, given, settings
-from tests.strategies import json_schema_st, openapi_doc_st
+from tests._strategies import json_schema_st, openapi_doc_st
 
-from schema_to import (
-    JsonSchemaParser,
-    JsonSchemaRawDoc,
-    JsonSchemaSerializer,
-    MediaTypes,
-    Ok,
-    OpenApiParser,
-    OpenApiRawDoc,
-    OpenApiSerializer,
-)
+from schema_to.io.media_type import MediaTypes
+from schema_to.io.source import JsonSchemaRawDoc, OpenApiRawDoc
+from schema_to.parse.json_schema import JsonSchemaParser
+from schema_to.parse.openapi import OpenApiParser
+from schema_to.result import Ok
+from schema_to.serialize.json_schema import JsonSchemaSerializer
+from schema_to.serialize.openapi import OpenApiSerializer
 
 _JS_PARSER = JsonSchemaParser()
 _JS_SERIALIZER = JsonSchemaSerializer()

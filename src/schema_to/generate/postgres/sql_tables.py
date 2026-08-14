@@ -29,9 +29,8 @@ from schema_to.ast.sql import (
 )
 from schema_to.cst.json_schema import JsonSchemaMapDocument, ObjectSchema, is_object_schema
 from schema_to.errors import GenerationError, SourceLocation, TranspilationWarning
-from schema_to.generate._compose import SchemaFlattener
-from schema_to.generate._names import safe_sql_identifier
-from schema_to.generate._pg_keywords import (
+from schema_to.generate.inlining import SchemaFlattener
+from schema_to.generate.postgres._pg_keywords import (
     TABLE,
     ExtraColumn,
     ForeignKeyRef,
@@ -41,7 +40,8 @@ from schema_to.generate._pg_keywords import (
     read_property_keywords,
     read_table_keywords,
 )
-from schema_to.generate.sql import ColumnBuilder
+from schema_to.generate.postgres._sql_utils import safe_sql_identifier
+from schema_to.generate.postgres.sql import ColumnBuilder
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 

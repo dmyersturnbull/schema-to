@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import override
 
 import orjson
-from tests.targets import transpiler_for
+from tests._targets import transpiler_for
 
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.memory import InMemoryDataSink

@@ -73,6 +73,17 @@ if TYPE_CHECKING:
     from schema_to.core import JsonValue
 
 __all__ = [
+    "COLUMN",
+    "EXTRA_COLUMNS",
+    "INDEX",
+    "INDEXES",
+    "OVERFLOW",
+    "PRIMARY_KEY",
+    "REFS",
+    "SKIP",
+    "TABLE",
+    "TYPE",
+    "UNIQUE",
     "ExtraColumn",
     "ForeignKeyRef",
     "IndexRequest",

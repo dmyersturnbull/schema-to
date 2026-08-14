@@ -50,8 +50,8 @@ from schema_to.cst.json_schema import (
     is_object_schema,
 )
 from schema_to.errors import GenerationError, SourceLocation, TranspilationWarning
-from schema_to.generate._compose import SchemaFlattener
-from schema_to.generate._names import quote_sql_identifier, safe_sql_identifier
+from schema_to.generate.inlining import SchemaFlattener
+from schema_to.generate.postgres._sql_utils import quote_sql_identifier, safe_sql_identifier
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer

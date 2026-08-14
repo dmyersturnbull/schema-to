@@ -44,12 +44,12 @@ from schema_to.errors import (
     TranspilationError,
     TranspilationWarning,
 )
-from schema_to.generate._compose import SchemaFlattener
-from schema_to.generate._names import (
+from schema_to.generate._python_utils import (
     safe_python_class_name,
     safe_python_field_name,
     split_class_name,
 )
+from schema_to.generate.inlining import SchemaFlattener
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 
@@ -503,11 +503,11 @@ def _build_imports(declarations: list[TypeAliasDef | ClassDef]) -> list[FromImpo
             for f in decl.fields:
                 _scan_annotation(f.annotation, needed)
                 if f.default and "Field(" in f.default:
-                    needed.setdefault("pydantic", set()).add("Field")
+                    needed.setdefault("", set()).add("Field")
         elif isinstance(decl, TypeAliasDef):
             _scan_annotation(decl.annotation, needed)
     if has_class:
-        needed.setdefault("pydantic", set()).add("BaseModel")
+        needed.setdefault("", set()).add("BaseModel")
     return [
         FromImport(module=module, names=[(n, None) for n in sorted(needed[module])])
         for module in sorted(needed)

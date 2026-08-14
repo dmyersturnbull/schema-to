@@ -10,7 +10,7 @@ Covers:
 
 import orjson
 from hypothesis import HealthCheck, given, settings
-from tests.strategies import json_schema_st, json_schema_with_defs_st
+from tests._strategies import json_schema_st, json_schema_with_defs_st
 
 from schema_to.cst.json_schema import JsonSchemaDocument, JsonSchemaType, ObjectSchema
 from schema_to.errors import ResolutionError

@@ -16,8 +16,8 @@ Covers:
 
 import orjson
 from hypothesis import HealthCheck, given, settings
-from tests.strategies import object_schema_st, sql_object_schema_st
-from tests.targets import transpiler_for
+from tests._strategies import object_schema_st, sql_object_schema_st
+from tests._targets import transpiler_for
 
 from schema_to import (
     Err,

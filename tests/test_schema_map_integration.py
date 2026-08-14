@@ -7,7 +7,7 @@ directory source in isolation.  This walks a real tree on disk end to end.
 from pathlib import Path
 
 from schema_to.cst.json_schema import JsonSchemaType, ObjectSchema
-from schema_to.generate._compose import SchemaFlattener
+from schema_to.generate.inlining import SchemaFlattener
 from schema_to.io.file import SchemaMapDirectorySource
 from schema_to.parse.json_schema import JsonSchemaMapParser
 from schema_to.resolve.json_schema import JsonSchemaRefResolver

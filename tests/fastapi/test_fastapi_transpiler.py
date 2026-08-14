@@ -12,13 +12,13 @@ import ast
 import orjson
 import pytest
 from hypothesis import HealthCheck, given, settings
-from tests.strategies import openapi_doc_st
-from tests.targets import transpiler_for
+from tests._strategies import openapi_doc_st
+from tests._targets import transpiler_for
 
 from schema_to import MediaTypes, Ok, OpenApiParser, OpenApiRawDoc, PythonReifier
 from schema_to.ast.python import FunctionDef, PythonModule, PythonTypeAnnotation, VarDef
 from schema_to.cst.openapi import HttpMethod
-from schema_to.generate.fastapi import (
+from schema_to.generate.fastapi.fastapi import (
     FastApiTransformer,
     _annotation_str,
     _esc,

@@ -10,14 +10,19 @@ and both shipped backends:
 from typing import TYPE_CHECKING
 
 from schema_to.cst.openapi import HttpMethod, Operation, ParameterLocation, PathItem
-from schema_to.generate.endpoint_body import (
+from schema_to.generate.fastapi.endpoint_body import (
     EndpointContext,
     NullBodyBackend,
     RouteParam,
     endpoint_context,
 )
-from schema_to.generate.rest import RestOperation, infer_operation, is_item_path, resource_name
-from schema_to.generate.template_body import TemplateBodyBackend
+from schema_to.generate.fastapi.rest import (
+    RestOperation,
+    infer_operation,
+    is_item_path,
+    resource_name,
+)
+from schema_to.generate.fastapi.template_body import TemplateBodyBackend
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

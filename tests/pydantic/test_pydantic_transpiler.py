@@ -13,8 +13,8 @@ import re
 import orjson
 import pytest
 from hypothesis import HealthCheck, given, settings
-from tests.strategies import json_schema_with_defs_st, object_schema_st
-from tests.targets import transpiler_for
+from tests._strategies import json_schema_with_defs_st, object_schema_st
+from tests._targets import transpiler_for
 
 from schema_to import (
     Err,

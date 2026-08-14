@@ -53,17 +53,17 @@ from schema_to.errors import (
     TranspilationError,
     TranspilationWarning,
 )
-from schema_to.generate.endpoint_body import (
+from schema_to.generate.fastapi.endpoint_body import (
     EndpointBody,
     EndpointBodyBackend,
     EndpointContext,
     NullBodyBackend,
 )
-from schema_to.generate.fastapi import FastApiTransformer
-from schema_to.generate.pydantic import PydanticTransformer
-from schema_to.generate.rest import RestOperation
-from schema_to.generate.sql import PostgresTransformer
-from schema_to.generate.template_body import TemplateBodyBackend
+from schema_to.generate.fastapi.fastapi import FastApiTransformer
+from schema_to.generate.fastapi.rest import RestOperation
+from schema_to.generate.fastapi.template_body import TemplateBodyBackend
+from schema_to.generate.postgres.sql import PostgresTransformer
+from schema_to.generate.pydantic.pydantic import PydanticTransformer
 from schema_to.io.core import DefaultJsonLikeReader, JsonLikeReader
 from schema_to.io.file import (
     DirectoryDataSource,
