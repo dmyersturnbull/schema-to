@@ -98,6 +98,7 @@ class JsonSchemaSerializer:
 
     def _map(self, mapping: Mapping[str, SchemaKeywordValue]) -> JsonValue:
         """Serialize a keyword whose value maps names to schemas, sets, or plain JSON."""
+        # TODO: What is this function doing??
         if not mapping:
             return {}
         first = next(iter(mapping.values()))

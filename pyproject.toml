@@ -11,7 +11,7 @@ license = { text = "MIT" }
 dependencies = [
   "caseutil>=0.7.2",
   "jinja2>=3.1.6", # Templating for generated FastAPI endpoint bodies
-  "niquests>=3.20",
+  "niquests>=3.21",
   "orjson>=3.11",
   "py-yaml12>=0.1", # YAML 1.2 library
   "pydantic>=2.13",
@@ -24,11 +24,11 @@ schema-to = "schema_to.__main__:cli"
 
 [dependency-groups]
 dev = [
-  "hypothesis>=6.156",
+  "hypothesis>=6.165",
   "psycopg[binary]>=3.3", # Only to test the generated runtime module; not a runtime dep
   "pytest>=9.1",
-  "ruff>=0.15.22",
-  "ty>=0.0.60",
+  "ruff>=0.16.3",
+  "ty>=0.0.71",
 ]
 
 [tool.ty.src]
