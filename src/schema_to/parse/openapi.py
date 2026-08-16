@@ -1,68 +1,44 @@
 """OpenAPI 3.1 document parser.
 
 Converts a `RawDoc` (JSON or YAML bytes) into an `OpenApiDocument` CST.
-Like the JSON Schema parser, this is **non-resolving**:
-`$ref` values are stored as raw strings for a later `RefResolver` stage.
 
-Errors are accumulated across all object builders so a single parse call yields the complete diagnostic set.
+Every object in the document is built by the shared plan interpreter in
+`parse._build`, driven by the field annotations on `cst.openapi`.  What remains
+here is the part no plan can express: decoding the bytes, checking the version
+string that decides whether the plans apply at all, and attaching the
+provenance the `RawDoc` carries rather than the document.
+
+Like the JSON Schema parser, this is **non-resolving**.  A `$ref` inside a
+schema stays a string, and a `$ref` standing in for a Parameter, Response,
+Header, Request Body, Link, Example, Security Scheme, or Path Item becomes a
+`Reference` node for a later stage to inline.
+
+Errors are accumulated, so a single parse call yields the complete diagnostic set.
 """
 
-from collections.abc import Mapping, MutableMapping, MutableSequence
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, cast
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING
 
+from schema_to.core import as_object
 from schema_to.cst.base import SourceRef
-from schema_to.cst.openapi import (
-    ApiKeyLocation,
-    Components,
-    Contact,
-    ExternalDocumentation,
-    Header,
-    Info,
-    License,
-    MediaTypeObject,
-    OAuthFlow,
-    OAuthFlows,
-    OpenApiDocument,
-    Operation,
-    Parameter,
-    ParameterLocation,
-    PathItem,
-    RequestBody,
-    Response,
-    SecurityScheme,
-    SecuritySchemeType,
-    Server,
-    ServerVariable,
-    Tag,
-)
-from schema_to.errors import ParseError, SchemaValidationError, SourceLocation, TranspilationError
+from schema_to.cst.openapi import OpenApiDocument
+from schema_to.errors import ParseError, SourceLocation, TranspilationError
 from schema_to.io.core import DefaultJsonLikeReader
 from schema_to.io.source import OpenApiRawDoc
-from schema_to.parse._utils import (
-    as_json_dict,
-    as_json_list,
-    bool_field,
-    decode_raw_doc,
-    enum_member,
-    extract,
-    ptr,
-    str_field,
-    str_or,
-)
-from schema_to.parse.json_schema import JsonSchemaParser
+from schema_to.parse._build import Cursor, Failed, build_node
+from schema_to.parse._utils import decode_raw_doc
 from schema_to.pipeline import DocParser
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
-    from schema_to.core import JsonArray, JsonObject, JsonValue
-    from schema_to.cst.json_schema import BooleanSchema, JsonSchema, ObjectSchema
+    from collections.abc import Mapping
+
+    from schema_to.core import JsonValue
     from schema_to.io.core import JsonLikeReader
 
 __all__ = ["OpenApiParser"]
 
-_HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
-loc = SourceLocation
+_SUPPORTED_MAJOR = "3."
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -70,891 +46,57 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     """Parses JSON or YAML bytes into an `OpenApiDocument` CST.
 
     Accepts documents whose root object contains an `"openapi"` field starting
-    with `"3."`.  JSON Schema embedded in `schema` fields is parsed via the
-    same logic used by `JsonSchemaParser`.
+    with `"3."`.  JSON Schema embedded in `schema` fields is parsed by the same
+    interpreter, from the same `ObjectSchema` plan the JSON Schema parser uses.
+
+    The parser is stateless: a single instance may be reused across documents.
     """
 
     reader: JsonLikeReader = field(default_factory=DefaultJsonLikeReader)
-    js: JsonSchemaParser = field(default_factory=JsonSchemaParser)
 
     def apply(self, input: OpenApiRawDoc) -> Result[OpenApiDocument]:
         try:
             data = decode_raw_doc(input, self.reader)
         except TranspilationError as exc:
             return Err((exc,))
-        if not isinstance(data, dict):
+        root = as_object(data)
+        if root is None:
             return Err.of(
                 ParseError(
-                    "OpenAPI document must be a JSON object.", location=loc(input.doc_id, "")
+                    "OpenAPI document must be a JSON object.",
+                    location=SourceLocation(input.doc_id, ""),
                 )
             )
-        return self._build_document(
-            cast("JsonObject", data),  # narrowed by isinstance above; ty can't see it
-            source_id=input.doc_id,
-            display_name=input.display_name,
-        )
-
-    # -- Document root -------------------------------------------------------
-
-    def _build_document(
-        self, data: JsonObject, *, source_id: str, display_name: str | None
-    ) -> Result[OpenApiDocument]:
-        errors: list[TranspilationError] = []
-
-        openapi_ver = data.get("openapi")
-        if not isinstance(openapi_ver, str) or not openapi_ver.startswith("3."):
-            errors.append(
-                SchemaValidationError(
-                    f"openapi must be a '3.x' version string, got {openapi_ver!r}.",
-                    location=loc(source_id, "/openapi"),
-                )
+        at = Cursor.root(input.doc_id)
+        _check_version(root, at)
+        doc = build_node(OpenApiDocument, data, at)
+        if at.errors:
+            return Err(tuple(at.errors))
+        if isinstance(doc, Failed):  # pragma: no cover — a failure always records an error
+            return Err.of(
+                ParseError("Malformed OpenAPI document.", location=SourceLocation(input.doc_id, ""))
             )
+        return Ok(_with_provenance(doc, input))
 
-        info: Info | None = None
-        if not isinstance(data.get("info"), dict):
-            errors.append(ParseError("info must be an object.", location=loc(source_id, "/info")))
-        else:
-            info = extract(
-                self._build_info(
-                    cast("JsonObject", data["info"]), source_id=source_id, pointer="/info"
-                ),
-                errors,
-            )
 
-        if errors:
-            return Err(tuple(errors))
+def _check_version(root: Mapping[str, JsonValue], at: Cursor) -> None:
+    """Reject a document this parser's plans do not describe.
 
-        paths = self._build_path_map(data, "paths", source_id=source_id, errors=errors)
-        webhooks = self._build_path_map(data, "webhooks", source_id=source_id, errors=errors)
+    Absence is left to the plan, which reports `openapi` as required; only a
+    present-but-unsupported version is diagnosed here.
+    """
+    version = root.get("openapi")
+    if version is None:
+        return
+    if not isinstance(version, str) or not version.startswith(_SUPPORTED_MAJOR):
+        at.at("openapi").fail(f"openapi must be a '3.x' version string, got {version!r}.")
 
-        components = extract(
-            self._build_components(
-                cast("JsonObject", data.get("components") or {}),
-                source_id=source_id,
-                pointer="/components",
-            ),
-            errors,
-        )
 
-        servers = self._build_server_list(data, source_id=source_id, pointer="")
-        tags = self._build_tags(data, source_id=source_id, pointer="")
-
-        security: list[dict] = []  # TODO: Don't use raw `dict`.
-        raw_security = data.get("security")
-        if isinstance(raw_security, MutableSequence):
-            security.extend(
-                {
-                    k: list(cast("JsonArray", v)) if isinstance(v, list) else v
-                    for k, v in item.items()
-                }
-                for item in as_json_list(raw_security)
-                if isinstance(item, MutableMapping)
-            )
-
-        external_docs: ExternalDocumentation | None = None
-        if isinstance(data.get("externalDocs"), dict):
-            external_docs = extract(
-                self._build_external_docs(
-                    cast("JsonObject", data["externalDocs"]),
-                    source_id=source_id,
-                    pointer="/externalDocs",
-                ),
-                errors,
-            )
-
-        extensions = {k: v for k, v in data.items() if k.startswith("x-")}
-
-        if errors:
-            return Err(tuple(errors))
-
-        return Ok(
-            OpenApiDocument(
-                openapi=cast(
-                    "str", openapi_ver
-                ),  # validated str above; errors guard prevents reaching here with None
-                info=cast("Info", info),  # validated non-None above via extract()
-                paths=paths,
-                components=components or Components(),
-                servers=servers,
-                security=security,
-                tags=tags,
-                external_docs=external_docs,
-                webhooks=webhooks,
-                extensions=extensions,
-                source_id=source_id,
-                display_name=display_name,
-                source_ref=SourceRef(source_id, ""),
-            )
-        )
-
-    # -- Paths / webhooks helper ---------------------------------------------
-
-    def _build_path_map(
-        self, data: JsonObject, key: str, *, source_id: str, errors: list[TranspilationError]
-    ) -> dict[str, PathItem]:
-        result: dict[str, PathItem] = {}
-        raw = data.get(key)
-        if not isinstance(raw, dict):
-            return result
-        for name, pi_data in as_json_dict(raw).items():
-            pi_ptr = ptr("", key, name)
-            if isinstance(pi_data, dict):
-                pi = extract(
-                    self._build_path_item(
-                        cast("JsonObject", pi_data), source_id=source_id, pointer=pi_ptr
-                    ),
-                    errors,
-                )
-                if pi is not None:
-                    result[name] = pi
-            else:
-                errors.append(
-                    ParseError(
-                        f"Path item for {name!r} must be an object.",
-                        location=loc(source_id, pi_ptr),
-                    )
-                )
-        return result
-
-    # -- Info ----------------------------------------------------------------
-
-    def _build_info(self, data: JsonObject, *, source_id: str, pointer: str) -> Result[Info]:
-        errors: list[TranspilationError] = []
-        title = data.get("title")
-        version = data.get("version")
-        if not isinstance(title, str):
-            errors.append(
-                SchemaValidationError(
-                    "info.title must be a string.", location=loc(source_id, ptr(pointer, "title"))
-                )
-            )
-        if not isinstance(version, str):
-            errors.append(
-                SchemaValidationError(
-                    "info.version must be a string.",
-                    location=loc(source_id, ptr(pointer, "version")),
-                )
-            )
-        if errors:
-            return Err(tuple(errors))
-
-        contact: Contact | None = None
-        if isinstance(data.get("contact"), dict):
-            c = cast("JsonObject", data["contact"])
-            contact = Contact(
-                name=str_field(c, "name"),
-                url=str_field(c, "url"),
-                email=str_field(c, "email"),
-                extensions={k: v for k, v in c.items() if k.startswith("x-")},
-                source_ref=SourceRef(source_id, ptr(pointer, "contact")),
-            )
-
-        license_: License | None = None
-        if isinstance(data.get("license"), dict):
-            lic = cast("JsonObject", data["license"])
-            license_ = License(
-                name=str_or(lic, "name"),
-                identifier=str_field(lic, "identifier"),
-                url=str_field(lic, "url"),
-                extensions={k: v for k, v in lic.items() if k.startswith("x-")},
-                source_ref=SourceRef(source_id, ptr(pointer, "license")),
-            )
-
-        return Ok(
-            Info(
-                title=cast(
-                    "str", title
-                ),  # validated str above; errors guard prevents reaching here with None
-                version=cast("str", version),  # same
-                summary=str_field(data, "summary"),
-                description=str_field(data, "description"),
-                terms_of_service=str_field(data, "termsOfService"),
-                contact=contact,
-                license_=license_,
-                extensions={k: v for k, v in data.items() if k.startswith("x-")},
-                source_ref=SourceRef(source_id, pointer),
-            )
-        )
-
-    # -- Servers / tags / external docs -------------------------------------
-
-    def _build_server_list(self, data: JsonObject, *, source_id: str, pointer: str) -> list[Server]:
-        raw = data.get("servers")
-        if not isinstance(raw, list):
-            return []
-        return [
-            self._extract_server(
-                cast("JsonObject", s), source_id=source_id, pointer=ptr(pointer, "servers", i)
-            )
-            for i, s in enumerate(raw)
-            if isinstance(s, dict)
-        ]
-
-    def _extract_server(self, s: JsonObject, *, source_id: str, pointer: str) -> Server:
-        variables: dict[str, ServerVariable] = {}
-        if isinstance(s.get("variables"), dict):
-            for vname, vdata in cast("JsonObject", s["variables"]).items():
-                if isinstance(vdata, dict):
-                    vd = cast("JsonObject", vdata)
-                    raw_enum = vd.get("enum")
-                    variables[vname] = ServerVariable(
-                        default=str_or(vd, "default"),
-                        enum=[x for x in as_json_list(raw_enum) if isinstance(x, str)]
-                        if isinstance(raw_enum, list)
-                        else None,
-                        description=str_field(vd, "description"),
-                        extensions={k: v for k, v in vd.items() if k.startswith("x-")},
-                        source_ref=SourceRef(source_id, ptr(pointer, "variables", vname)),
-                    )
-        return Server(
-            url=str_or(s, "url"),
-            description=str_field(s, "description"),
-            variables=variables,
-            extensions={k: v for k, v in s.items() if k.startswith("x-")},
-            source_ref=SourceRef(source_id, pointer),
-        )
-
-    def _build_tags(self, data: JsonObject, *, source_id: str, pointer: str) -> list[Tag]:
-        tags: list[Tag] = []
-        raw = data.get("tags")
-        if not isinstance(raw, list):
-            return tags
-        for i, t in enumerate(as_json_list(raw)):
-            if not isinstance(t, dict):
-                continue
-            td = cast("JsonObject", t)
-            tag_ptr = ptr(pointer, "tags", i)
-            ext_docs: ExternalDocumentation | None = None
-            if isinstance(td.get("externalDocs"), dict):
-                ed = cast("JsonObject", td["externalDocs"])
-                ext_docs = ExternalDocumentation(
-                    url=str_or(ed, "url"),
-                    description=str_field(ed, "description"),
-                    extensions={k: v for k, v in ed.items() if k.startswith("x-")},
-                    source_ref=SourceRef(source_id, ptr(tag_ptr, "externalDocs")),
-                )
-            tags.append(
-                Tag(
-                    name=str_or(td, "name"),
-                    description=str_field(td, "description"),
-                    external_docs=ext_docs,
-                    extensions={k: v for k, v in td.items() if k.startswith("x-")},
-                    source_ref=SourceRef(source_id, tag_ptr),
-                )
-            )
-        return tags
-
-    def _build_external_docs(
-        self, data: JsonObject, *, source_id: str, pointer: str
-    ) -> Result[ExternalDocumentation]:
-        url = data.get("url")
-        if not isinstance(url, str):
-            return Err(
-                (
-                    SchemaValidationError(
-                        "externalDocs.url must be a string.",
-                        location=loc(source_id, ptr(pointer, "url")),
-                    ),
-                )
-            )
-        return Ok(
-            ExternalDocumentation(
-                url=url,
-                description=str_field(data, "description"),
-                extensions={k: v for k, v in data.items() if k.startswith("x-")},
-                source_ref=SourceRef(source_id, pointer),
-            )
-        )
-
-    # -- Paths / operations --------------------------------------------------
-
-    def _build_path_item(
-        self, data: JsonObject, *, source_id: str, pointer: str
-    ) -> Result[PathItem]:
-        errors: list[TranspilationError] = []
-        method_ops: dict[str, Operation] = {}
-        for method_str in _HTTP_METHODS:
-            if method_str in data and isinstance(data[method_str], dict):
-                op = extract(
-                    self._build_operation(
-                        cast("JsonObject", data[method_str]),
-                        source_id=source_id,
-                        pointer=ptr(pointer, method_str),
-                    ),
-                    errors,
-                )
-                if op is not None:
-                    method_ops[method_str] = op
-
-        parameters = self._build_parameter_list(
-            data, source_id=source_id, pointer=pointer, errors=errors
-        )
-        servers = self._build_server_list(data, source_id=source_id, pointer=pointer)
-
-        if errors:
-            return Err(tuple(errors))
-
-        return Ok(
-            PathItem(
-                summary=str_field(data, "summary"),
-                description=str_field(data, "description"),
-                get=method_ops.get("get"),
-                put=method_ops.get("put"),
-                post=method_ops.get("post"),
-                delete=method_ops.get("delete"),
-                options=method_ops.get("options"),
-                head=method_ops.get("head"),
-                patch=method_ops.get("patch"),
-                trace=method_ops.get("trace"),
-                parameters=parameters,
-                servers=servers,
-                extensions={k: v for k, v in data.items() if k.startswith("x-")},
-                source_ref=SourceRef(source_id, pointer),
-            )
-        )
-
-    def _build_operation(
-        self, data: JsonObject, *, source_id: str, pointer: str
-    ) -> Result[Operation]:
-        errors: list[TranspilationError] = []
-
-        responses_raw = data.get("responses", {})
-        responses: dict[str, Response] = {}
-        if isinstance(responses_raw, dict):
-            for status, resp_data in as_json_dict(responses_raw).items():
-                if isinstance(resp_data, dict):
-                    rptr = ptr(pointer, "responses", status)
-                    resp = extract(
-                        self._build_response(
-                            cast("JsonObject", resp_data), source_id=source_id, pointer=rptr
-                        ),
-                        errors,
-                    )
-                    if resp is not None:
-                        responses[status] = resp
-        else:
-            errors.append(
-                SchemaValidationError(
-                    "responses must be an object.",
-                    location=loc(source_id, ptr(pointer, "responses")),
-                )
-            )
-
-        parameters = self._build_parameter_list(
-            data, source_id=source_id, pointer=pointer, errors=errors
-        )
-
-        request_body: RequestBody | None = None
-        if isinstance(data.get("requestBody"), dict):
-            request_body = extract(
-                self._build_request_body(
-                    cast("JsonObject", data["requestBody"]),
-                    source_id=source_id,
-                    pointer=ptr(pointer, "requestBody"),
-                ),
-                errors,
-            )
-
-        external_docs: ExternalDocumentation | None = None
-        if isinstance(data.get("externalDocs"), dict):
-            external_docs = extract(
-                self._build_external_docs(
-                    cast("JsonObject", data["externalDocs"]),
-                    source_id=source_id,
-                    pointer=ptr(pointer, "externalDocs"),
-                ),
-                errors,
-            )
-
-        servers = self._build_server_list(data, source_id=source_id, pointer=pointer)
-
-        security: list[dict] | None = None  # TODO: Don't use raw `dict`.
-        raw_sec = data.get("security")
-        if isinstance(raw_sec, list):
-            security = [dict(req) for req in as_json_list(raw_sec) if isinstance(req, dict)]
-
-        tags: list[str] = []
-        raw_tags = data.get("tags")
-        if isinstance(raw_tags, list):
-            tags = [t for t in as_json_list(raw_tags) if isinstance(t, str)]
-
-        if errors:
-            return Err(tuple(errors))
-
-        return Ok(
-            Operation(
-                responses=responses,
-                tags=tags,
-                summary=str_field(data, "summary"),
-                description=str_field(data, "description"),
-                external_docs=external_docs,
-                operation_id=str_field(data, "operationId"),
-                parameters=parameters,
-                request_body=request_body,
-                deprecated=bool(data.get("deprecated")),
-                security=security,
-                servers=servers,
-                extensions={k: v for k, v in data.items() if k.startswith("x-")},
-                source_ref=SourceRef(source_id, pointer),
-            )
-        )
-
-    # -- Parameters / request body / responses / media types ----------------
-
-    def _build_parameter_list(
-        self, data: JsonObject, *, source_id: str, pointer: str, errors: list[TranspilationError]
-    ) -> list[Parameter]:
-        parameters: list[Parameter] = []
-        raw = data.get("parameters")
-        if not isinstance(raw, list):
-            return parameters
-        for i, p_data in enumerate(as_json_list(raw)):
-            if not isinstance(p_data, dict):
-                continue
-            pptr = ptr(pointer, "parameters", i)
-            p = extract(
-                self._build_parameter(
-                    cast("JsonObject", p_data), source_id=source_id, pointer=pptr
-                ),
-                errors,
-            )
-            if p is not None:
-                parameters.append(p)
-        return parameters
-
-    def _build_parameter(
-        self, data: JsonObject, *, source_id: str, pointer: str
-    ) -> Result[Parameter]:
-        name = data.get("name")
-        in_ = data.get("in")
-
-        # Validate required string fields with early returns so the type checker
-        # can narrow them without casts below.
-        if not isinstance(name, str):
-            return Err(
-                (
-                    SchemaValidationError(
-                        "parameter.name must be a string.",
-                        location=loc(source_id, ptr(pointer, "name")),
-                    ),
-                )
-            )
-        try:
-            in_loc = ParameterLocation(in_) if isinstance(in_, str) else None
-        except ValueError:
-            in_loc = None
-        if in_loc is None:
-            return Err(
-                (
-                    SchemaValidationError(
-                        f"parameter.in must be one of query/header/path/cookie, got {in_!r}.",
-                        location=loc(source_id, ptr(pointer, "in")),
-                    ),
-                )
-            )
-
-        errors: list[TranspilationError] = []
-        schema = None
-        schema_data = data.get("schema")
-        if isinstance(schema_data, dict):
-            schema = extract(
-                self.js.build_schema(
-                    schema_data, source_id=source_id, pointer=ptr(pointer, "schema")
-                ),
-                errors,
-            )
-        content = self._build_content_map(data, source_id=source_id, pointer=pointer, errors=errors)
-
-        if errors:
-            return Err(tuple(errors))
-
-        return Ok(
-            Parameter(
-                name=name,
-                in_=in_loc,
-                schema=schema,
-                content=content,
-                description=str_field(data, "description"),
-                required=bool(data.get("required")),
-                deprecated=bool(data.get("deprecated")),
-                allow_empty_value=bool(data.get("allowEmptyValue")),
-                style=str_field(data, "style"),
-                explode=bool_field(data, "explode"),
-                extensions={k: v for k, v in data.items() if k.startswith("x-")},
-                source_ref=SourceRef(source_id, pointer),
-            )
-        )
-
-    def _build_content_map(
-        self, data: JsonObject, *, source_id: str, pointer: str, errors: list[TranspilationError]
-    ) -> dict[str, MediaTypeObject]:
-        """Parse a `content` map (media-type string → `MediaTypeObject`)."""
-        content_raw = data.get("content")
-        content: dict[str, MediaTypeObject] = {}
-        if not isinstance(content_raw, dict):
-            return content
-        for media_type_str, mt_data in as_json_dict(content_raw).items():
-            if isinstance(mt_data, dict):
-                mt = extract(
-                    self._build_media_type_obj(
-                        cast("JsonObject", mt_data),
-                        source_id=source_id,
-                        pointer=ptr(pointer, "content", media_type_str),
-                    ),
-                    errors,
-                )
-                if mt is not None:
-                    content[media_type_str] = mt
-        return content
-
-    def _build_request_body(
-        self, data: JsonObject, *, source_id: str, pointer: str
-    ) -> Result[RequestBody]:
-        errors: list[TranspilationError] = []
-        content = self._build_content_map(data, source_id=source_id, pointer=pointer, errors=errors)
-        if errors:
-            return Err(tuple(errors))
-        return Ok(
-            RequestBody(
-                content=content,
-                description=str_field(data, "description"),
-                required=bool(data.get("required")),
-                extensions={k: v for k, v in data.items() if k.startswith("x-")},
-                source_ref=SourceRef(source_id, pointer),
-            )
-        )
-
-    def _build_response(
-        self, data: JsonObject, *, source_id: str, pointer: str
-    ) -> Result[Response]:
-        errors: list[TranspilationError] = []
-        description = data.get("description", "")
-        if not isinstance(description, str):
-            description = ""
-        headers = self._build_response_headers(data, errors, pointer, source_id)
-        content = self._build_content_map(data, source_id=source_id, pointer=pointer, errors=errors)
-        if errors:
-            return Err(tuple(errors))
-        return Ok(
-            Response(
-                description=description,
-                headers=headers,
-                content=content,
-                extensions={k: v for k, v in data.items() if k.startswith("x-")},
-                source_ref=SourceRef(source_id, pointer),
-            )
-        )
-
-    def _build_response_headers(
-        self, data: JsonObject, errors: list[TranspilationError], pointer: str, source_id: str
-    ) -> dict[str, Header]:
-        headers: dict[str, Header] = {}
-        if isinstance(data.get("headers"), dict):
-            for hname, hdata in cast("JsonObject", data["headers"]).items():
-                if isinstance(hdata, dict):
-                    h = extract(
-                        self._build_header(
-                            cast("JsonObject", hdata),
-                            source_id=source_id,
-                            pointer=ptr(pointer, "headers", hname),
-                        ),
-                        errors,
-                    )
-                    if h is not None:
-                        headers[hname] = h
-        return headers
-
-    def _build_header(self, data: JsonObject, *, source_id: str, pointer: str) -> Result[Header]:
-        errors: list[TranspilationError] = []
-        schema = None
-        schema_data = data.get("schema")
-        if isinstance(schema_data, dict):
-            schema = extract(
-                self.js.build_schema(
-                    schema_data, source_id=source_id, pointer=ptr(pointer, "schema")
-                ),
-                errors,
-            )
-        content = self._build_content_map(data, source_id=source_id, pointer=pointer, errors=errors)
-        if errors:
-            return Err(tuple(errors))
-        return Ok(
-            Header(
-                schema=schema,
-                content=content,
-                description=str_field(data, "description"),
-                required=bool(data.get("required")),
-                deprecated=bool(data.get("deprecated")),
-                extensions={k: v for k, v in data.items() if k.startswith("x-")},
-                source_ref=SourceRef(source_id, pointer),
-            )
-        )
-
-    def _build_media_type_obj(
-        self, data: JsonObject, *, source_id: str, pointer: str
-    ) -> Result[MediaTypeObject]:
-        errors: list[TranspilationError] = []
-        schema = None
-        schema_data = data.get("schema")
-        if isinstance(schema_data, dict):
-            schema = extract(
-                self.js.build_schema(
-                    schema_data, source_id=source_id, pointer=ptr(pointer, "schema")
-                ),
-                errors,
-            )
-        if errors:
-            return Err(tuple(errors))
-        examples_raw = data.get("examples")
-        return Ok(
-            MediaTypeObject(
-                schema=schema,
-                example=data.get("example"),
-                examples=dict(as_json_dict(examples_raw)) if isinstance(examples_raw, dict) else {},
-                extensions={k: v for k, v in data.items() if k.startswith("x-")},
-                source_ref=SourceRef(source_id, pointer),
-            )
-        )
-
-    # -- Components ----------------------------------------------------------
-
-    def _build_components(
-        self, data: JsonObject, *, source_id: str, pointer: str
-    ) -> Result[Components]:
-        if not isinstance(data, dict):
-            return Ok(Components())
-
-        errors: list[TranspilationError] = []
-        schemas = self._build_schemas(data, errors, pointer, source_id)
-        parameters = self._build_parameters(data, errors, pointer, source_id)
-        responses = self._build_responses(data, errors, pointer, source_id)
-        request_bodies = self._build_request_bodies(data, errors, pointer, source_id)
-        headers = self._build_headers(data, errors, pointer, source_id)
-        security_schemes = self._build_security_schemes(data, source_id=source_id, pointer=pointer)
-        if errors:
-            return Err(tuple(errors))
-        return Ok(
-            Components(
-                schemas=schemas,
-                responses=responses,
-                parameters=parameters,
-                request_bodies=request_bodies,
-                headers=headers,
-                security_schemes=security_schemes,
-                extensions={k: v for k, v in data.items() if k.startswith("x-")},
-                source_ref=SourceRef(source_id, pointer),
-            )
-        )
-
-    def _build_security_schemes(
-        self,
-        data: dict[
-            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
-        ],
-        *,
-        source_id: str,
-        pointer: str,
-    ) -> dict[str, SecurityScheme]:
-        security_schemes: dict[str, SecurityScheme] = {}
-        if isinstance(data.get("securitySchemes"), dict):
-            for name, ss_data in cast("JsonObject", data["securitySchemes"]).items():
-                if isinstance(ss_data, dict):
-                    scheme = self._build_security_scheme(
-                        cast("JsonObject", ss_data),
-                        source_id=source_id,
-                        pointer=ptr(pointer, "securitySchemes", name),
-                    )
-                    if scheme is not None:
-                        security_schemes[name] = scheme
-        return security_schemes
-
-    def _build_headers(
-        self,
-        data: dict[
-            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
-        ],
-        errors: list[TranspilationError],
-        pointer: str,
-        source_id: str,
-    ) -> dict[str, Header]:
-        headers: dict[str, Header] = {}
-        if isinstance(data.get("headers"), dict):
-            for name, h_data in cast("JsonObject", data["headers"]).items():
-                if isinstance(h_data, dict):
-                    h = extract(
-                        self._build_header(
-                            cast("JsonObject", h_data),
-                            source_id=source_id,
-                            pointer=ptr(pointer, "headers", name),
-                        ),
-                        errors,
-                    )
-                    if h is not None:
-                        headers[name] = h
-        return headers
-
-    def _build_request_bodies(
-        self,
-        data: dict[
-            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
-        ],
-        errors: list[TranspilationError],
-        pointer: str,
-        source_id: str,
-    ) -> dict[str, RequestBody]:
-        request_bodies: dict[str, RequestBody] = {}
-        if isinstance(data.get("requestBodies"), dict):
-            for name, rb_data in cast("JsonObject", data["requestBodies"]).items():
-                if isinstance(rb_data, dict):
-                    rb = extract(
-                        self._build_request_body(
-                            cast("JsonObject", rb_data),
-                            source_id=source_id,
-                            pointer=ptr(pointer, "requestBodies", name),
-                        ),
-                        errors,
-                    )
-                    if rb is not None:
-                        request_bodies[name] = rb
-        return request_bodies
-
-    def _build_responses(
-        self,
-        data: dict[
-            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
-        ],
-        errors: list[TranspilationError],
-        pointer: str,
-        source_id: str,
-    ) -> dict[str, Response]:
-        responses: dict[str, Response] = {}
-        if isinstance(data.get("responses"), dict):
-            for name, r_data in cast("JsonObject", data["responses"]).items():
-                if isinstance(r_data, dict):
-                    r = extract(
-                        self._build_response(
-                            cast("JsonObject", r_data),
-                            source_id=source_id,
-                            pointer=ptr(pointer, "responses", name),
-                        ),
-                        errors,
-                    )
-                    if r is not None:
-                        responses[name] = r
-        return responses
-
-    def _build_parameters(
-        self,
-        data: dict[
-            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
-        ],
-        errors: list[TranspilationError],
-        pointer: str,
-        source_id: str,
-    ) -> dict[str, Parameter]:
-        parameters: dict[str, Parameter] = {}
-        if isinstance(data.get("parameters"), dict):
-            for name, p_data in cast("JsonObject", data["parameters"]).items():
-                if isinstance(p_data, dict):
-                    p = extract(
-                        self._build_parameter(
-                            cast("JsonObject", p_data),
-                            source_id=source_id,
-                            pointer=ptr(pointer, "parameters", name),
-                        ),
-                        errors,
-                    )
-                    if p is not None:
-                        parameters[name] = p
-        return parameters
-
-    def _build_schemas(
-        self,
-        data: dict[
-            str, bool | int | float | str | MutableSequence[Any] | MutableMapping[str, Any] | None
-        ],
-        errors: list[TranspilationError],
-        pointer: str,
-        source_id: str,
-    ) -> dict[str, BooleanSchema | ObjectSchema]:
-        schemas: dict[str, JsonSchema] = {}
-        if isinstance(data.get("schemas"), dict):
-            for name, s_data in cast("JsonObject", data["schemas"]).items():
-                s = extract(
-                    self.js.build_schema(
-                        s_data, source_id=source_id, pointer=ptr(pointer, "schemas", name)
-                    ),
-                    errors,
-                )
-                if s is not None:
-                    schemas[name] = s
-        return schemas
-
-    def _build_security_scheme(
-        self, data: JsonObject, *, source_id: str, pointer: str
-    ) -> SecurityScheme | None:
-        scheme_type = enum_member(SecuritySchemeType, data.get("type"))
-        if scheme_type is None:
-            return None
-        return SecurityScheme(
-            type_=scheme_type,
-            description=str_field(data, "description"),
-            name=str_field(data, "name"),
-            in_=enum_member(ApiKeyLocation, data.get("in")),
-            scheme=str_field(data, "scheme"),
-            bearer_format=str_field(data, "bearerFormat"),
-            flows=self._build_oauth_flows(
-                data.get("flows"), source_id=source_id, pointer=ptr(pointer, "flows")
-            ),
-            open_id_connect_url=str_field(data, "openIdConnectUrl"),
-            extensions={k: v for k, v in data.items() if k.startswith("x-")},
-            source_ref=SourceRef(source_id, pointer),
-        )
-
-    def _build_oauth_flows(
-        self, data: JsonValue, *, source_id: str, pointer: str
-    ) -> OAuthFlows | None:
-        if not isinstance(data, Mapping):
-            return None
-        flows = cast("JsonObject", data)
-        return OAuthFlows(
-            implicit=self._build_oauth_flow(
-                flows.get("implicit"), source_id=source_id, pointer=ptr(pointer, "implicit")
-            ),
-            password=self._build_oauth_flow(
-                flows.get("password"), source_id=source_id, pointer=ptr(pointer, "password")
-            ),
-            client_credentials=self._build_oauth_flow(
-                flows.get("clientCredentials"),
-                source_id=source_id,
-                pointer=ptr(pointer, "clientCredentials"),
-            ),
-            authorization_code=self._build_oauth_flow(
-                flows.get("authorizationCode"),
-                source_id=source_id,
-                pointer=ptr(pointer, "authorizationCode"),
-            ),
-            extensions={k: v for k, v in flows.items() if k.startswith("x-")},
-            source_ref=SourceRef(source_id, pointer),
-        )
-
-    def _build_oauth_flow(
-        self, data: JsonValue, *, source_id: str, pointer: str
-    ) -> OAuthFlow | None:
-        if not isinstance(data, Mapping):
-            return None
-        flow = cast("JsonObject", data)
-        raw_scopes = flow.get("scopes")
-        scopes: dict[str, str] = (
-            {k: v if isinstance(v, str) else "" for k, v in cast("JsonObject", raw_scopes).items()}
-            if isinstance(raw_scopes, Mapping)
-            else {}
-        )
-        return OAuthFlow(
-            scopes=scopes,
-            authorization_url=str_field(flow, "authorizationUrl"),
-            token_url=str_field(flow, "tokenUrl"),
-            refresh_url=str_field(flow, "refreshUrl"),
-            extensions={k: v for k, v in flow.items() if k.startswith("x-")},
-            source_ref=SourceRef(source_id, pointer),
-        )
+def _with_provenance(doc: OpenApiDocument, input: OpenApiRawDoc) -> OpenApiDocument:
+    """Fill in the fields that identify the document rather than describe it."""
+    return replace(
+        doc,
+        source_id=input.doc_id,
+        display_name=input.display_name,
+        source_ref=SourceRef(input.doc_id, ""),
+    )

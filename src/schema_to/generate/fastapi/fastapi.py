@@ -45,6 +45,9 @@ from schema_to.cst.openapi import (
     OpenApiDocument,
     ParameterLocation,
     PathItem,
+    concrete,
+    concrete_list,
+    concrete_map,
 )
 from schema_to.cst.openapi import Parameter as OasParameter
 from schema_to.errors import SourceLocation, TranspilationWarning
@@ -277,7 +280,7 @@ class _GenCtx:
     def build(self) -> Result[PythonModule]:
         model_decls = self._generate_models()
         app_var = self._make_app_var()
-        security = build_security_module(self.doc.components.security_schemes)
+        security = build_security_module(concrete_map(self.doc.components.security_schemes))
         self.extra_imports.extend(security.imports)
         self.warnings.extend(security.warnings)
         route_fns = self._generate_routes()
@@ -365,7 +368,7 @@ class _GenCtx:
     def _security_params(self, op: Operation) -> list[PyParameter]:
         """Build `Security`/`Depends` parameters for the operation's requirements."""
         params, imports, warnings = route_security_params(
-            self._effective_security(op), self.doc.components.security_schemes
+            self._effective_security(op), concrete_map(self.doc.components.security_schemes)
         )
         self.extra_imports.extend(imports)
         self.warnings.extend(warnings)
@@ -411,10 +414,11 @@ class _GenCtx:
     def _resource_schema(self, op: Operation) -> ObjectSchema | None:
         """Best-effort resolution of the resource object schema for an operation."""
         schema: JsonSchema | None = None
-        if op.request_body is not None:
-            schema = _json_schema_from_content(op.request_body.content)
+        request_body = concrete(op.request_body) if op.request_body is not None else None
+        if request_body is not None:
+            schema = _json_schema_from_content(request_body.content)
         if schema is None:
-            for code, resp in op.responses.items():
+            for code, resp in concrete_map(op.responses).items():
                 if code.startswith("2"):
                     schema = _json_schema_from_content(resp.content)
                     break
@@ -476,15 +480,16 @@ class _GenCtx:
         )
 
     def _body_param(self, op: Operation) -> PyParameter | None:
-        if op.request_body is None:
+        request_body = concrete(op.request_body) if op.request_body is not None else None
+        if request_body is None:
             return None
-        schema = _json_schema_from_content(op.request_body.content)
+        schema = _json_schema_from_content(request_body.content)
         if schema is None:
             return None
         return PyParameter(name="body", annotation=_schema_to_annotation(schema))
 
     def _success_response(self, op: Operation) -> tuple[int | None, PythonTypeAnnotation | None]:
-        for code_str, response in op.responses.items():
+        for code_str, response in concrete_map(op.responses).items():
             if not (code_str.startswith("2") and code_str.isdigit()):
                 continue
             code = int(code_str)
@@ -554,9 +559,9 @@ def _merged_parameters(path_item: PathItem, op: Operation) -> list[OasParameter]
     an operation parameter overrides a path-item one with the same `name` and `in` location.
     """
     by_key: dict[tuple[str, ParameterLocation], OasParameter] = {
-        (p.name, p.in_): p for p in path_item.parameters
+        (p.name, p.in_): p for p in concrete_list(path_item.parameters)
     }
-    for p in op.parameters:
+    for p in concrete_list(op.parameters):
         by_key[p.name, p.in_] = p
     return list(by_key.values())
 

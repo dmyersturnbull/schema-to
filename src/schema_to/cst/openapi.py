@@ -1,28 +1,33 @@
 """Concrete Syntax Tree for [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0).
 
-OpenAPI 3.1 is complaint with JSON Schema 2020-12.
+OpenAPI 3.1 is compliant with JSON Schema 2020-12.
 Every `schema` field in this module is typed as [JsonSchema][].
 
 The hierarchy follows the object model of the
 [OAS 3.1 spec](https://spec.openapis.org/oas/v3.1.0#schema).
+
+Each node's field annotations are the whole description of its wire format:
+`parse._plan` compiles them into the plan that the parser and the serializer
+both run on.  A field's JSON key is its name with one trailing underscore
+dropped, lower-camel-cased (`terms_of_service` is `termsOfService`), and a field
+is required exactly when it declares no default.  Annotations must therefore
+resolve at runtime, which is why the imports below are not deferred.
 """
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
-from typing import TYPE_CHECKING
 
-from schema_to.cst.base import CstNode, SourceRef
-
-if TYPE_CHECKING:
-    from schema_to.core import JsonValue
-    from schema_to.cst.json_schema import JsonSchema
+from schema_to.core import JsonValue
+from schema_to.cst.base import SYNTHETIC, CstNode, SourceRef
+from schema_to.cst.json_schema import JsonSchema
 
 __all__ = [
     "ApiKeyLocation",
     "Components",
     "Contact",
     "Encoding",
+    "Example",
     "ExternalDocumentation",
     "Header",
     "HttpMethod",
@@ -37,6 +42,7 @@ __all__ = [
     "Parameter",
     "ParameterLocation",
     "PathItem",
+    "Reference",
     "RequestBody",
     "Response",
     "SecurityRequirement",
@@ -45,6 +51,9 @@ __all__ = [
     "Server",
     "ServerVariable",
     "Tag",
+    "concrete",
+    "concrete_list",
+    "concrete_map",
 ]
 
 
@@ -113,8 +122,8 @@ class Contact(CstNode):
     name: str | None = None
     url: str | None = None
     email: str | None = None
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,8 +141,8 @@ class License(CstNode):
     name: str
     identifier: str | None = None
     url: str | None = None
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,8 +168,8 @@ class Info(CstNode):
     terms_of_service: str | None = None
     contact: Contact | None = None
     license_: License | None = None
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,8 +187,8 @@ class ServerVariable(CstNode):
     default: str
     enum: Sequence[str] | None = None
     description: str | None = None
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,8 +206,8 @@ class Server(CstNode):
     url: str
     description: str | None = None
     variables: Mapping[str, ServerVariable] = field(default_factory=dict)
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,8 +223,8 @@ class ExternalDocumentation(CstNode):
 
     url: str
     description: str | None = None
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,8 +242,69 @@ class Tag(CstNode):
     name: str
     description: str | None = None
     external_docs: ExternalDocumentation | None = None
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+
+
+@dataclass(frozen=True, slots=True)
+class Reference(CstNode):
+    """[Reference Object](https://spec.openapis.org/oas/v3.1.0#reference-object).
+
+    OpenAPI allows a `$ref` wherever a Parameter, Response, Header, Request Body,
+    Link, Example, Security Scheme, or Path Item is expected, so those positions
+    are typed `Reference | …`.  The reference alternative is declared first so it
+    is recognised by its `$ref` before the more permissive object shape is tried.
+
+    Like `$ref` inside a schema, the target is *not* resolved here: parsing keeps
+    the URI as written and a later stage inlines it.
+
+    Attributes:
+        ref: The URI reference to the target object.
+        summary: Overrides the target's `summary` (OAS 3.1 addition).
+        description: Overrides the target's `description` (OAS 3.1 addition).
+        source_ref: Origin in the source document.
+    """
+
+    ref: str = field(metadata={"key": "$ref"})
+    summary: str | None = None
+    description: str | None = None
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+
+
+def concrete[N: CstNode](value: Reference | N) -> N | None:
+    """Return `value`, or `None` if it is a `Reference` no stage has inlined yet."""
+    return None if isinstance(value, Reference) else value
+
+
+def concrete_list[N: CstNode](values: Iterable[Reference | N]) -> list[N]:
+    """Drop the entries of `values` that are still unresolved references."""
+    return [value for value in values if not isinstance(value, Reference)]
+
+
+def concrete_map[N: CstNode](values: Mapping[str, Reference | N]) -> dict[str, N]:
+    """Drop the entries of `values` that are still unresolved references."""
+    return {name: value for name, value in values.items() if not isinstance(value, Reference)}
+
+
+@dataclass(frozen=True, slots=True)
+class Example(CstNode):
+    """[Example Object](https://spec.openapis.org/oas/v3.1.0#example-object).
+
+    Attributes:
+        summary: Short description of the example.
+        description: Long description; CommonMark allowed.
+        value: The embedded example value, mutually exclusive with `external_value`.
+        external_value: URI of a literal example, mutually exclusive with `value`.
+        extensions: `x-*` extension fields.
+        source_ref: Origin in the source document.
+    """
+
+    summary: str | None = None
+    description: str | None = None
+    value: JsonValue | None = None
+    external_value: str | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 # ---------------------------------------------------------------------------
@@ -261,8 +331,8 @@ class Header(CstNode):
     description: str | None = None
     required: bool = False
     deprecated: bool = False
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -280,12 +350,12 @@ class Encoding(CstNode):
     """
 
     content_type: str | None = None
-    headers: Mapping[str, Header] = field(default_factory=dict)
+    headers: Mapping[str, Reference | Header] = field(default_factory=dict)
     style: str | None = None
     explode: bool = False
     allow_reserved: bool = False
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -303,10 +373,10 @@ class MediaTypeObject(CstNode):
 
     schema: JsonSchema | None = None
     example: JsonValue | None = None
-    examples: Mapping[str, JsonValue] = field(default_factory=dict)
+    examples: Mapping[str, Reference | Example] = field(default_factory=dict)
     encoding: Mapping[str, Encoding] = field(default_factory=dict)
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -338,8 +408,8 @@ class Parameter(CstNode):
     allow_empty_value: bool = False
     style: str | None = None
     explode: bool | None = None
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -357,8 +427,8 @@ class RequestBody(CstNode):
     content: Mapping[str, MediaTypeObject]
     description: str | None = None
     required: bool = False
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -375,11 +445,11 @@ class Response(CstNode):
     """
 
     description: str
-    headers: Mapping[str, Header] = field(default_factory=dict)
+    headers: Mapping[str, Reference | Header] = field(default_factory=dict)
     content: Mapping[str, MediaTypeObject] = field(default_factory=dict)
-    links: Mapping[str, Link] = field(default_factory=dict)
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    links: Mapping[str, Reference | Link] = field(default_factory=dict)
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -403,8 +473,8 @@ class Link(CstNode):
     request_body: JsonValue | None = None
     description: str | None = None
     server: Server | None = None
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 # ---------------------------------------------------------------------------
@@ -432,19 +502,19 @@ class Operation(CstNode):
         source_ref: Origin in the source document.
     """
 
-    responses: Mapping[str, Response]
+    responses: Mapping[str, Reference | Response] = field(default_factory=dict)
     tags: Sequence[str] = field(default_factory=list)
     summary: str | None = None
     description: str | None = None
     external_docs: ExternalDocumentation | None = None
     operation_id: str | None = None
-    parameters: Sequence[Parameter] = field(default_factory=list)
-    request_body: RequestBody | None = None
+    parameters: Sequence[Reference | Parameter] = field(default_factory=list)
+    request_body: Reference | RequestBody | None = None
     deprecated: bool = False
     security: Sequence[SecurityRequirement] | None = None
     servers: Sequence[Server] = field(default_factory=list)
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 type SecurityRequirement = Mapping[str, Sequence[str]]
@@ -476,10 +546,10 @@ class PathItem(CstNode):
     head: Operation | None = None
     patch: Operation | None = None
     trace: Operation | None = None
-    parameters: Sequence[Parameter] = field(default_factory=list)
+    parameters: Sequence[Reference | Parameter] = field(default_factory=list)
     servers: Sequence[Server] = field(default_factory=list)
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 # ---------------------------------------------------------------------------
@@ -504,8 +574,8 @@ class OAuthFlow(CstNode):
     authorization_url: str | None = None
     token_url: str | None = None
     refresh_url: str | None = None
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -525,8 +595,8 @@ class OAuthFlows(CstNode):
     password: OAuthFlow | None = None
     client_credentials: OAuthFlow | None = None
     authorization_code: OAuthFlow | None = None
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -554,8 +624,8 @@ class SecurityScheme(CstNode):
     bearer_format: str | None = None
     flows: OAuthFlows | None = None
     open_id_connect_url: str | None = None
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 # ---------------------------------------------------------------------------
@@ -578,20 +648,22 @@ class Components(CstNode):
         security_schemes: Reusable security scheme definitions.
         links: Reusable link objects.
         path_items: Reusable path item objects (OAS 3.1 addition).
+        examples: Reusable example objects.
         extensions: `x-*` extension fields.
         source_ref: Origin in the source document.
     """
 
     schemas: Mapping[str, JsonSchema] = field(default_factory=dict)
-    responses: Mapping[str, Response] = field(default_factory=dict)
-    parameters: Mapping[str, Parameter] = field(default_factory=dict)
-    request_bodies: Mapping[str, RequestBody] = field(default_factory=dict)
-    headers: Mapping[str, Header] = field(default_factory=dict)
-    security_schemes: Mapping[str, SecurityScheme] = field(default_factory=dict)
-    links: Mapping[str, Link] = field(default_factory=dict)
-    path_items: Mapping[str, PathItem] = field(default_factory=dict)
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_ref: SourceRef | None = None
+    responses: Mapping[str, Reference | Response] = field(default_factory=dict)
+    parameters: Mapping[str, Reference | Parameter] = field(default_factory=dict)
+    examples: Mapping[str, Reference | Example] = field(default_factory=dict)
+    request_bodies: Mapping[str, Reference | RequestBody] = field(default_factory=dict)
+    headers: Mapping[str, Reference | Header] = field(default_factory=dict)
+    security_schemes: Mapping[str, Reference | SecurityScheme] = field(default_factory=dict)
+    links: Mapping[str, Reference | Link] = field(default_factory=dict)
+    path_items: Mapping[str, Reference | PathItem] = field(default_factory=dict)
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -601,6 +673,7 @@ class OpenApiDocument(CstNode):
     Attributes:
         openapi: The OpenAPI Specification version string (required), e.g. `"3.1.0"`.
         info: Metadata about the API (required).
+        json_schema_dialect: Default `$schema` for schemas that declare none.
         paths: Map from path template to `PathItem`.
         components: Container for reusable objects.
         servers: List of server objects; defaults to `[{url: "/"}]` if absent.
@@ -617,14 +690,15 @@ class OpenApiDocument(CstNode):
 
     openapi: str
     info: Info
+    json_schema_dialect: str | None = None
     paths: Mapping[str, PathItem] = field(default_factory=dict)
     components: Components = field(default_factory=Components)
     servers: Sequence[Server] = field(default_factory=list)
     security: Sequence[SecurityRequirement] = field(default_factory=list)
     tags: Sequence[Tag] = field(default_factory=list)
     external_docs: ExternalDocumentation | None = None
-    webhooks: Mapping[str, PathItem] = field(default_factory=dict)
-    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
-    source_id: str | None = None
-    display_name: str | None = None
-    source_ref: SourceRef | None = None
+    webhooks: Mapping[str, Reference | PathItem] = field(default_factory=dict)
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    source_id: str | None = field(default=None, metadata=SYNTHETIC)
+    display_name: str | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
