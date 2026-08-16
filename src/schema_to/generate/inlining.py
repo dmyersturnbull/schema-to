@@ -34,7 +34,7 @@ and falls back to a documented choice where it cannot:
   override an `x-pg-*` keyword written at the point of use.
 """
 
-from dataclasses import dataclass, field, fields, replace
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 from schema_to.cst.json_schema import (
@@ -45,6 +45,7 @@ from schema_to.cst.json_schema import (
     ObjectSchema,
 )
 from schema_to.errors import SourceLocation, TranspilationWarning
+from schema_to.parse._plan import ListSpec, MapSpec, SchemaSpec, sub_schema_fields
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 
 if TYPE_CHECKING:
@@ -59,10 +60,8 @@ __all__ = ["FlatteningResult", "SchemaFlattener"]
 # Guards against a `$ref` cycle that `_seen` cannot catch, e.g. one built from `$dynamicRef`.
 _MAX_DEPTH = 32
 
-# The parse kinds whose values hold sub-schemas, and so need inlining in turn.
-_SUB_SCHEMA_KINDS = frozenset({"optional_schema", "schema_list", "schema_map"})
-
-# What `_inline_children` puts back on a schema, matching those three kinds.
+# What `_inline_children` puts back on a schema, matching the three shapes a
+# sub-schema-bearing keyword can take.
 type _SubSchemaValue = JsonSchema | Sequence[JsonSchema] | Mapping[str, JsonSchema]
 
 # Union of the keyword values `_first_set` copies between schemas.
@@ -148,7 +147,7 @@ class SchemaFlattener:
     ) -> dict[str, _SubSchemaValue]:
         """Inline every keyword whose value holds sub-schemas.
 
-        Driven by the same field metadata the parser dispatches on, so a keyword
+        Driven by the same plans the parser and serializer run on, so a keyword
         added to `ObjectSchema` is covered here without touching this method.
         """
 
@@ -156,17 +155,19 @@ class SchemaFlattener:
             return self._inline(sub, base_uri=_base_of(sub, base_uri), seen=seen, depth=depth + 1)
 
         out: dict[str, _SubSchemaValue] = {}
-        for f in fields(ObjectSchema):
-            kind = f.metadata.get("kind")
-            value = getattr(schema, f.name)
-            if kind not in _SUB_SCHEMA_KINDS or value is None:
-                continue
-            if kind == "optional_schema":
-                out[f.name] = step(value)
-            elif kind == "schema_list":
-                out[f.name] = [step(sub) for sub in value]
-            else:
-                out[f.name] = {name: step(sub) for name, sub in value.items()}
+        for entry in sub_schema_fields(ObjectSchema):
+            value = getattr(schema, entry.name)
+            match entry.spec:
+                case _ if value is None:
+                    continue
+                case SchemaSpec():
+                    out[entry.name] = step(value)
+                case ListSpec():
+                    out[entry.name] = [step(sub) for sub in value]
+                case MapSpec():
+                    out[entry.name] = {name: step(sub) for name, sub in value.items()}
+                case _:  # pragma: no cover — no other shape holds sub-schemas
+                    continue
         return out
 
     def _parts(

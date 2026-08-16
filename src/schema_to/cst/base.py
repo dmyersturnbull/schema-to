@@ -5,9 +5,17 @@ in a `RawDoc`, enabling precise error messages and source-map generation.
 """
 
 from abc import ABC
+from collections.abc import Mapping
 from dataclasses import dataclass
 
-__all__ = ["CstNode", "SourceRef"]
+__all__ = ["SYNTHETIC", "CstNode", "SourceRef"]
+
+
+# Field metadata marking a field that carries no wire data — an extension bag or
+# a provenance link.  Every other field is compiled into a plan (`parse._plan`)
+# from its type annotation, so a field the wire format does not describe has to
+# say so.
+SYNTHETIC: Mapping[str, bool] = {"synthetic": True}
 
 
 @dataclass(frozen=True, slots=True)
