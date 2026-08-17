@@ -26,6 +26,7 @@ from schema_to.errors import ParseError, SourceLocation, TranspilationError
 from schema_to.io.core import DefaultJsonLikeReader
 from schema_to.io.source import OpenApiRawDoc
 from schema_to.parse._build import Cursor, Failed, build_node
+from schema_to.parse._plan import SpecVersion
 from schema_to.parse._utils import decode_raw_doc
 from schema_to.pipeline import DocParser
 from schema_to.result import Err, Ok, Result
@@ -67,7 +68,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                     location=SourceLocation(input.doc_id, ""),
                 )
             )
-        at = Cursor.root(input.doc_id)
+        at = Cursor.root(input.doc_id, _declared_version(root))
         _check_version(root, at)
         doc = build_node(OpenApiDocument, data, at)
         if at.errors:
@@ -77,6 +78,12 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
                 ParseError("Malformed OpenAPI document.", location=SourceLocation(input.doc_id, ""))
             )
         return Ok(_with_provenance(doc, input))
+
+
+def _declared_version(root: Mapping[str, JsonValue]) -> SpecVersion | None:
+    """Return the version the document declares, for gating version-scoped keys."""
+    version = root.get("openapi")
+    return SpecVersion.parse(version) if isinstance(version, str) else None
 
 
 def _check_version(root: Mapping[str, JsonValue], at: Cursor) -> None:

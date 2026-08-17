@@ -1,230 +1,239 @@
 ObjectSchema +extensions +source_ref
-   ? $id                      id                       str
-   ? $schema                  schema                   str
-   ? $anchor                  anchor                   str
-   ? $dynamicAnchor           dynamic_anchor           str
-   ? $ref                     ref                      str
-   ? $dynamicRef              dynamic_ref              str
-   ? $defs                    defs                     map[schema]
-   ? $comment                 comment                  str
-   ? $vocabulary              vocabulary               map[bool]
-   ? title                    title                    str
-   ? description              description              str
-   ? default                  default                  wrap
-     deprecated               deprecated               bool
-     readOnly                 read_only                bool
-     writeOnly                write_only               bool
-   ? examples                 examples                 list[raw]
-   ? type                     type                     one-of[enum[JsonSchemaType] | set[enum[JsonSchemaType]]]
-   ? enum                     enum                     list[raw]
-   ? const                    const                    wrap
-   ? multipleOf               multiple_of              num
-   ? maximum                  maximum                  num
-   ? exclusiveMaximum         exclusive_maximum        num
-   ? minimum                  minimum                  num
-   ? exclusiveMinimum         exclusive_minimum        num
-   ? maxLength                max_length               int(>=0)
-   ? minLength                min_length               int(>=0)
-   ? pattern                  pattern                  str
-   ? prefixItems              prefix_items             list[schema]
-   ? items                    items                    schema
-   ? contains                 contains                 schema
-   ? minContains              min_contains             int
-   ? maxContains              max_contains             int
-   ? minItems                 min_items                int
-   ? maxItems                 max_items                int
-     uniqueItems              unique_items             bool
-   ? properties               properties               map[schema]
-   ? patternProperties        pattern_properties       map[schema]
-   ? additionalProperties     additional_properties    schema
-   ? propertyNames            property_names           schema
-   ? required                 required                 set[str]
-   ? dependentRequired        dependent_required       map[set[str]]
-   ? dependentSchemas         dependent_schemas        map[schema]
-   ? minProperties            min_properties           int
-   ? maxProperties            max_properties           int
-   ? allOf                    all_of                   list[schema]
-   ? anyOf                    any_of                   list[schema]
-   ? oneOf                    one_of                   list[schema]
-   ? not                      not_                     schema
-   ? if                       if_                      schema
-   ? then                     then_                    schema
-   ? else                     else_                    schema
-   ? unevaluatedItems         unevaluated_items        schema
-   ? unevaluatedProperties    unevaluated_properties   schema
-   ? contentEncoding          content_encoding         str
-   ? contentMediaType         content_media_type       str
-   ? contentSchema            content_schema           schema
-   ? format                   format                   str
+   ? $id                      id                                  str
+   ? $schema                  schema                              str
+   ? $anchor                  anchor                              str
+   ? $dynamicAnchor           dynamic_anchor                      str
+   ? $ref                     ref                                 str
+   ? $dynamicRef              dynamic_ref                         str
+   ? $defs                    defs                                map[schema]
+   ? $comment                 comment                             str
+   ? $vocabulary              vocabulary                          map[bool]
+   ? title                    title                               str
+   ? description              description                         str
+   ? default                  default                             wrap
+     deprecated               deprecated                          bool
+     readOnly                 read_only                           bool
+     writeOnly                write_only                          bool
+   ? examples                 examples                            list[raw]
+   ? type                     type                                one-of[enum[JsonSchemaType] | set[enum[JsonSchemaType]]]
+   ? enum                     enum                                list[raw]
+   ? const                    const                               wrap
+   ? multipleOf               multiple_of                         num
+   ? maximum                  maximum                             num
+   ? exclusiveMaximum         exclusive_maximum                   num
+   ? minimum                  minimum                             num
+   ? exclusiveMinimum         exclusive_minimum                   num
+   ? maxLength                max_length                          int(>=0)
+   ? minLength                min_length                          int(>=0)
+   ? pattern                  pattern                             str
+   ? prefixItems              prefix_items                        list[schema]
+   ? items                    items                               schema
+   ? contains                 contains                            schema
+   ? minContains              min_contains                        int
+   ? maxContains              max_contains                        int
+   ? minItems                 min_items                           int
+   ? maxItems                 max_items                           int
+     uniqueItems              unique_items                        bool
+   ? properties               properties                          map[schema]
+   ? patternProperties        pattern_properties                  map[schema]
+   ? additionalProperties     additional_properties               schema
+   ? propertyNames            property_names                      schema
+   ? required                 required                            set[str]
+   ? dependentRequired        dependent_required                  map[set[str]]
+   ? dependentSchemas         dependent_schemas                   map[schema]
+   ? minProperties            min_properties                      int
+   ? maxProperties            max_properties                      int
+   ? allOf                    all_of                              list[schema]
+   ? anyOf                    any_of                              list[schema]
+   ? oneOf                    one_of                              list[schema]
+   ? not                      not_                                schema
+   ? if                       if_                                 schema
+   ? then                     then_                               schema
+   ? else                     else_                               schema
+   ? unevaluatedItems         unevaluated_items                   schema
+   ? unevaluatedProperties    unevaluated_properties              schema
+   ? contentEncoding          content_encoding                    str
+   ? contentMediaType         content_media_type                  str
+   ? contentSchema            content_schema                      schema
+   ? format                   format                              str
 
 OpenApiDocument +extensions +source_ref
-  !  openapi                  openapi                  str
-  !  info                     info                     Info
-   ? jsonSchemaDialect        json_schema_dialect      str
-     paths                    paths                    map[PathItem]
-     components               components               Components
-     servers                  servers                  list[Server]
-     security                 security                 list[map[list[str]]]
-     tags                     tags                     list[Tag]
-   ? externalDocs             external_docs            ExternalDocumentation
-     webhooks                 webhooks                 map[one-of[Reference | PathItem]]
+  !  openapi                  openapi                             str
+  !  info                     info                                Info
+   ? $self                    self_                    [3.2..]    str
+   ? jsonSchemaDialect        json_schema_dialect                 str
+     paths                    paths                               map[PathItem]
+     components               components                          Components
+     servers                  servers                             list[Server]
+     security                 security                            list[map[list[str]]]
+     tags                     tags                                list[Tag]
+   ? externalDocs             external_docs                       ExternalDocumentation
+     webhooks                 webhooks                            map[one-of[Reference | PathItem]]
 
 Components +extensions +source_ref
-     schemas                  schemas                  map[schema]
-     responses                responses                map[one-of[Reference | Response]]
-     parameters               parameters               map[one-of[Reference | Parameter]]
-     examples                 examples                 map[one-of[Reference | Example]]
-     requestBodies            request_bodies           map[one-of[Reference | RequestBody]]
-     headers                  headers                  map[one-of[Reference | Header]]
-     securitySchemes          security_schemes         map[one-of[Reference | SecurityScheme]]
-     links                    links                    map[one-of[Reference | Link]]
-     pathItems                path_items               map[one-of[Reference | PathItem]]
+     schemas                  schemas                             map[schema]
+     responses                responses                           map[one-of[Reference | Response]]
+     parameters               parameters                          map[one-of[Reference | Parameter]]
+     examples                 examples                            map[one-of[Reference | Example]]
+     requestBodies            request_bodies                      map[one-of[Reference | RequestBody]]
+     headers                  headers                             map[one-of[Reference | Header]]
+     securitySchemes          security_schemes                    map[one-of[Reference | SecurityScheme]]
+     links                    links                               map[one-of[Reference | Link]]
+     pathItems                path_items                          map[one-of[Reference | PathItem]]
+     mediaTypes               media_types              [3.2..]    map[one-of[Reference | MediaTypeObject]]
 
 Contact +extensions +source_ref
-   ? name                     name                     str
-   ? url                      url                      str
-   ? email                    email                    str
+   ? name                     name                                str
+   ? url                      url                                 str
+   ? email                    email                               str
 
 Encoding +extensions +source_ref
-   ? contentType              content_type             str
-     headers                  headers                  map[one-of[Reference | Header]]
-   ? style                    style                    str
-     explode                  explode                  bool
-     allowReserved            allow_reserved           bool
+   ? contentType              content_type                        str
+     headers                  headers                             map[one-of[Reference | Header]]
+   ? style                    style                               str
+     explode                  explode                             bool
+     allowReserved            allow_reserved                      bool
 
 Example +extensions +source_ref
-   ? summary                  summary                  str
-   ? description              description              str
-   ? value                    value                    raw
-   ? externalValue            external_value           str
+   ? summary                  summary                             str
+   ? description              description                         str
+   ? value                    value                               raw
+   ? externalValue            external_value                      str
 
 ExternalDocumentation +extensions +source_ref
-  !  url                      url                      str
-   ? description              description              str
+  !  url                      url                                 str
+   ? description              description                         str
 
 Header +extensions +source_ref
-   ? schema                   schema                   schema
-     content                  content                  map[MediaTypeObject]
-   ? description              description              str
-     required                 required                 bool
-     deprecated               deprecated               bool
+   ? schema                   schema                              schema
+     content                  content                             map[MediaTypeObject]
+   ? description              description                         str
+     required                 required                            bool
+     deprecated               deprecated                          bool
 
 Info +extensions +source_ref
-  !  title                    title                    str
-  !  version                  version                  str
-   ? summary                  summary                  str
-   ? description              description              str
-   ? termsOfService           terms_of_service         str
-   ? contact                  contact                  Contact
-   ? license                  license_                 License
+  !  title                    title                               str
+  !  version                  version                             str
+   ? summary                  summary                             str
+   ? description              description                         str
+   ? termsOfService           terms_of_service                    str
+   ? contact                  contact                             Contact
+   ? license                  license_                            License
 
 License +extensions +source_ref
-  !  name                     name                     str
-   ? identifier               identifier               str
-   ? url                      url                      str
+  !  name                     name                                str
+   ? identifier               identifier                          str
+   ? url                      url                                 str
 
 Link +extensions +source_ref
-   ? operationRef             operation_ref            str
-   ? operationId              operation_id             str
-     parameters               parameters               map[raw]
-   ? requestBody              request_body             raw
-   ? description              description              str
-   ? server                   server                   Server
+   ? operationRef             operation_ref                       str
+   ? operationId              operation_id                        str
+     parameters               parameters                          map[raw]
+   ? requestBody              request_body                        raw
+   ? description              description                         str
+   ? server                   server                              Server
 
 MediaTypeObject +extensions +source_ref
-   ? schema                   schema                   schema
-   ? example                  example                  raw
-     examples                 examples                 map[one-of[Reference | Example]]
-     encoding                 encoding                 map[Encoding]
+   ? schema                   schema                              schema
+   ? itemSchema               item_schema              [3.2..]    schema
+   ? example                  example                             raw
+     examples                 examples                            map[one-of[Reference | Example]]
+     encoding                 encoding                            map[Encoding]
+     prefixEncoding           prefix_encoding          [3.2..]    list[Encoding]
+   ? itemEncoding             item_encoding            [3.2..]    Encoding
 
 OAuthFlow +extensions +source_ref
-  !  scopes                   scopes                   map[str]
-   ? authorizationUrl         authorization_url        str
-   ? tokenUrl                 token_url                str
-   ? refreshUrl               refresh_url              str
+  !  scopes                   scopes                              map[str]
+   ? authorizationUrl         authorization_url                   str
+   ? tokenUrl                 token_url                           str
+   ? refreshUrl               refresh_url                         str
 
 OAuthFlows +extensions +source_ref
-   ? implicit                 implicit                 OAuthFlow
-   ? password                 password                 OAuthFlow
-   ? clientCredentials        client_credentials       OAuthFlow
-   ? authorizationCode        authorization_code       OAuthFlow
+   ? implicit                 implicit                            OAuthFlow
+   ? password                 password                            OAuthFlow
+   ? clientCredentials        client_credentials                  OAuthFlow
+   ? authorizationCode        authorization_code                  OAuthFlow
 
 Operation +extensions +source_ref
-     responses                responses                map[one-of[Reference | Response]]
-     tags                     tags                     list[str]
-   ? summary                  summary                  str
-   ? description              description              str
-   ? externalDocs             external_docs            ExternalDocumentation
-   ? operationId              operation_id             str
-     parameters               parameters               list[one-of[Reference | Parameter]]
-   ? requestBody              request_body             one-of[Reference | RequestBody]
-     deprecated               deprecated               bool
-   ? security                 security                 list[map[list[str]]]
-     servers                  servers                  list[Server]
+     responses                responses                           map[one-of[Reference | Response]]
+     tags                     tags                                list[str]
+   ? summary                  summary                             str
+   ? description              description                         str
+   ? externalDocs             external_docs                       ExternalDocumentation
+   ? operationId              operation_id                        str
+     parameters               parameters                          list[one-of[Reference | Parameter]]
+   ? requestBody              request_body                        one-of[Reference | RequestBody]
+     deprecated               deprecated                          bool
+   ? security                 security                            list[map[list[str]]]
+     servers                  servers                             list[Server]
 
 Parameter +extensions +source_ref
-  !  name                     name                     str
-  !  in                       in_                      enum[ParameterLocation]
-   ? schema                   schema                   schema
-     content                  content                  map[MediaTypeObject]
-   ? description              description              str
-     required                 required                 bool
-     deprecated               deprecated               bool
-     allowEmptyValue          allow_empty_value        bool
-   ? style                    style                    str
-   ? explode                  explode                  bool
+  !  name                     name                                str
+  !  in                       in_                                 enum[ParameterLocation]
+   ? schema                   schema                              schema
+     content                  content                             map[MediaTypeObject]
+   ? description              description                         str
+     required                 required                            bool
+     deprecated               deprecated                          bool
+     allowEmptyValue          allow_empty_value                   bool
+   ? style                    style                               str
+   ? explode                  explode                             bool
 
 PathItem +extensions +source_ref
-   ? summary                  summary                  str
-   ? description              description              str
-   ? get                      get                      Operation
-   ? put                      put                      Operation
-   ? post                     post                     Operation
-   ? delete                   delete                   Operation
-   ? options                  options                  Operation
-   ? head                     head                     Operation
-   ? patch                    patch                    Operation
-   ? trace                    trace                    Operation
-     parameters               parameters               list[one-of[Reference | Parameter]]
-     servers                  servers                  list[Server]
+   ? summary                  summary                             str
+   ? description              description                         str
+   ? get                      get                                 Operation
+   ? put                      put                                 Operation
+   ? post                     post                                Operation
+   ? delete                   delete                              Operation
+   ? options                  options                             Operation
+   ? head                     head                                Operation
+   ? patch                    patch                               Operation
+   ? trace                    trace                               Operation
+   ? query                    query                    [3.2..]    Operation
+     additionalOperations     additional_operations    [3.2..]    map[Operation]
+     parameters               parameters                          list[one-of[Reference | Parameter]]
+     servers                  servers                             list[Server]
 
 Reference +source_ref
-  !  $ref                     ref                      str
-   ? summary                  summary                  str
-   ? description              description              str
+  !  $ref                     ref                                 str
+   ? summary                  summary                             str
+   ? description              description                         str
 
 RequestBody +extensions +source_ref
-  !  content                  content                  map[MediaTypeObject]
-   ? description              description              str
-     required                 required                 bool
+  !  content                  content                             map[MediaTypeObject]
+   ? description              description                         str
+     required                 required                            bool
 
 Response +extensions +source_ref
-  !  description              description              str
-     headers                  headers                  map[one-of[Reference | Header]]
-     content                  content                  map[MediaTypeObject]
-     links                    links                    map[one-of[Reference | Link]]
+  !  description              description                         str
+   ? summary                  summary                  [3.2..]    str
+     headers                  headers                             map[one-of[Reference | Header]]
+     content                  content                             map[MediaTypeObject]
+     links                    links                               map[one-of[Reference | Link]]
 
 SecurityScheme +extensions +source_ref
-  !  type                     type_                    enum[SecuritySchemeType]
-   ? description              description              str
-   ? name                     name                     str
-   ? in                       in_                      enum[ApiKeyLocation]
-   ? scheme                   scheme                   str
-   ? bearerFormat             bearer_format            str
-   ? flows                    flows                    OAuthFlows
-   ? openIdConnectUrl         open_id_connect_url      str
+  !  type                     type_                               enum[SecuritySchemeType]
+   ? description              description                         str
+   ? name                     name                                str
+   ? in                       in_                                 enum[ApiKeyLocation]
+   ? scheme                   scheme                              str
+   ? bearerFormat             bearer_format                       str
+   ? flows                    flows                               OAuthFlows
+   ? openIdConnectUrl         open_id_connect_url                 str
 
 Server +extensions +source_ref
-  !  url                      url                      str
-   ? description              description              str
-     variables                variables                map[ServerVariable]
+  !  url                      url                                 str
+   ? name                     name                     [3.2..]    str
+   ? description              description                         str
+     variables                variables                           map[ServerVariable]
 
 ServerVariable +extensions +source_ref
-  !  default                  default                  str
-   ? enum                     enum                     list[str]
-   ? description              description              str
+  !  default                  default                             str
+   ? enum                     enum                                list[str]
+   ? description              description                         str
 
 Tag +extensions +source_ref
-  !  name                     name                     str
-   ? description              description              str
-   ? externalDocs             external_docs            ExternalDocumentation
+  !  name                     name                                str
+   ? description              description                         str
+   ? externalDocs             external_docs                       ExternalDocumentation

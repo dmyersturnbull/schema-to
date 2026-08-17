@@ -20,6 +20,7 @@ from collections.abc import Mapping, Sequence, Set
 from dataclasses import MISSING, dataclass, fields
 from enum import Enum
 from functools import cache
+from itertools import takewhile
 from typing import TYPE_CHECKING, cast
 
 from schema_to.core import JsonArray, JsonObject, JsonPrimitive, JsonValue
@@ -46,6 +47,7 @@ __all__ = [
     "RawSpec",
     "SchemaSpec",
     "SetSpec",
+    "SpecVersion",
     "StrSpec",
     "WrapSpec",
     "json_key",
@@ -185,6 +187,53 @@ type FieldSpec = (
 
 
 # ---------------------------------------------------------------------------
+# Specification versions
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class SpecVersion:
+    """A specification version a document declares or a field is gated on.
+
+    OpenAPI 3.1 and 3.2 are one document type told apart by a version *string*
+    in the payload, so a version cannot get its own CST the way a JSON Schema
+    dialect could.  Gating a field on a range is what lets one set of classes
+    describe both.
+
+    Attributes:
+        text: The version as written, for use in a diagnostic.
+        parts: The leading integer components, for comparison.
+    """
+
+    text: str
+    parts: tuple[int, ...]
+
+    @classmethod
+    def parse(cls, text: str) -> SpecVersion | None:
+        """Return the version `text` denotes, or `None` if it names no number.
+
+        A trailing pre-release marker (`3.2.0-rc1`) contributes nothing beyond
+        the digits that precede it.
+        """
+        parts: list[int] = []
+        for chunk in text.split("."):
+            digits = "".join(takewhile(str.isdigit, chunk))
+            if not digits:
+                break
+            parts.append(int(digits))
+        return cls(text, tuple(parts)) if parts else None
+
+    def at_least(self, other: SpecVersion) -> bool:
+        """Return whether this version is `other` or later."""
+        width = max(len(self.parts), len(other.parts))
+        return _padded(self.parts, width) >= _padded(other.parts, width)
+
+
+def _padded(parts: tuple[int, ...], width: int) -> tuple[int, ...]:
+    return parts + (0,) * (width - len(parts))
+
+
+# ---------------------------------------------------------------------------
 # Plans
 # ---------------------------------------------------------------------------
 
@@ -204,6 +253,10 @@ class FieldPlan:
             absent key apart from a present one.  A non-nullable `False` or empty
             container is how the CST spells absence, so it emits no key; a
             nullable one was really there and does.
+        since: The first version defining this key, from the field's `since`
+            metadata.  `None` means every version this CST describes has it.
+        until: The last version still defining it, from the field's `until`
+            metadata.  Inclusive: a key dropped in 3.3 is `until="3.2"`.
     """
 
     name: str
@@ -211,6 +264,21 @@ class FieldPlan:
     spec: FieldSpec
     required: bool
     nullable: bool
+    since: SpecVersion | None = None
+    until: SpecVersion | None = None
+
+    def applies_to(self, version: SpecVersion | None) -> bool:
+        """Return whether a document declaring `version` may carry this key.
+
+        An unknown version gates nothing: a document whose version could not be
+        read has worse problems, and reporting every gated key on top of that
+        would bury them.
+        """
+        if version is None:
+            return True
+        if self.since is not None and not version.at_least(self.since):
+            return False
+        return self.until is None or self.until.at_least(version)
 
 
 @dataclass(frozen=True, slots=True)
@@ -277,7 +345,14 @@ def _field_plan(f: Field[object], hint: Annotation) -> FieldPlan:
         spec=spec,
         required=required,
         nullable=_admits_none(hint),
+        since=_bound(f, "since"),
+        until=_bound(f, "until"),
     )
+
+
+def _bound(f: Field[object], name: str) -> SpecVersion | None:
+    text = f.metadata.get(name)
+    return SpecVersion.parse(text) if isinstance(text, str) else None
 
 
 def _admits_none(hint: Annotation) -> bool:
