@@ -388,7 +388,7 @@ class ColumnBuilder:
         self._warnings.append(TranspilationWarning(msg, code=code, location=loc))
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
     """Generates a `SqlScript` with PostgreSQL DDL from a JSON Schema 2020-12 document.
 
@@ -408,20 +408,26 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
     resolver: JsonSchemaRefResolver | None = None
     validate_json: bool = False
     roots: Set[str] | None = None
-    _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
-
-    @property
-    def warnings(self) -> Sequence[TranspilationWarning]:
-        return list(self._warnings)
 
     def apply(self, input: JsonSchemaDocument) -> Result[SqlScript]:
-        self._warnings.clear()
+        ctx = _GenCtx(resolver=self.resolver, validate_json=self.validate_json, roots=self.roots)
         try:
-            return Ok(self._apply(input))
+            script = ctx.build(input)
         except GenerationError as exc:
-            return Err((exc,))
+            return Err((exc,), warnings=tuple(ctx.warnings))
+        return Ok(script, warnings=tuple(ctx.warnings))
 
-    def _apply(self, input: JsonSchemaDocument) -> SqlScript:
+
+@dataclass
+class _GenCtx:
+    """Per-document generation state for `PostgresTransformer`."""
+
+    resolver: JsonSchemaRefResolver | None
+    validate_json: bool
+    roots: Set[str] | None
+    warnings: list[TranspilationWarning] = field(default_factory=list)
+
+    def build(self, input: JsonSchemaDocument) -> SqlScript:
         sid = input.source_id
         root: ObjectSchema = self._get_as_object_schema(input)
         def_stmts = [
@@ -451,7 +457,7 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
     def _flatten(self, schema: JsonSchema, *, base_uri: str) -> JsonSchema:
         """Merge `allOf` branches and the `$ref` target into a single schema."""
         result = SchemaFlattener(resolver=self.resolver).flatten(schema, base_uri=base_uri)
-        self._warnings.extend(result.warnings)
+        self.warnings.extend(result.warnings)
         return result.schema
 
     # ------------------------------------------------------------------
@@ -471,7 +477,7 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
             )
             for prop_name, prop_schema in (schema.properties or {}).items()
         ]
-        self._warnings.extend(builder.warnings)
+        self.warnings.extend(builder.warnings)
         return CreateTableStmt(
             table_name=table_name,
             columns=tuple(columns),

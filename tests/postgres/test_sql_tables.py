@@ -39,7 +39,7 @@ def _warnings(*docs: SchemaMapRawDoc) -> list[str]:
     transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
     result = transpiler.transpile_all(docs)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    return [w.code for w in transpiler.warnings if w.code]
+    return [w.code for w in result.warnings if w.code]
 
 
 def _errors(*docs: SchemaMapRawDoc) -> list[str]:
