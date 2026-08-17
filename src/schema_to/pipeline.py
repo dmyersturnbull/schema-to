@@ -92,21 +92,17 @@ class Stage[X, Y](ABC):
 
     This matches the structure of a Kleisli category over the `Result` monad.
 
-    Errors are fatal and travel in the `Result`; warnings are not, and travel beside it.
-    A stage that diagnoses something without failing exposes it through `warnings`,
-    which composition accumulates,
-    so a caller reads the whole chain's diagnostics from the outermost stage.
+    Errors are fatal and short-circuit; warnings are not. Both travel inside the
+    `Result` itself — a stage that diagnoses something without failing raises it as a
+    warning on the `Result` it returns, and composition carries every warning forward,
+    so a caller reads the whole chain's diagnostics off the final `Result` alone,
+    without needing to keep the `Stage` around afterward.
     """
 
     @abstractmethod
     def apply(self, /, input: X) -> Result[Y]:
         """Run this stage, returning `Ok[B]` on success or `Err` on failure."""
         raise NotImplementedError
-
-    @property
-    def warnings(self) -> Sequence[TranspilationWarning]:
-        """Non-fatal diagnostics from the most recent `apply` call."""
-        return ()
 
     def then[Z](self, /, other: Stage[Y, Z]) -> Stage[X, Z]:
         """Compose `self` with `other`, running `other` only if `self` succeeds."""
@@ -138,12 +134,7 @@ class _ComposedStage[X, Y, Z](Stage[X, Z]):
         r = self.first.apply(input)
         if isinstance(r, Err):
             return r
-        return self.second.apply(r.value)
-
-    @property
-    @override
-    def warnings(self) -> Sequence[TranspilationWarning]:
-        return [*self.first.warnings, *self.second.warnings]
+        return self.second.apply(r.value).with_warnings(r.warnings)
 
 
 class _MappedErrorStage[X, Y](Stage[X, Y]):
@@ -159,13 +150,8 @@ class _MappedErrorStage[X, Y](Stage[X, Y]):
     def apply(self, /, input: X) -> Result[Y]:
         r = self.inner.apply(input)
         if isinstance(r, Err):
-            return Err(tuple(self.if_error(e) for e in r.errors))
+            return Err(tuple(self.if_error(e) for e in r.errors), warnings=r.warnings)
         return r
-
-    @property
-    @override
-    def warnings(self) -> Sequence[TranspilationWarning]:
-        return self.inner.warnings
 
 
 class _RecoverStage[X, Y](Stage[X, Y]):
@@ -179,13 +165,8 @@ class _RecoverStage[X, Y](Stage[X, Y]):
     def apply(self, /, input: X) -> Result[Y]:
         r = self.first.apply(input)
         if isinstance(r, Err):
-            return self.f(r)
+            return self.f(r).with_warnings(r.warnings)
         return r
-
-    @property
-    @override
-    def warnings(self) -> Sequence[TranspilationWarning]:
-        return self.first.warnings
 
 
 class _RegisteringStage[C: CstNode](Stage[C, C]):
@@ -239,39 +220,33 @@ class Reducer[X, Y](Stage[Sequence[X], Y]):
 # ---------------------------------------------------------------------------
 
 
-@dataclass(slots=True)
+@final
+@dataclass(frozen=True, slots=True)
 class Each[X, Y](Stage[Sequence[X], Sequence[Y]]):
     """Runs `inner` over every item of a batch, accumulating errors across all of them.
 
     One bad document should not hide the rest, so every item is attempted and the
     failures are reported together rather than at the first one.
-    Warnings accumulate the same way — `inner` resets its own on each `apply`,
-    so they are collected here as they are produced.
+    Warnings accumulate the same way, across every item's `Result`.
     """
 
     inner: Stage[X, Y]
-    _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
 
     @override
     def apply(self, /, input: Sequence[X]) -> Result[Sequence[Y]]:
-        self._warnings.clear()
         values: list[Y] = []
         errors: list[TranspilationError] = []
+        warnings: list[TranspilationWarning] = []
         for item in input:
             result = self.inner.apply(item)
-            self._warnings.extend(self.inner.warnings)
+            warnings.extend(result.warnings)
             if isinstance(result, Err):
                 errors.extend(result.errors)
             else:
                 values.append(result.value)
         if errors:
-            return Err(tuple(errors))
-        return Ok(values)
-
-    @property
-    @override
-    def warnings(self) -> Sequence[TranspilationWarning]:
-        return list(self._warnings)
+            return Err(tuple(errors), warnings=tuple(warnings))
+        return Ok(values, warnings=tuple(warnings))
 
 
 @final
@@ -370,17 +345,12 @@ class Transformer[C: CstNode, A: AstNode](Stage[C, A]):
     The generator is the heart of the transpilation:
     It maps JSON Schema constructs (types, properties, applicators, …)
     onto the equivalent structures in the target language.
-    Keywords that cannot be represented emit `TranspilationWarning`s rather than hard errors where possible.
+    Keywords that cannot be represented emit `TranspilationWarning`s on the returned `Result`
+    rather than hard errors where possible.
     """
 
     @abstractmethod
     def apply(self, input: C) -> Result[A]:
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def warnings(self) -> Sequence[TranspilationWarning]:
-        """Warnings accumulated during the most recent `apply` call."""
         raise NotImplementedError
 
 
@@ -440,13 +410,12 @@ class Transpiler[I: RawDoc, O: Artifact]:
         return self.transpile_all([doc])
 
     def transpile_all(self, docs: Sequence[I]) -> Result[Sequence[O]]:
-        """Transpile every accepted document, as one batch."""
-        return self.stage.apply(docs)
+        """Transpile every accepted document, as one batch.
 
-    @property
-    def warnings(self) -> Sequence[TranspilationWarning]:
-        """Non-fatal diagnostics from the most recent `transpile_all` call."""
-        return self.stage.warnings
+        Non-fatal diagnostics travel on the returned `Result`'s `warnings`, whether it
+        is `Ok` or `Err`.
+        """
+        return self.stage.apply(docs)
 
 
 # ---------------------------------------------------------------------------
@@ -571,7 +540,7 @@ class Pipeline[I: RawDoc, O: Artifact]:
         self, transpiler: Transpiler[I, O], documents: Sequence[I], helper: _PipelineHelper
     ) -> None:
         result = transpiler.transpile_all(documents)
-        helper.warnings.extend(transpiler.warnings)
+        helper.warnings.extend(result.warnings)
         match result:
             case Err(errs):
                 helper.errors += errs

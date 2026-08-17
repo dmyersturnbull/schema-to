@@ -233,7 +233,7 @@ def _build_imports(
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class FastApiTransformer(Transformer[OpenApiDocument, PythonModule]):
     """Generates a FastAPI application `PythonModule` from an `OpenApiDocument` CST.
 
@@ -243,23 +243,14 @@ class FastApiTransformer(Transformer[OpenApiDocument, PythonModule]):
         roots: If given, only `components/schemas` entries named here become their
             own Pydantic model; the rest are still available for `$ref` resolution.
             `None` emits every entry, as before. Routes are unaffected.
-        _warnings: Accumulated non-fatal diagnostics from the most recent `apply` call.
     """
 
     body_backend: EndpointBodyBackend = field(default_factory=NullBodyBackend)
     roots: Set[str] | None = None
-    _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
-
-    @property
-    def warnings(self) -> Sequence[TranspilationWarning]:
-        return list(self._warnings)
 
     def apply(self, input: OpenApiDocument) -> Result[PythonModule]:
-        self._warnings.clear()
-        ctx = _GenCtx(
-            doc=input, warnings=self._warnings, body_backend=self.body_backend, roots=self.roots
-        )
-        return ctx.build()
+        ctx = _GenCtx(doc=input, body_backend=self.body_backend, roots=self.roots)
+        return ctx.build().with_warnings(ctx.warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -272,9 +263,9 @@ class _GenCtx:
     """Per-document generation state."""
 
     doc: OpenApiDocument
-    warnings: list[TranspilationWarning]
     body_backend: EndpointBodyBackend
     roots: Set[str] | None = None
+    warnings: list[TranspilationWarning] = field(default_factory=list)
     extra_imports: list[PyImport] = field(default_factory=list)
 
     def build(self) -> Result[PythonModule]:
@@ -312,9 +303,8 @@ class _GenCtx:
             if self.roots is not None and name not in self.roots:
                 continue
             doc = JsonSchemaDocument(root=schema, source_id=name, display_name=name)
-            transformer = PydanticTransformer()
-            result = transformer.apply(doc)
-            self.warnings.extend(transformer.warnings)
+            result = PydanticTransformer().apply(doc)
+            self.warnings.extend(result.warnings)
             if isinstance(result, Err):
                 for err in result.errors:
                     self._warn(

@@ -55,8 +55,6 @@ from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
     from schema_to.resolve.json_schema import JsonSchemaRefResolver
 
 __all__ = ["PydanticTransformer"]
@@ -117,7 +115,7 @@ def _compute_split_names(input: JsonSchemaDocument) -> Set[str]:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
     """Generates a `PythonModule` with Pydantic v2 `BaseModel` classes.
 
@@ -126,23 +124,17 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
         roots: If given, only `$defs` entries named here become their own declaration;
             the rest are still available for `$ref` resolution. `None` emits every entry,
             as before.
-        _warnings: Accumulated warnings from the most recent `apply` call.
     """
 
     resolver: JsonSchemaRefResolver | None = None
     roots: Set[str] | None = None
-    _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
-
-    @property
-    def warnings(self) -> Sequence[TranspilationWarning]:
-        return list(self._warnings)
 
     def apply(self, input: JsonSchemaDocument) -> Result[PythonModule]:
-        self._warnings.clear()
+        warnings: list[TranspilationWarning] = []
         ctx = _GenCtx(
             source_id=input.source_id,
             resolver=self.resolver,
-            warnings=self._warnings,
+            warnings=warnings,
             base_uri=input.get_base_uri(),
             split_names=_compute_split_names(input),
         )
@@ -170,7 +162,7 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
             )
 
         if errors:
-            return Err(tuple(errors))
+            return Err(tuple(errors), warnings=tuple(warnings))
 
         imports = _build_imports(declarations)
         return Ok(
@@ -179,7 +171,8 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
                 imports=imports,
                 declarations=declarations,
                 source_ids=(input.source_id,),
-            )
+            ),
+            warnings=tuple(warnings),
         )
 
 

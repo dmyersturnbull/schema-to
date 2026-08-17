@@ -85,7 +85,7 @@ class TableSpec:
         return ()
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class PostgresTableSetTransformer(Transformer[JsonSchemaMapDocument, SqlScript]):
     """Generates one `SqlScript` from every `x-pg-table` schema in a map document.
 
@@ -110,22 +110,27 @@ class PostgresTableSetTransformer(Transformer[JsonSchemaMapDocument, SqlScript])
     resolver: JsonSchemaRefResolver | None = None
     validate_json: bool = False
     roots: Set[str] | None = None
-    _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
-
-    @property
-    @override
-    def warnings(self) -> Sequence[TranspilationWarning]:
-        return list(self._warnings)
 
     @override
     def apply(self, input: JsonSchemaMapDocument) -> Result[SqlScript]:
-        self._warnings.clear()
+        ctx = _GenCtx(resolver=self.resolver, validate_json=self.validate_json, roots=self.roots)
         try:
-            return Ok(self._apply(input))
+            script = ctx.build(input)
         except GenerationError as exc:
-            return Err((exc,))
+            return Err((exc,), warnings=tuple(ctx.warnings))
+        return Ok(script, warnings=tuple(ctx.warnings))
 
-    def _apply(self, input: JsonSchemaMapDocument) -> SqlScript:
+
+@dataclass
+class _GenCtx:
+    """Per-document generation state for `PostgresTableSetTransformer`."""
+
+    resolver: JsonSchemaRefResolver | None
+    validate_json: bool
+    roots: Set[str] | None
+    warnings: list[TranspilationWarning] = field(default_factory=list)
+
+    def build(self, input: JsonSchemaMapDocument) -> SqlScript:
         specs = self._collect(input)
         _reject_duplicate_names(specs)
         self._check_reference_targets(specs)
@@ -182,7 +187,7 @@ class PostgresTableSetTransformer(Transformer[JsonSchemaMapDocument, SqlScript])
 
     def _flatten(self, schema: JsonSchema, *, base_uri: str) -> JsonSchema:
         result = SchemaFlattener(resolver=self.resolver).flatten(schema, base_uri=base_uri)
-        self._warnings.extend(result.warnings)
+        self.warnings.extend(result.warnings)
         return result.schema
 
     def _check_reference_targets(self, specs: Sequence[TableSpec]) -> None:
@@ -195,7 +200,7 @@ class PostgresTableSetTransformer(Transformer[JsonSchemaMapDocument, SqlScript])
         for spec in specs:
             for target in _referenced_tables(spec):
                 if target not in declared:
-                    self._warnings.append(
+                    self.warnings.append(
                         TranspilationWarning(
                             f"Table {spec.table_name!r} references table {target!r}, "
                             f"which no schema in this set declares.",
@@ -208,7 +213,7 @@ class PostgresTableSetTransformer(Transformer[JsonSchemaMapDocument, SqlScript])
         """Warn about a table with neither an `id` property nor a declared key."""
         for spec in specs:
             if not spec.primary_key:
-                self._warnings.append(
+                self.warnings.append(
                     TranspilationWarning(
                         f"Table {spec.table_name!r} has no `id` property and no "
                         f"`x-pg-primary-key`, so it is generated without a primary key.",
@@ -221,7 +226,7 @@ class PostgresTableSetTransformer(Transformer[JsonSchemaMapDocument, SqlScript])
         """Note that a foreign-key cycle forced its keys to be deferred."""
         by_name = {spec.table_name: spec for spec in specs}
         for name in sorted(cycles):
-            self._warnings.append(
+            self.warnings.append(
                 TranspilationWarning(
                     f"Table {name!r} takes part in a foreign-key cycle, so it cannot be "
                     f"declared after everything it references; its keys within the cycle "
@@ -245,7 +250,7 @@ class PostgresTableSetTransformer(Transformer[JsonSchemaMapDocument, SqlScript])
             )
             if column is not None:
                 columns.append(column)
-        self._warnings.extend(builder.warnings)
+        self.warnings.extend(builder.warnings)
         if spec.keywords.overflow_column:
             columns.append(_overflow_column(spec.keywords.overflow_column))
         columns.extend(_extra_column(extra) for extra in spec.keywords.extra_columns)
