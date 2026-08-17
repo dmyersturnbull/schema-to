@@ -1,5 +1,7 @@
-"""Concrete Syntax Tree for [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0).
+"""Concrete Syntax Tree for OpenAPI 3.1 and 3.2.
 
+Covers [OAS 3.1](https://spec.openapis.org/oas/v3.1.0) and
+[OAS 3.2](https://spec.openapis.org/oas/v3.2.0).
 OpenAPI 3.1 is compliant with JSON Schema 2020-12.
 Every `schema` field in this module is typed as [JsonSchema][].
 
@@ -12,6 +14,12 @@ both run on.  A field's JSON key is its name with one trailing underscore
 dropped, lower-camel-cased (`terms_of_service` is `termsOfService`), and a field
 is required exactly when it declares no default.  Annotations must therefore
 resolve at runtime, which is why the imports below are not deferred.
+
+One set of classes covers both versions.  A field the two versions disagree on
+carries `since` — the first version defining it — and `until`, the last one
+still defining it; a document declaring a version outside that range may not use
+the key, and the parser says so.  Supporting a further version means adding
+fields with the version they arrived in, not branching the parser.
 """
 
 from collections.abc import Iterable, Mapping, Sequence
@@ -197,6 +205,7 @@ class Server(CstNode):
 
     Attributes:
         url: URL of the target host, possibly with template variables.
+        name: Unique identifier for this server (OAS 3.2 addition).
         description: Optional description; CommonMark allowed.
         variables: Map from variable name to `ServerVariable`.
         extensions: `x-*` extension fields.
@@ -204,6 +213,7 @@ class Server(CstNode):
     """
 
     url: str
+    name: str | None = field(default=None, metadata={"since": "3.2"})
     description: str | None = None
     variables: Mapping[str, ServerVariable] = field(default_factory=dict)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
@@ -364,17 +374,23 @@ class MediaTypeObject(CstNode):
 
     Attributes:
         schema: JSON Schema describing the media type.
+        item_schema: Schema for each item of a sequential media type (OAS 3.2 addition).
         example: Example value (mutually exclusive with `examples`).
         examples: Named example objects (mutually exclusive with `example`).
         encoding: Per-property encoding hints for `multipart` and `form` bodies.
+        prefix_encoding: Positional encoding hints for `multipart` (OAS 3.2 addition).
+        item_encoding: Encoding for each item of a sequential media type (OAS 3.2 addition).
         extensions: `x-*` extension fields.
         source_ref: Origin in the source document.
     """
 
     schema: JsonSchema | None = None
+    item_schema: JsonSchema | None = field(default=None, metadata={"since": "3.2"})
     example: JsonValue | None = None
     examples: Mapping[str, Reference | Example] = field(default_factory=dict)
     encoding: Mapping[str, Encoding] = field(default_factory=dict)
+    prefix_encoding: Sequence[Encoding] = field(default_factory=list, metadata={"since": "3.2"})
+    item_encoding: Encoding | None = field(default=None, metadata={"since": "3.2"})
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
     source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
@@ -437,6 +453,7 @@ class Response(CstNode):
 
     Attributes:
         description: Short description of the response (required).
+        summary: Short summary of what the response conveys (OAS 3.2 addition).
         headers: Map of header name to `Header`.
         content: Map of media-type string to `MediaTypeObject`.
         links: Map of link name to `Link`.
@@ -445,6 +462,7 @@ class Response(CstNode):
     """
 
     description: str
+    summary: str | None = field(default=None, metadata={"since": "3.2"})
     headers: Mapping[str, Reference | Header] = field(default_factory=dict)
     content: Mapping[str, MediaTypeObject] = field(default_factory=dict)
     links: Mapping[str, Reference | Link] = field(default_factory=dict)
@@ -530,6 +548,8 @@ class PathItem(CstNode):
         summary: Optional summary applied to all operations in this path.
         description: CommonMark description.
         get/put/post/delete/options/head/patch/trace: Per-method operations.
+        query: The QUERY operation (OAS 3.2 addition).
+        additional_operations: Operations keyed by custom HTTP method (OAS 3.2 addition).
         parameters: Parameters shared across all operations in this path.
         servers: Alternative servers for all operations in this path.
         extensions: `x-*` extension fields.
@@ -546,6 +566,10 @@ class PathItem(CstNode):
     head: Operation | None = None
     patch: Operation | None = None
     trace: Operation | None = None
+    query: Operation | None = field(default=None, metadata={"since": "3.2"})
+    additional_operations: Mapping[str, Operation] = field(
+        default_factory=dict, metadata={"since": "3.2"}
+    )
     parameters: Sequence[Reference | Parameter] = field(default_factory=list)
     servers: Sequence[Server] = field(default_factory=list)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
@@ -648,6 +672,7 @@ class Components(CstNode):
         security_schemes: Reusable security scheme definitions.
         links: Reusable link objects.
         path_items: Reusable path item objects (OAS 3.1 addition).
+        media_types: Reusable media type objects (OAS 3.2 addition).
         examples: Reusable example objects.
         extensions: `x-*` extension fields.
         source_ref: Origin in the source document.
@@ -662,6 +687,9 @@ class Components(CstNode):
     security_schemes: Mapping[str, Reference | SecurityScheme] = field(default_factory=dict)
     links: Mapping[str, Reference | Link] = field(default_factory=dict)
     path_items: Mapping[str, Reference | PathItem] = field(default_factory=dict)
+    media_types: Mapping[str, Reference | MediaTypeObject] = field(
+        default_factory=dict, metadata={"since": "3.2"}
+    )
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
     source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
@@ -673,6 +701,7 @@ class OpenApiDocument(CstNode):
     Attributes:
         openapi: The OpenAPI Specification version string (required), e.g. `"3.1.0"`.
         info: Metadata about the API (required).
+        self_: URI reference naming where this document lives (OAS 3.2 addition).
         json_schema_dialect: Default `$schema` for schemas that declare none.
         paths: Map from path template to `PathItem`.
         components: Container for reusable objects.
@@ -690,6 +719,7 @@ class OpenApiDocument(CstNode):
 
     openapi: str
     info: Info
+    self_: str | None = field(default=None, metadata={"key": "$self", "since": "3.2"})
     json_schema_dialect: str | None = None
     paths: Mapping[str, PathItem] = field(default_factory=dict)
     components: Components = field(default_factory=Components)

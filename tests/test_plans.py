@@ -6,7 +6,7 @@ checked-in table rather than as a silently different parse.
 """
 
 import json
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, replace
 from pathlib import Path
 
 import pytest
@@ -42,12 +42,14 @@ from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import OpenApiRawDoc
 from schema_to.parse._plan import (
     EnumSpec,
+    FieldPlan,
     ListSpec,
     MapSpec,
     NodeSpec,
     OneOfSpec,
     SchemaSpec,
     SetSpec,
+    SpecVersion,
     json_key,
     plan_for,
 )
@@ -108,6 +110,12 @@ def _render_spec(spec: object) -> str:
     return rendered
 
 
+def _render_range(entry: FieldPlan) -> str:
+    since = entry.since.text if entry.since is not None else ""
+    until = entry.until.text if entry.until is not None else ""
+    return f"[{since}..{until}]" if since or until else ""
+
+
 def _render_bound(spec: object) -> str:
     minimum = getattr(spec, "minimum", None)
     return f"(>={minimum})" if minimum is not None else ""
@@ -126,7 +134,10 @@ def _render_plans() -> str:
         lines.append(f"{node.__name__}{flags}")
         for entry in plan.entries:
             marks = "".join(["!" if entry.required else " ", "?" if entry.nullable else " "])
-            lines.append(f"  {marks} {entry.key:<24} {entry.name:<24} {_render_spec(entry.spec)}")
+            lines.append(
+                f"  {marks} {entry.key:<24} {entry.name:<24} "
+                f"{_render_range(entry):<10} {_render_spec(entry.spec)}"
+            )
         lines.append("")
     return "\n".join(lines)
 
@@ -341,3 +352,110 @@ def test_references_survive_a_round_trip() -> None:
     result = _parse(document)
     assert isinstance(result, Ok), result
     assert OpenApiSerializer().serialize(result.value) == document
+
+
+# ---------------------------------------------------------------------------
+# Version gating
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "parts"),
+    [("3.1.0", (3, 1, 0)), ("3.2", (3, 2)), ("3.2.0-rc1", (3, 2, 0)), ("3", (3,))],
+)
+def test_spec_version_parsing(text: str, parts: tuple[int, ...]) -> None:
+    version = SpecVersion.parse(text)
+    assert version is not None
+    assert version.parts == parts
+
+
+def _version(text: str) -> SpecVersion:
+    parsed = SpecVersion.parse(text)
+    assert parsed is not None
+    return parsed
+
+
+def test_spec_version_ignores_trailing_zeroes_when_comparing() -> None:
+    v31, v32 = _version("3.1.0"), _version("3.2")
+    assert v32.at_least(v31)
+    assert not v31.at_least(v32)
+    assert v32.at_least(_version("3.2.0"))
+
+
+def test_a_three_two_key_is_rejected_in_a_three_one_document() -> None:
+    result = _parse(_minimal(**{"$self": "https://example.com/api"}))
+    assert isinstance(result, Err)
+    assert any(
+        "$self was introduced in OpenAPI 3.2" in e.message and "declares 3.1.0" in e.message
+        for e in result.errors
+    ), [e.message for e in result.errors]
+
+
+def test_the_same_key_is_accepted_in_a_three_two_document() -> None:
+    document = {
+        "openapi": "3.2.0",
+        "info": {"title": "T", "version": "1"},
+        "$self": "https://example.com/api",
+        "servers": [{"url": "/", "name": "default"}],
+    }
+    result = _parse(document)
+    assert isinstance(result, Ok), [e.message for e in getattr(result, "errors", ())]
+    assert result.value.self_ == "https://example.com/api"
+    assert result.value.servers[0].name == "default"
+    assert OpenApiSerializer().serialize(result.value) == document
+
+
+def test_gating_reaches_nested_nodes() -> None:
+    result = _parse(
+        _minimal(
+            paths={
+                "/x": {"get": {"responses": {"200": {"description": "ok", "summary": "too new"}}}}
+            }
+        )
+    )
+    assert isinstance(result, Err)
+    assert any("summary was introduced in OpenAPI 3.2" in e.message for e in result.errors)
+
+
+def test_three_two_path_item_operations_parse() -> None:
+    result = _parse(
+        {
+            "openapi": "3.2.0",
+            "info": {"title": "T", "version": "1"},
+            "paths": {
+                "/x": {
+                    "query": {"operationId": "queryX"},
+                    "additionalOperations": {"PURGE": {"operationId": "purgeX"}},
+                }
+            },
+        }
+    )
+    assert isinstance(result, Ok), [e.message for e in getattr(result, "errors", ())]
+    path_item = result.value.paths["/x"]
+    assert path_item.query is not None
+    assert path_item.query.operation_id == "queryX"
+    assert path_item.additional_operations["PURGE"].operation_id == "purgeX"
+
+
+def test_serializing_into_an_older_version_drops_the_gated_key() -> None:
+    """A 3.2 field on a CST relabelled 3.1 emits nothing, so the output re-parses."""
+    parsed = _parse(
+        {
+            "openapi": "3.2.0",
+            "info": {"title": "T", "version": "1"},
+            "$self": "https://example.com/api",
+        }
+    )
+    assert isinstance(parsed, Ok), parsed
+    relabelled = replace(parsed.value, openapi="3.1.0")
+    emitted = OpenApiSerializer().serialize(relabelled)
+    assert "$self" not in emitted
+
+
+def test_an_unreadable_version_gates_nothing() -> None:
+    """A document whose version cannot be read has worse problems to report."""
+    result = _parse({"info": {"title": "T", "version": "1"}, "$self": "x"})
+    assert isinstance(result, Err)
+    messages = [e.message for e in result.errors]
+    assert any("openapi is required" in m for m in messages)
+    assert not any("introduced in OpenAPI" in m for m in messages)

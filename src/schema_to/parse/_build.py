@@ -28,6 +28,7 @@ from schema_to.errors import SchemaValidationError, SourceLocation, Transpilatio
 from schema_to.parse._plan import (
     BoolSpec,
     EnumSpec,
+    FieldPlan,
     FieldSpec,
     IntSpec,
     ListSpec,
@@ -38,6 +39,7 @@ from schema_to.parse._plan import (
     RawSpec,
     SchemaSpec,
     SetSpec,
+    SpecVersion,
     StrSpec,
     WrapSpec,
     plan_for,
@@ -100,20 +102,32 @@ class Cursor:
         source_id: Identifier matching `RawDoc.doc_id`.
         pointer: RFC 6901 pointer to the value under construction.
         errors: Accumulator shared by every cursor derived from this one.
+        version: The specification version the document declares, against which
+            version-gated keys are checked.  `None` gates nothing.
     """
 
     source_id: str
     pointer: str
     errors: list[TranspilationError]
+    version: SpecVersion | None = None
 
     @classmethod
-    def root(cls, source_id: str) -> Cursor:
+    def root(cls, source_id: str, version: SpecVersion | None = None) -> Cursor:
         """Return a cursor at the document root with a fresh accumulator."""
-        return cls(source_id, "", [])
+        return cls(source_id, "", [], version)
 
     def at(self, *segments: str | int) -> Cursor:
         """Return a cursor descended into `segments`, sharing this accumulator."""
-        return Cursor(self.source_id, ptr(self.pointer, *segments), self.errors)
+        return Cursor(self.source_id, ptr(self.pointer, *segments), self.errors, self.version)
+
+    def probe(self) -> Cursor:
+        """Return a cursor at this position with a throwaway accumulator.
+
+        Used to try an alternative without leaving diagnostics behind.  Everything
+        else — position and declared version — carries over, so a rejected
+        alternative is judged under the same rules as an accepted one.
+        """
+        return Cursor(self.source_id, self.pointer, [], self.version)
 
     def fail(self, message: str) -> Failed:
         """Record a validation error here and return `FAILED`, for use in a `return`."""
@@ -142,16 +156,7 @@ def build_node[N: CstNode](node: type[N], data: JsonValue, at: Cursor) -> N | Fa
     kwargs: dict[str, ParsedValue] = {}
     incomplete = False
     for entry in plan.entries:
-        if entry.key not in obj:
-            if entry.required:
-                at.at(entry.key).fail(f"{entry.key} is required.")
-                incomplete = True
-            continue
-        value = build_value(entry.spec, obj[entry.key], at.at(entry.key))
-        if isinstance(value, Failed):
-            incomplete |= entry.required
-            continue
-        kwargs[entry.name] = value
+        incomplete |= _build_field_into(kwargs, entry, obj, at)
     if incomplete:
         return FAILED
     if plan.has_extensions:
@@ -159,6 +164,26 @@ def build_node[N: CstNode](node: type[N], data: JsonValue, at: Cursor) -> N | Fa
     if plan.has_source_ref:
         kwargs["source_ref"] = at.ref()
     return node(**kwargs)
+
+
+def _build_field_into(
+    kwargs: dict[str, ParsedValue], entry: FieldPlan, obj: Mapping[str, JsonValue], at: Cursor
+) -> bool:
+    """Deposit one field into `kwargs`; return whether the node became unbuildable."""
+    if not entry.applies_to(at.version):
+        if entry.key in obj:
+            at.at(entry.key).fail(_out_of_range(entry, at.version))
+        return False
+    if entry.key not in obj:
+        if entry.required:
+            at.at(entry.key).fail(f"{entry.key} is required.")
+            return True
+        return False
+    value = build_value(entry.spec, obj[entry.key], at.at(entry.key))
+    if isinstance(value, Failed):
+        return entry.required
+    kwargs[entry.name] = value
+    return False
 
 
 def build_schema(data: JsonValue, at: Cursor) -> JsonSchema | Failed:
@@ -268,15 +293,27 @@ def _build_one_of(
     surfaced — a union therefore declares its fallback interpretation last, and
     the alternative recognised by a distinguishing key first.
     """
-    probe = Cursor(at.source_id, at.pointer, [])
+    probe = at.probe()
     built: ParsedValue | Failed = FAILED
     for option in options:
-        probe = Cursor(at.source_id, at.pointer, [])
+        probe = at.probe()
         built = build_value(option, data, probe)
         if not isinstance(built, Failed) and not probe.errors:
             return built
     at.errors.extend(probe.errors)
     return built if probe.errors else _reject(spec, at)
+
+
+def _out_of_range(entry: FieldPlan, version: SpecVersion | None) -> str:
+    """Explain that a key exists in the specification, but not in this version."""
+    declared = version.text if version is not None else "an unknown version"
+    if entry.since is not None and (version is None or not version.at_least(entry.since)):
+        return (
+            f"{entry.key} was introduced in OpenAPI {entry.since.text}, "
+            f"but this document declares {declared}."
+        )
+    until = entry.until.text if entry.until is not None else "an earlier version"
+    return f"{entry.key} was removed after OpenAPI {until}, but this document declares {declared}."
 
 
 def _reject(spec: FieldSpec, at: Cursor) -> Failed:
