@@ -79,6 +79,7 @@ Components +extensions +source_ref
      headers                  headers                             map[one-of[Reference | Header]]
      securitySchemes          security_schemes                    map[one-of[Reference | SecurityScheme]]
      links                    links                               map[one-of[Reference | Link]]
+     callbacks                callbacks                           map[one-of[Reference | map[PathItem]]]
      pathItems                path_items                          map[one-of[Reference | PathItem]]
      mediaTypes               media_types              [3.2..]    map[one-of[Reference | MediaTypeObject]]
 
@@ -110,6 +111,10 @@ Header +extensions +source_ref
    ? description              description                         str
      required                 required                            bool
      deprecated               deprecated                          bool
+   ? style                    style                               str
+   ? explode                  explode                             bool
+   ? example                  example                             raw
+     examples                 examples                            map[one-of[Reference | Example]]
 
 Info +extensions +source_ref
   !  title                    title                               str
@@ -163,6 +168,7 @@ Operation +extensions +source_ref
    ? operationId              operation_id                        str
      parameters               parameters                          list[one-of[Reference | Parameter]]
    ? requestBody              request_body                        one-of[Reference | RequestBody]
+     callbacks                callbacks                           map[one-of[Reference | map[PathItem]]]
      deprecated               deprecated                          bool
    ? security                 security                            list[map[list[str]]]
      servers                  servers                             list[Server]
@@ -178,8 +184,12 @@ Parameter +extensions +source_ref
      allowEmptyValue          allow_empty_value                   bool
    ? style                    style                               str
    ? explode                  explode                             bool
+     allowReserved            allow_reserved                      bool
+   ? example                  example                             raw
+     examples                 examples                            map[one-of[Reference | Example]]
 
 PathItem +extensions +source_ref
+   ? $ref                     ref                                 str
    ? summary                  summary                             str
    ? description              description                         str
    ? get                      get                                 Operation

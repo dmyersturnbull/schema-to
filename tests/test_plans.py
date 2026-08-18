@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from schema_to.core import JsonObject
 from schema_to.cst.json_schema import ObjectSchema
 from schema_to.cst.openapi import (
     Components,
@@ -458,3 +459,106 @@ def test_an_unreadable_version_gates_nothing() -> None:
     messages = [e.message for e in result.errors]
     assert any("openapi is required" in m for m in messages)
     assert not any("introduced in OpenAPI" in m for m in messages)
+
+
+# ---------------------------------------------------------------------------
+# Coverage of the 3.1 fixed fields
+# ---------------------------------------------------------------------------
+
+
+def _round_trip(document: dict) -> JsonObject:
+    result = _parse(document)
+    assert isinstance(result, Ok), [e.message for e in getattr(result, "errors", ())]
+    return OpenApiSerializer().serialize(result.value)
+
+
+def test_parameter_serialization_fields_are_carried() -> None:
+    document = _minimal(
+        paths={
+            "/x": {
+                "get": {
+                    "parameters": [
+                        {
+                            "name": "q",
+                            "in": "query",
+                            "allowReserved": True,
+                            "example": "a/b",
+                            "examples": {"one": {"summary": "s", "value": "a/b"}},
+                        }
+                    ]
+                }
+            }
+        }
+    )
+    assert _round_trip(document) == document
+
+
+def test_header_serialization_fields_are_carried() -> None:
+    document = _minimal(
+        components={
+            "headers": {
+                "X-Rate": {
+                    "style": "simple",
+                    "explode": False,
+                    "example": 5,
+                    "examples": {"one": {"value": 5}},
+                    "schema": {"type": "integer"},
+                }
+            }
+        }
+    )
+    assert _round_trip(document) == document
+
+
+def test_a_header_has_no_query_only_traits() -> None:
+    """The specification says a header MUST NOT use `allowEmptyValue` or `allowReserved`."""
+    keys = plan_for(Header).keys()
+    assert "allowEmptyValue" not in keys
+    assert "allowReserved" not in keys
+    # The Parameter it is otherwise shaped like does have them.
+    assert {"allowEmptyValue", "allowReserved"} <= plan_for(Parameter).keys()
+
+
+def test_a_path_item_ref_is_a_field_beside_the_others() -> None:
+    document = _minimal(
+        paths={"/x": {"$ref": "#/components/pathItems/Shared", "summary": "local"}},
+        components={"pathItems": {"Shared": {"description": "shared"}}},
+    )
+    result = _parse(document)
+    assert isinstance(result, Ok), [e.message for e in getattr(result, "errors", ())]
+    path_item = result.value.paths["/x"]
+    assert path_item.ref == "#/components/pathItems/Shared"
+    assert path_item.summary == "local"
+    assert _round_trip(document) == document
+
+
+def test_callbacks_are_carried_on_operations_and_components() -> None:
+    document = _minimal(
+        paths={
+            "/x": {
+                "post": {
+                    "callbacks": {
+                        "inline": {
+                            "{$request.body#/url}": {
+                                "post": {"responses": {"200": {"description": "ok"}}}
+                            }
+                        },
+                        "shared": {"$ref": "#/components/callbacks/OnEvent"},
+                    }
+                }
+            }
+        },
+        components={
+            "callbacks": {
+                "OnEvent": {
+                    "{$request.body#/cb}": {"post": {"responses": {"200": {"description": "k"}}}}
+                }
+            }
+        },
+    )
+    result = _parse(document)
+    assert isinstance(result, Ok), [e.message for e in getattr(result, "errors", ())]
+    callbacks = result.value.paths["/x"].post.callbacks
+    assert isinstance(callbacks["inline"]["{$request.body#/url}"], PathItem)
+    assert isinstance(callbacks["shared"], Reference)
+    assert _round_trip(document) == document
