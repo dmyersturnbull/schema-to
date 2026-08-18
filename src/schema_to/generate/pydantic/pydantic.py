@@ -497,11 +497,11 @@ def _build_imports(declarations: list[TypeAliasDef | ClassDef]) -> list[FromImpo
             for f in decl.fields:
                 _scan_annotation(f.annotation, needed)
                 if f.default and "Field(" in f.default:
-                    needed.setdefault("", set()).add("Field")
+                    needed.setdefault("pydantic", set()).add("Field")
         elif isinstance(decl, TypeAliasDef):
             _scan_annotation(decl.annotation, needed)
     if has_class:
-        needed.setdefault("", set()).add("BaseModel")
+        needed.setdefault("pydantic", set()).add("BaseModel")
     return [
         FromImport(module=module, names=[(n, None) for n in sorted(needed[module])])
         for module in sorted(needed)

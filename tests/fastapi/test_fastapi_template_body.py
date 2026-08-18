@@ -15,7 +15,8 @@ import pytest
 from schema_to import MediaTypes, Ok, OpenApiRawDoc
 from schema_to.transpile.factory import TranspilerRouter
 
-_EXAMPLE_DIR = Path(__file__).resolve().parent.parent / "examples" / "postgres"
+# `examples/` sits at the repository root, three levels up from this file.
+_EXAMPLE_DIR = Path(__file__).resolve().parents[2] / "examples" / "postgres"
 _EXAMPLE = _EXAMPLE_DIR / "things.openapi.yaml"
 
 
