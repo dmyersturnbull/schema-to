@@ -360,8 +360,7 @@ def test_references_survive_a_round_trip() -> None:
 
 
 @pytest.mark.parametrize(
-    ("text", "parts"),
-    [("3.1.0", (3, 1, 0)), ("3.2", (3, 2)), ("3.2.0-rc1", (3, 2, 0)), ("3", (3,))],
+    ("text", "parts"), [("3.1.0", (3, 1, 0)), ("3.2", (3, 2)), ("3.2.0-rc1", (3, 2, 0))]
 )
 def test_spec_version_parsing(text: str, parts: tuple[int, ...]) -> None:
     version = SpecVersion.parse(text)

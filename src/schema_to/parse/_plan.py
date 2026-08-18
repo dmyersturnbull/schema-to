@@ -14,14 +14,14 @@ so CST modules import their annotation types normally rather than under
 `TYPE_CHECKING`.
 """
 
+import re
 import types
 import typing
 from collections.abc import Mapping, Sequence, Set
 from dataclasses import MISSING, dataclass, fields
 from enum import Enum
 from functools import cache
-from itertools import takewhile
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from schema_to.core import JsonArray, JsonObject, JsonPrimitive, JsonValue
 from schema_to.cst.base import CstNode
@@ -199,38 +199,45 @@ class SpecVersion:
     in the payload, so a version cannot get its own CST the way a JSON Schema
     dialect could.  Gating a field on a range is what lets one set of classes
     describe both.
-
-    Attributes:
-        text: The version as written, for use in a diagnostic.
-        parts: The leading integer components, for comparison.
     """
 
+    PATTERN: ClassVar[re.Pattern[str]] = re.compile(
+        r"(0|[1-9]\d*)\.(0|[1-9]\d*)(?:\.(0|[1-9]\d*)(?:-.+)?)?"
+    )
     text: str
     parts: tuple[int, ...]
 
     @classmethod
-    def parse(cls, text: str) -> SpecVersion | None:
-        """Return the version `text` denotes, or `None` if it names no number.
+    def parse(cls, text: str) -> SpecVersion:
+        """Parses 2- or 3-segment version `text` using [PATTERN][], discarding any pre-release info.
 
-        A trailing pre-release marker (`3.2.0-rc1`) contributes nothing beyond
-        the digits that precede it.
+        Raises:
+            ValueError: If `text` is invalid
         """
-        parts: list[int] = []
-        for chunk in text.split("."):
-            digits = "".join(takewhile(str.isdigit, chunk))
-            if not digits:
-                break
-            parts.append(int(digits))
-        return cls(text, tuple(parts)) if parts else None
+        if m := cls.PATTERN.fullmatch(text):
+            return cls(
+                text, tuple(int(g) for g in m.groups() if g is not None and not g.startswith("-"))
+            )
+        msg = f"Invalid version string '{text}'"
+        raise ValueError(msg)
 
-    def at_least(self, other: SpecVersion) -> bool:
+    def __bool__(self) -> bool:
+        return True
+
+    def as_str(self) -> str:
+        return ".".join(str(p) for p in self.parts)
+
+    def at_least(self, minimum: SpecVersion) -> bool:
         """Return whether this version is `other` or later."""
-        width = max(len(self.parts), len(other.parts))
-        return _padded(self.parts, width) >= _padded(other.parts, width)
+        width = max(len(self.parts), len(minimum.parts))
+        return self._padded(self.parts, width) >= self._padded(minimum.parts, width)
 
+    def at_most(self, maximum: SpecVersion) -> bool:
+        return maximum.at_least(self)
 
-def _padded(parts: tuple[int, ...], width: int) -> tuple[int, ...]:
-    return parts + (0,) * (width - len(parts))
+    @staticmethod
+    def _padded(parts: tuple[int, ...], width: int) -> tuple[int, ...]:
+        return parts + (0,) * (width - len(parts))
 
 
 # ---------------------------------------------------------------------------
@@ -274,11 +281,10 @@ class FieldPlan:
         read has worse problems, and reporting every gated key on top of that
         would bury them.
         """
-        if version is None:
-            return True
-        if self.since is not None and not version.at_least(self.since):
-            return False
-        return self.until is None or self.until.at_least(version)
+        return not version or (
+            (not self.since or version.at_least(self.since))
+            and (not self.until or version.at_most(self.until))
+        )
 
 
 @dataclass(frozen=True, slots=True)
