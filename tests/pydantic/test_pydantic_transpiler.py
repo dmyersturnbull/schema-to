@@ -502,6 +502,19 @@ def test_field_with_string_constraints() -> None:
     assert "max_length=100" in src
 
 
+def test_field_is_imported_from_pydantic() -> None:
+    """`Field` is used in a default, so it has to be imported from somewhere real."""
+    schema = {
+        "type": "object",
+        "title": "Constrained",
+        "properties": {"name": {"type": "string", "minLength": 1}},
+        "required": ["name"],
+    }
+    src = _transpile(schema)
+    assert "Field(" in src
+    assert "from pydantic import BaseModel, Field" in src
+
+
 def test_field_with_numeric_constraints() -> None:
     schema = {
         "type": "object",
