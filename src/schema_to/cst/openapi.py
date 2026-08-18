@@ -25,6 +25,7 @@ from schema_to.cst.json_schema import JsonSchema
 
 __all__ = [
     "ApiKeyLocation",
+    "Callback",
     "Components",
     "Contact",
     "Encoding",
@@ -249,6 +250,10 @@ class Header(CstNode):
     description: str | None = None
     required: bool = False
     deprecated: bool = False
+    style: str | None = None
+    explode: bool | None = None
+    example: JsonValue | None = None
+    examples: Mapping[str, Reference | Example] = field(default_factory=dict)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
     source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
@@ -295,6 +300,9 @@ class Parameter(CstNode):
     allow_empty_value: bool = False
     style: str | None = None
     explode: bool | None = None
+    allow_reserved: bool = False
+    example: JsonValue | None = None
+    examples: Mapping[str, Reference | Example] = field(default_factory=dict)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
     source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
@@ -354,6 +362,7 @@ class Operation(CstNode):
     operation_id: str | None = None
     parameters: Sequence[Reference | Parameter] = field(default_factory=list)
     request_body: Reference | RequestBody | None = None
+    callbacks: Mapping[str, Reference | Callback] = field(default_factory=dict)
     deprecated: bool = False
     security: Sequence[SecurityRequirement] | None = None
     servers: Sequence[Server] = field(default_factory=list)
@@ -363,11 +372,22 @@ class Operation(CstNode):
 
 type SecurityRequirement = Mapping[str, Sequence[str]]
 
+# A [Callback Object](https://spec.openapis.org/oas/v3.1.0#callback-object): a map from a
+# runtime expression to the Path Item Object describing the request made to it.  It defines
+# no fixed fields of its own, so it is a bare map rather than a CST node.
+type Callback = Mapping[str, PathItem]
+
 
 @dataclass(frozen=True, slots=True)
 class PathItem(CstNode):
-    """[Path Item Object](https://spec.openapis.org/oas/v3.1.0#path-item-object)."""
+    """[Path Item Object](https://spec.openapis.org/oas/v3.1.0#path-item-object).
 
+    `$ref` is a field here rather than a `Reference` standing in for the whole
+    object: it sits alongside the other fields, and the specification leaves the
+    result undefined when both are given.
+    """
+
+    ref: str | None = field(default=None, metadata={"key": "$ref"})
     summary: str | None = None
     description: str | None = None
     get: Operation | None = None
@@ -450,6 +470,7 @@ class Components(CstNode):
     headers: Mapping[str, Reference | Header] = field(default_factory=dict)
     security_schemes: Mapping[str, Reference | SecurityScheme] = field(default_factory=dict)
     links: Mapping[str, Reference | Link] = field(default_factory=dict)
+    callbacks: Mapping[str, Reference | Callback] = field(default_factory=dict)
     path_items: Mapping[str, Reference | PathItem] = field(default_factory=dict)
     media_types: Mapping[str, Reference | MediaTypeObject] = field(
         default_factory=dict, metadata={"since": "3.2"}

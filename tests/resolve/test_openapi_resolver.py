@@ -1,6 +1,7 @@
 """Tests for the OpenAPI Reference Object resolver."""
 
 import json
+from collections.abc import Mapping
 
 import pytest
 
@@ -268,7 +269,7 @@ def test_a_reference_to_the_wrong_kind_of_node_is_an_error() -> None:
     )
     assert isinstance(result, Err)
     assert "resolves to a Response" in result.errors[0].message
-    assert "Parameter is required" in result.errors[0].message
+    assert "Parameter object is required" in result.errors[0].message
 
 
 def test_a_reference_cycle_is_reported_rather_than_recursed() -> None:
@@ -326,3 +327,73 @@ def test_a_reference_into_an_unregistered_document_is_an_error() -> None:
     )
     assert isinstance(result, Err)
     assert "elsewhere.yaml" in result.errors[0].message
+
+
+# ---------------------------------------------------------------------------
+# Callbacks
+# ---------------------------------------------------------------------------
+
+
+_CALLBACKS = _minimal(
+    paths={
+        "/x": {
+            "post": {
+                "callbacks": {
+                    "inline": {
+                        "{$request.body#/url}": {
+                            "post": {"parameters": [{"$ref": "#/components/parameters/Id"}]}
+                        }
+                    },
+                    "shared": {"$ref": "#/components/callbacks/OnEvent"},
+                }
+            }
+        }
+    },
+    components={
+        "parameters": {"Id": {"name": "id", "in": "query"}},
+        "callbacks": {
+            "OnEvent": {
+                "{$request.body#/cb}": {"post": {"responses": {"200": {"description": "k"}}}}
+            }
+        },
+    },
+)
+
+
+def _callbacks(doc: OpenApiDocument) -> dict:
+    operation = doc.paths["/x"].post
+    assert operation is not None
+    return dict(operation.callbacks)
+
+
+def test_a_referenced_callback_is_replaced_by_its_map() -> None:
+    """A callback is a bare map, not a node, so resolving one needs the shape check."""
+    result = _resolve(_CALLBACKS)
+    assert isinstance(result, Ok), [e.message for e in getattr(result, "errors", ())]
+    shared = _callbacks(result.value)["shared"]
+    assert isinstance(shared, Mapping)
+    assert isinstance(shared["{$request.body#/cb}"], PathItem)
+
+
+def test_resolution_reaches_inside_a_callback() -> None:
+    """Everything under a callback used to be a blind spot for the walk."""
+    result = _resolve(_CALLBACKS)
+    assert isinstance(result, Ok), [e.message for e in getattr(result, "errors", ())]
+    inline = _callbacks(result.value)["inline"]["{$request.body#/url}"]
+    assert isinstance(inline, PathItem)
+    assert inline.post is not None
+    parameter = inline.post.parameters[0]
+    assert isinstance(parameter, Parameter)
+    assert parameter.name == "id"
+
+
+def test_a_reference_to_a_callback_from_a_node_position_is_an_error() -> None:
+    """A callback is a map, so it cannot stand in where a Parameter belongs."""
+    result = _resolve(
+        _minimal(
+            paths={"/x": {"get": {"parameters": [{"$ref": "#/components/callbacks/OnEvent"}]}}},
+            components={"callbacks": {"OnEvent": {"{$expr}": {"description": "d"}}}},
+        )
+    )
+    assert isinstance(result, Err)
+    assert "resolves to a map" in result.errors[0].message

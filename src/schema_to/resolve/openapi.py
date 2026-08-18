@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, cast, override
 from schema_to.cst.base import CstNode
 from schema_to.cst.openapi import OpenApiDocument, Reference
 from schema_to.errors import ResolutionError, SourceLocation, TranspilationWarning
-from schema_to.parse._plan import ListSpec, MapSpec, NodeSpec, OneOfSpec, plan_for
+from schema_to.parse._plan import ListSpec, MapSpec, NodeSpec, OneOfSpec, SetSpec, plan_for
 from schema_to.pipeline import RefResolver
 from schema_to.result import Err, Ok, Result
 
@@ -140,8 +140,8 @@ class _Session:
         document with nothing to resolve comes back unchanged.
         """
         match spec:
-            case OneOfSpec(options=options) if accepts := _referenceable(options):
-                return self.referenceable(value, accepts, chain)
+            case OneOfSpec(options=options):
+                return self.alternative(options, value, chain)
             case NodeSpec() if isinstance(value, CstNode):
                 return self.node(value, chain)
             case ListSpec(item=item) if isinstance(value, Sequence) and not isinstance(value, str):
@@ -153,19 +153,23 @@ class _Session:
             case _:
                 return value
 
-    def referenceable(
-        self, value: object, accepts: Sequence[type[CstNode]], chain: Set[str]
-    ) -> object:
-        """Resolve `value` if it is a reference, then descend into whatever it is."""
-        if not isinstance(value, Reference):
-            return self.node(value, chain) if isinstance(value, CstNode) else value
-        return self.dereference(value, accepts, chain)
+    def alternative(self, options: Sequence[FieldSpec], value: object, chain: Set[str]) -> object:
+        """Resolve `value` against whichever alternative of a union it is.
+
+        A `Reference` is followed, provided the position admits one.  Anything
+        else is walked under the first alternative whose shape it has — which is
+        what carries the walk into a `Callback`, a bare map of path items that
+        would otherwise be a blind spot.
+        """
+        others = [option for option in options if option != NodeSpec(Reference)]
+        if isinstance(value, Reference) and len(others) < len(options):
+            return self.dereference(value, others, chain)
+        fitting = _fitting(others, value)
+        return self.value(fitting, value, chain) if fitting is not None else value
 
     # -- Resolution ---------------------------------------------------------
 
-    def dereference(
-        self, ref: Reference, accepts: Sequence[type[CstNode]], chain: Set[str]
-    ) -> object:
+    def dereference(self, ref: Reference, accepts: Sequence[FieldSpec], chain: Set[str]) -> object:
         """Follow `ref` to its target, resolving that target in turn."""
         if ref.ref in chain:
             self._fail(ref, f"Reference cycle: {ref.ref!r} points at itself, via {sorted(chain)}.")
@@ -177,15 +181,18 @@ class _Session:
         onward = chain | {ref.ref}
         if isinstance(target, Reference):
             return self.dereference(target, accepts, onward)
-        if not isinstance(target, tuple(accepts)):
-            expected = " or ".join(sorted(node.__name__ for node in accepts))
-            found = type(target).__name__
-            self._fail(ref, f"{ref.ref!r} resolves to a {found}, but a {expected} is required.")
+        fitting = _fitting(accepts, target)
+        if fitting is None:
+            expected = " or ".join(sorted(_shape(option) for option in accepts))
+            self._fail(
+                ref, f"{ref.ref!r} resolves to a {_shape_of(target)}, but a {expected} is required."
+            )
             return ref
-        return self.overlay(ref, self.node(target, onward))
+        resolved = self.value(fitting, target, onward)
+        return self.overlay(ref, resolved) if isinstance(resolved, CstNode) else resolved
 
-    def lookup(self, ref: str) -> CstNode | None:
-        """Return the node `ref` names, or `None` if nothing answers to it."""
+    def lookup(self, ref: str) -> object | None:
+        """Return whatever `ref` names, or `None` if nothing answers to it."""
         doc_uri, _, fragment = urllib.parse.urljoin(self.base_uri, ref).partition("#")
         document = self.documents.get(doc_uri or self.base_uri)
         if document is None:
@@ -242,19 +249,49 @@ def _location(ref: Reference) -> SourceLocation | None:
     return SourceLocation(ref.source_ref.source_id, ref.source_ref.json_pointer)
 
 
-def _referenceable(options: Sequence[FieldSpec]) -> Sequence[type[CstNode]]:
-    """Return the node types a position accepts, or empty if it takes no reference.
-
-    A position is referenceable exactly when `Reference` is one of its
-    alternatives; the others are what a reference there may resolve to.
-    """
-    nodes = [option.node for option in options if isinstance(option, NodeSpec)]
-    if Reference not in nodes:
-        return ()
-    return [node for node in nodes if node is not Reference]
+def _fitting(options: Sequence[FieldSpec], value: object) -> FieldSpec | None:
+    """Return the first alternative whose shape `value` has, if any."""
+    return next((option for option in options if _fits(option, value)), None)
 
 
-def _navigate(document: OpenApiDocument, fragment: str) -> CstNode | None:
+def _fits(spec: FieldSpec, value: object) -> bool:
+    """Return whether `value` could have been built from `spec`."""
+    match spec:
+        case NodeSpec(node=node):
+            return isinstance(value, node)
+        case MapSpec():
+            return isinstance(value, Mapping)
+        case ListSpec() | SetSpec():
+            return isinstance(value, Sequence) and not isinstance(value, str)
+        case _:
+            return False
+
+
+def _shape(spec: FieldSpec) -> str:
+    """Name what an alternative accepts, for use in a diagnostic."""
+    match spec:
+        case NodeSpec(node=node):
+            return f"{node.__name__} object"
+        case MapSpec():
+            return "map"
+        case ListSpec() | SetSpec():
+            return "array"
+        case _:
+            return "value"
+
+
+def _shape_of(value: object) -> str:
+    """Name what a resolved target turned out to be."""
+    if isinstance(value, CstNode):
+        return f"{type(value).__name__} object"
+    if isinstance(value, Mapping):
+        return "map"
+    if isinstance(value, Sequence) and not isinstance(value, str):
+        return "array"
+    return type(value).__name__
+
+
+def _navigate(document: OpenApiDocument, fragment: str) -> object | None:
     """Follow an RFC 6901 pointer through the CST, matching segments to plan keys."""
     if not fragment:
         return document
@@ -265,7 +302,7 @@ def _navigate(document: OpenApiDocument, fragment: str) -> CstNode | None:
         found = _step(found, segment.replace("~1", "/").replace("~0", "~"))
         if found is None:
             return None
-    return found if isinstance(found, CstNode) else None
+    return found
 
 
 def _step(found: object, segment: str) -> object | None:
