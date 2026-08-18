@@ -1,0 +1,22 @@
+name: Lint
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - name: Check lock file and install dependencies
+        run: uv sync --locked
+      - name: Check Ruff rules
+        run: uv run ruff check
+      - name: Check typing with ty
+        run: uv run ty check
+      - name: Check formatting with Ruff
+        run: uv run ruff format --check
