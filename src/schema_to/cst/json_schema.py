@@ -2,7 +2,7 @@
 
 Each node type holds the set of keywords defined by the specification, grouped by vocabulary.
 The flat `ObjectSchema` avoids indirection through vocabulary sub-objects,
- so that serializers and parsers can iterate `dataclasses.fields()` directly.
+so that serializers and parsers can iterate `dataclasses.fields()` directly.
 """
 
 from collections.abc import Mapping, Sequence, Set
@@ -93,7 +93,7 @@ class _JsonSchema(CstNode):
                 return frozenset()
             case ObjectSchema(type=None):
                 return frozenset()
-            case ObjectSchema(type=frozenset() as types):
+            case ObjectSchema(type=frozenset(types)):
                 return types
             case ObjectSchema(type=JsonSchemaType() as t):
                 return frozenset({t})
@@ -196,7 +196,6 @@ class ObjectSchema(_JsonSchema):
 
     Fields are ordered by vocabulary:
     core, metadata, validation, numeric, string, array, object, applicator, unevaluated, content, format.
-    Each field maps 1-to-1 to the corresponding JSON Schema keyword.
 
     Fields `not_`, `if_`, `else_`, and `then_` have `_` suffixes.
     (`not`, `if`, and `else` are Python reserved words; `then` has a suffix for symmetry.)
@@ -214,84 +213,72 @@ class ObjectSchema(_JsonSchema):
     vocabulary: Mapping[str, bool] | None = field(default=None, metadata={"key": "$vocabulary"})
 
     # -- Metadata vocabulary ----------------------------------------------
-    title: str | None = field(default=None, metadata={"key": "title"})
-    description: str | None = field(default=None, metadata={"key": "description"})
-    default: DefaultValue | None = field(default=None, metadata={"key": "default"})
-    deprecated: bool = field(default=False, metadata={"key": "deprecated"})
-    read_only: bool = field(default=False, metadata={"key": "readOnly"})
-    write_only: bool = field(default=False, metadata={"key": "writeOnly"})
-    examples: Sequence[JsonValue] | None = field(default=None, metadata={"key": "examples"})
+    title: str | None = None
+    description: str | None = None
+    default: DefaultValue | None = None
+    deprecated: bool = False
+    read_only: bool = False
+    write_only: bool = False
+    examples: Sequence[JsonValue] | None = None
 
     # -- Validation vocabulary --------------------------------------------
-    type: SchemaType | None = field(default=None, metadata={"key": "type"})
-    enum: Sequence[JsonValue] | None = field(default=None, metadata={"key": "enum"})
-    const: ConstValue | None = field(default=None, metadata={"key": "const"})
+    type: SchemaType | None = None
+    enum: Sequence[JsonValue] | None = None
+    const: ConstValue | None = None
 
     # -- Numeric validation -----------------------------------------------
-    multiple_of: float | None = field(default=None, metadata={"key": "multipleOf"})
-    maximum: float | None = field(default=None, metadata={"key": "maximum"})
-    exclusive_maximum: float | None = field(default=None, metadata={"key": "exclusiveMaximum"})
-    minimum: float | None = field(default=None, metadata={"key": "minimum"})
-    exclusive_minimum: float | None = field(default=None, metadata={"key": "exclusiveMinimum"})
+    multiple_of: float | None = None
+    maximum: float | None = None
+    exclusive_maximum: float | None = None
+    minimum: float | None = None
+    exclusive_minimum: float | None = None
 
     # -- String validation ------------------------------------------------
-    max_length: int | None = field(default=None, metadata={"key": "maxLength", "min": 0})
-    min_length: int | None = field(default=None, metadata={"key": "minLength", "min": 0})
-    pattern: str | None = field(default=None, metadata={"key": "pattern"})
+    max_length: int | None = field(default=None, metadata={"min": 0})
+    min_length: int | None = field(default=None, metadata={"min": 0})
+    pattern: str | None = None
 
     # -- Array keywords ---------------------------------------------------
-    prefix_items: Sequence[JsonSchema] | None = field(default=None, metadata={"key": "prefixItems"})
-    items: JsonSchema | None = field(default=None, metadata={"key": "items"})
-    contains: JsonSchema | None = field(default=None, metadata={"key": "contains"})
-    min_contains: int | None = field(default=None, metadata={"key": "minContains"})
-    max_contains: int | None = field(default=None, metadata={"key": "maxContains"})
-    min_items: int | None = field(default=None, metadata={"key": "minItems"})
-    max_items: int | None = field(default=None, metadata={"key": "maxItems"})
-    unique_items: bool = field(default=False, metadata={"key": "uniqueItems"})
+    prefix_items: Sequence[JsonSchema] | None = None
+    items: JsonSchema | None = None
+    contains: JsonSchema | None = None
+    min_contains: int | None = None
+    max_contains: int | None = None
+    min_items: int | None = None
+    max_items: int | None = None
+    unique_items: bool = False
 
     # -- Object keywords --------------------------------------------------
-    properties: Mapping[str, JsonSchema] | None = field(
-        default=None, metadata={"key": "properties"}
-    )
-    pattern_properties: Mapping[str, JsonSchema] | None = field(
-        default=None, metadata={"key": "patternProperties"}
-    )
-    additional_properties: JsonSchema | None = field(
-        default=None, metadata={"key": "additionalProperties"}
-    )
-    property_names: JsonSchema | None = field(default=None, metadata={"key": "propertyNames"})
-    required: Set[str] | None = field(default=None, metadata={"key": "required"})
-    dependent_required: Mapping[str, Set[str]] | None = field(
-        default=None, metadata={"key": "dependentRequired"}
-    )
-    dependent_schemas: Mapping[str, JsonSchema] | None = field(
-        default=None, metadata={"key": "dependentSchemas"}
-    )
-    min_properties: int | None = field(default=None, metadata={"key": "minProperties"})
-    max_properties: int | None = field(default=None, metadata={"key": "maxProperties"})
+    properties: Mapping[str, JsonSchema] | None = None
+    pattern_properties: Mapping[str, JsonSchema] | None = None
+    additional_properties: JsonSchema | None = None
+    property_names: JsonSchema | None = None
+    required: Set[str] | None = None
+    dependent_required: Mapping[str, Set[str]] | None = None
+    dependent_schemas: Mapping[str, JsonSchema] | None = None
+    min_properties: int | None = None
+    max_properties: int | None = None
 
     # -- Applicator vocabulary --------------------------------------------
-    all_of: Sequence[JsonSchema] | None = field(default=None, metadata={"key": "allOf"})
-    any_of: Sequence[JsonSchema] | None = field(default=None, metadata={"key": "anyOf"})
-    one_of: Sequence[JsonSchema] | None = field(default=None, metadata={"key": "oneOf"})
-    not_: JsonSchema | None = field(default=None, metadata={"key": "not"})
-    if_: JsonSchema | None = field(default=None, metadata={"key": "if"})
-    then_: JsonSchema | None = field(default=None, metadata={"key": "then"})
-    else_: JsonSchema | None = field(default=None, metadata={"key": "else"})
+    all_of: Sequence[JsonSchema] | None = None
+    any_of: Sequence[JsonSchema] | None = None
+    one_of: Sequence[JsonSchema] | None = None
+    not_: JsonSchema | None = None
+    if_: JsonSchema | None = None
+    then_: JsonSchema | None = None
+    else_: JsonSchema | None = None
 
     # -- Unevaluated vocabulary -------------------------------------------
-    unevaluated_items: JsonSchema | None = field(default=None, metadata={"key": "unevaluatedItems"})
-    unevaluated_properties: JsonSchema | None = field(
-        default=None, metadata={"key": "unevaluatedProperties"}
-    )
+    unevaluated_items: JsonSchema | None = None
+    unevaluated_properties: JsonSchema | None = None
 
     # -- Content vocabulary -----------------------------------------------
-    content_encoding: str | None = field(default=None, metadata={"key": "contentEncoding"})
-    content_media_type: str | None = field(default=None, metadata={"key": "contentMediaType"})
-    content_schema: JsonSchema | None = field(default=None, metadata={"key": "contentSchema"})
+    content_encoding: str | None = None
+    content_media_type: str | None = None
+    content_schema: JsonSchema | None = None
 
     # -- Format vocabulary ------------------------------------------------
-    format: str | None = field(default=None, metadata={"key": "format"})
+    format: str | None = None
 
     # -- Extensions and provenance ----------------------------------------
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
