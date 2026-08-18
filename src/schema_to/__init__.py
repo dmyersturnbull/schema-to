@@ -30,6 +30,7 @@ match pipeline.process():
 | `schema_to.serialize.json_schema` | `JsonSchemaSerializer` |
 | `schema_to.serialize.openapi` | `OpenApiSerializer` |
 | `schema_to.resolve.json_schema` | `JsonSchemaRefResolver` |
+| `schema_to.resolve.openapi` | `OpenApiRefResolver` |
 | `schema_to.generate.pydantic` | `PydanticGenerator` |
 | `schema_to.generate.sql` | `PostgresGenerator` |
 | `schema_to.reify.python` | `PythonReifier`, `PythonPackageReifier` |
@@ -104,6 +105,7 @@ from schema_to.reify.json_schema import JsonSchemaReifier, OpenApiReifier
 from schema_to.reify.python import PythonPackageAssembler, PythonPackageReifier, PythonReifier
 from schema_to.reify.sql import SqlReifier
 from schema_to.resolve.json_schema import JsonSchemaMapRefResolver, JsonSchemaRefResolver
+from schema_to.resolve.openapi import OpenApiRefResolver
 from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 from schema_to.serialize.openapi import OpenApiSerializer
@@ -163,6 +165,7 @@ __all__ = [
     "OpenApiJsonArtifact",
     "OpenApiParser",
     "OpenApiRawDoc",
+    "OpenApiRefResolver",
     "OpenApiReifier",
     "OpenApiSerializer",
     "OpenApiYamlArtifact",
