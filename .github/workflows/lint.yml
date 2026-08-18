@@ -2,29 +2,21 @@ name: Lint
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types:
+      - opened
+      - synchronize
 
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.14"
-          enable-cache: true
-
-      - name: Install dependencies
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - name: Check lock file and install dependencies
         run: uv sync --locked
-
-      - name: Run ruff check
+      - name: Check Ruff rules
         run: uv run ruff check
-
-      - name: Run ty check
+      - name: Check typing with ty
         run: uv run ty check
-
-      - name: Run ruff format --check
+      - name: Check formatting with Ruff
         run: uv run ruff format --check
