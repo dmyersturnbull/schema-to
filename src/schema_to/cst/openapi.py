@@ -199,7 +199,7 @@ class Reference(CstNode):
     is recognised by its `$ref` before the more permissive object shape is tried.
 
     Like `$ref` inside a schema, the target is *not* resolved here: parsing keeps
-    the URI as written and a later stage inlines it.
+    the URI as written, and `resolve.openapi.OpenApiRefResolver` inlines it.
     """
 
     ref: str = field(metadata={"key": "$ref"})

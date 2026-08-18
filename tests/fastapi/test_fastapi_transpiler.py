@@ -440,3 +440,58 @@ def test_roots_keeps_only_named_component_schemas() -> None:
     assert "class Pet(BaseModel):" in content
     assert "class NewPet(BaseModel):" not in content
     assert "async def list_pets(" in content
+
+
+# ---------------------------------------------------------------------------
+# Referenced components
+# ---------------------------------------------------------------------------
+
+
+_REF_DOC = {
+    "openapi": "3.1.0",
+    "info": {"title": "Refs", "version": "1.0.0"},
+    "paths": {
+        "/things/{thingId}": {
+            "get": {
+                "operationId": "getThing",
+                "parameters": [{"$ref": "#/components/parameters/ThingId"}],
+                "responses": {"200": {"$ref": "#/components/responses/Thing"}},
+            }
+        }
+    },
+    "components": {
+        "parameters": {
+            "ThingId": {
+                "name": "thingId",
+                "in": "path",
+                "required": True,
+                "schema": {"type": "string"},
+            }
+        },
+        "responses": {
+            "Thing": {
+                "description": "one thing",
+                "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Thing"}}},
+            }
+        },
+        "schemas": {
+            "Thing": {
+                "type": "object",
+                "properties": {"id": {"type": "string"}},
+                "required": ["id"],
+            }
+        },
+    },
+}
+
+
+def test_referenced_parameter_reaches_the_generated_route() -> None:
+    """A `$ref`'d parameter used to be dropped, leaving the route without its input."""
+    source = _transpile(_REF_DOC)
+    ast.parse(source)
+    assert "thing_id" in source
+
+
+def test_referenced_response_reaches_the_generated_route() -> None:
+    source = _transpile(_REF_DOC)
+    assert "Thing" in source

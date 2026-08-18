@@ -61,6 +61,7 @@ from schema_to.reify.json_schema import JsonSchemaReifier, OpenApiReifier
 from schema_to.reify.python import PythonPackageAssembler, PythonPackageReifier, PythonReifier
 from schema_to.reify.sql import SqlReifier
 from schema_to.resolve.json_schema import JsonSchemaMapRefResolver, JsonSchemaRefResolver
+from schema_to.resolve.openapi import OpenApiRefResolver
 from schema_to.transpile.extract import OpenApiComponentExtractor
 from schema_to.transpile.schema_map import SchemaMapExpander, SchemaMapMerger
 
@@ -261,8 +262,12 @@ class TranspilerRouter:
         self, *, templates: Mapping[str, str] | None, roots: Set[str] | None
     ) -> Stage[Sequence[OpenApiRawDoc], Sequence[PythonArtifact]]:
         backend = TemplateBodyBackend(named_templates=templates or {})
+        # References are resolved before generation: a `$ref` standing in for a
+        # parameter or a response is something the generator cannot act on, and
+        # skipping it would silently drop a route's inputs.
         per_doc = (
             OpenApiParser()
+            .then(OpenApiRefResolver())
             .then(FastApiTransformer(body_backend=backend, roots=roots))
             .then(PythonReifier())
         )
