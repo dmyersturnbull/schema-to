@@ -116,15 +116,17 @@ def _spec_json(spec: object) -> JsonValue:
 
 
 def _field_json(entry: FieldPlan) -> JsonValue:
-    return {
-        "key": entry.key,
-        "name": entry.name,
-        "required": entry.required,
-        "nullable": entry.nullable,
-        "since": entry.since.text if entry.since is not None else None,
-        "until": entry.until.text if entry.until is not None else None,
-        "spec": _spec_json(entry.spec),
-    }
+    rendered: JsonObject = {"property": entry.key, "field": entry.name}
+    if entry.required:
+        rendered["required"] = True
+    if entry.nullable:
+        rendered["nullable"] = True
+    if entry.since is not None:
+        rendered["since"] = entry.since.text
+    if entry.until is not None:
+        rendered["until"] = entry.until.text
+    rendered["spec"] = _spec_json(entry.spec)
+    return rendered
 
 
 def _render_plans() -> str:
