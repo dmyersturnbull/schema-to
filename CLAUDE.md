@@ -42,5 +42,22 @@ Sometimes defining stateful helper classes can simplify complex methods.
 
 We use Google docstrings conventions with Markdown syntax.
 Omit boilerplate documentation like `Returns: a string`.
-Wrap lines between sentences, or between independent clauses for long lines;
-do not wrap otherwise.
+
+## Line breaks in documentation
+
+We use a simple form of semantic line breaks in docstrings and other documentation.
+This means only breaking lines at semantically important places.
+
+Always use a `\n` before and after every:
+
+- sentence (except if enclosed in quotes, parentheses, brackets, or markup)
+- long (> about 40 characters) independent clause
+- long Markdown link or code snippet
+- long text enclosed in `_`/`_`, `**`/`**`, or a pair of quotes, parentheses, or brackets
+
+You **may** use additional line breaks to clarify or highlight;
+for example, by putting each item in an inline list on its own line.
+Break at lower-precedence places first, and preserve grouping and parity.
+
+Do **not** break in arbitrary places.
+Do **not** enforce a strict line-length requirement.
