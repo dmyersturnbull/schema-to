@@ -1,16 +1,15 @@
-"""Generator: a set of schema-map documents → one PostgreSQL DDL script.
+"""Generator: PostgreSQL DDLs from schema-map documents.
 
-Where `generate.sql` maps one document to one table, this maps a whole tree of
-schema files to the set of tables they describe — the unit a migration actually is.
+Generates one a set of schema-map documents → one PostgreSQL DDL script.
+Where `generate.sql` maps one document to one table,
+this maps a whole tree of schema files to the set of tables they describe.
 
-Only schemas carrying `x-pg-table` become tables, so a tree may hold as many
-request bodies, patch documents, and shared primitives as it likes without any of
-them turning into a table.  See `generate._pg_keywords` for the keyword vocabulary.
+Only schemas carrying `x-pg-table` become tables.
+See [generate._pg_keywords][] for the keyword vocabulary.
 
-Tables are emitted in dependency order: a table is declared after every table its
-foreign keys reference.  A reference cycle has no such order, so the foreign keys
-within it are made `DEFERRABLE INITIALLY DEFERRED` — checked at commit rather than
-per statement, which is what lets one transaction satisfy both directions.
+Tables are emitted in dependency order:
+A table is declared after every table its foreign keys reference.
+If there is a foreign key cycle, the foreign keys in it are made `DEFERRABLE INITIALLY DEFERRED`.
 """
 
 from collections.abc import Sequence
@@ -72,12 +71,7 @@ class TableSpec:
 
     @property
     def primary_key(self) -> tuple[str, ...]:
-        """The key columns: the declared ones, else `id` when the schema has one.
-
-        Almost every resource is keyed by `id`, so requiring `x-pg-primary-key` on each
-        would be noise that is wrong nowhere and stated everywhere. A schema keyed on
-        anything else has to say so.
-        """
+        """The key columns: the declared ones, else `id` when the schema has one."""
         if self.keywords.primary_key:
             return self.keywords.primary_key
         if "id" in (self.schema.properties or {}):
@@ -87,15 +81,11 @@ class TableSpec:
 
 @dataclass(frozen=True, slots=True)
 class PostgresTableSetTransformer(Transformer[JsonSchemaMapDocument, SqlScript]):
-    """Generates one `SqlScript` from every `x-pg-table` schema in a map document.
+    """Generates an `SqlScript` schema-map documents containing one or more `x-pg-table` schemas.
 
-    The input is one document because the set was already folded into one by
-    `SchemaMapMerger`: a migration needs every table at once — foreign keys have no
-    ordering until they do — but *collecting* the set is not this generator's job, and
-    a table set built from a single file is the same problem as one built from twenty.
-
-    Each schema is flattened against the file it was written in rather than against
-    the document holding it, which is what keeps a merged set's references working:
+    Each schema is flattened against the file it was written in,
+    rather than against the document holding it.
+    This keeps a merged set's references working:
     `#/other` in a file means that file's `other`, wherever the schema ends up.
 
     Attributes:

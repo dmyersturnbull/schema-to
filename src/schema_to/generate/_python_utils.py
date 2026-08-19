@@ -1,7 +1,4 @@
-"""Identifier name utilities shared across generators and reifiers.
-
-Provides case-conversion functions (PascalCase, snake_case) and per-language name sanitizers.
-"""
+"""Utilities for Python generators."""
 
 import keyword
 import re

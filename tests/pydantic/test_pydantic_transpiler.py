@@ -1,6 +1,7 @@
 """Tests for the JSON Schema → Pydantic transpiler pipeline.
 
 Covers:
+
 - Property: generated Python source is always syntactically valid.
 - Smoke tests: specific schemas produce expected class / field shapes.
 - Integration: full parse → resolve → generate → reify pipeline.

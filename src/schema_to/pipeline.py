@@ -330,11 +330,13 @@ class RefResolver[C: CstNode](Stage[C, C]):
     def registering(self) -> Stage[C, C]:
         """Return a stage that registers each document and passes it through unchanged.
 
-        Registration and validation are separate passes because a reference may point
-        from any document in a set into any other: checking one before the last is
-        registered would fail on a forward reference.  Splitting them into two stages
-        is what lets a caller write `Each(r.registering()).then(Each(r))` and get the
-        two passes in the right order, without a class that hard-codes both.
+        Registration and validation are separate passes
+        because a reference may point from any document in a set into any other:
+        Checking one before the last is registered would fail on a forward reference.
+        Splitting them into two stages is what lets a caller write
+        `Each(r.registering()).then(Each(r))`
+        and get the two passes in the right order,
+        without a class that hard-codes both.
         """
         return _RegisteringStage(self)
 
@@ -381,16 +383,19 @@ class Reifier[X, O: Artifact](Expander[X, O]):
 class Transpiler[I: RawDoc, O: Artifact]:
     """A document type bound to the batch stage that transpiles documents of that type.
 
-    A transpiler is a value, not an abstraction to subclass: everything specific to a
-    target lives in the `Stage` it holds, and everything specific to *routing* lives in
-    `selects`.  Assembling the two is the composition root's job — see
-    `schema_to.transpile.factory.TranspilerRouter`.
+    A transpiler is a value, not an abstraction to subclass:
+    Everything specific to a target lives in the `Stage` it holds,
+    and everything specific to **routing** lives in `selects`.
+    Assembling the two is the composition root's job —
+    see `schema_to.transpile.factory.TranspilerRouter`.
 
-    Documents and artifacts are related many-to-many, not one-to-one.  One document
-    may yield several artifacts (a schema per `components/schemas` entry), and several
-    documents may yield one (a migration for a whole directory of schemas, whose
-    foreign keys cannot be ordered until every table is known).  The stage takes the
-    whole batch, so which of those a target does is the stage's own business:
+    Documents and artifacts are related many-to-many, not one-to-one.
+    One document may yield several artifacts,
+    as in a schema per `components/schemas` entry.
+    And several documents may yield one,
+    as in a migration for a whole directory of schemas,
+    whose foreign keys cannot be ordered until every table is known.
+    The stage takes the whole batch, so which of those a target does is the stage's own business:
     `Each(...)` treats documents independently, and a batch-native stage does not.
 
     Attributes:
@@ -412,8 +417,8 @@ class Transpiler[I: RawDoc, O: Artifact]:
     def transpile_all(self, docs: Sequence[I]) -> Result[Sequence[O]]:
         """Transpile every accepted document, as one batch.
 
-        Non-fatal diagnostics travel on the returned `Result`'s `warnings`, whether it
-        is `Ok` or `Err`.
+        Non-fatal diagnostics travel on the returned `Result`'s `warnings`,
+        whether it is `Ok` or `Err`.
         """
         return self.stage.apply(docs)
 
@@ -463,7 +468,7 @@ class Pipeline[I: RawDoc, O: Artifact]:
     Attributes:
         sources: Ordered list of `DataSource`s; each is iterated exactly once.
         transpilers: Ordered list of `Transpiler`s;
-          each document is dispatched to the first transpiler whose `accepts()` returns `True`.
+            each document is dispatched to the first transpiler whose `accepts()` returns `True`.
         sink: Destination for all `Artifact`s produced during the run.
 
     Example:
@@ -489,13 +494,13 @@ class Pipeline[I: RawDoc, O: Artifact]:
     def process(self) -> Result[ProcessSummary]:
         """Execute the pipeline: read all sources, transpile, write to sink.
 
-        Every document is read and routed before anything is transpiled.  A transpiler
-        then sees all of its documents at once, which is what lets an artifact depend
-        on more than one of them — a `$ref` into a sibling file cannot be resolved
-        until that file has been read.
+        Every document is read and routed before anything is transpiled.
+        A transpiler then sees all of its documents at once,
+        which is what lets an artifact depend on more than one of them —
+        a `$ref` into a sibling file cannot be resolved until that file has been read.
 
-        Returns `Ok[ProcessSummary]` if every document was transpiled without
-        fatal errors, or `Err` with all accumulated errors otherwise.
+        Returns `Ok[ProcessSummary]` if every document was transpiled without fatal errors,
+        or `Err` with all accumulated errors otherwise.
         """
         helper = _PipelineHelper()
         for index, documents in self._route(helper):
@@ -513,10 +518,11 @@ class Pipeline[I: RawDoc, O: Artifact]:
     def _route(self, helper: _PipelineHelper) -> list[tuple[int, list[I]]]:
         """Group every source document under the first transpiler that accepts it.
 
-        Batches are keyed by position rather than by the transpiler itself, which need
-        not be hashable — the stage it holds is a perfectly ordinary mutable object.
-        Order follows the transpiler list and then the order documents were read, so
-        output is stable across runs.
+        Batches are keyed by position rather than by the transpiler itself,
+        which need not be hashable:
+        The stage it holds is a perfectly ordinary mutable object.
+        Order follows the transpiler list and then the order documents were read,
+        so output is stable across runs.
         """
         batches: list[list[I]] = [[] for _ in self.transpilers]
         for source in self.sources:

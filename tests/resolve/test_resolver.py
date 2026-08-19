@@ -1,6 +1,7 @@
 """Tests for JsonSchemaRefResolver.
 
 Covers:
+
 - Property invariants: schemas with no refs always resolve;
   schemas with valid internal $defs/$ref always resolve.
 - Smoke tests: simple pointer lookup, anchor lookup, cross-document resolution.

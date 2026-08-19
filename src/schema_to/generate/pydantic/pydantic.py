@@ -1,17 +1,19 @@
-"""Generator: JSON Schema 2020-12 CST → Pydantic v2 Python AST.
+"""Generator: Pydantic classes from JSON Schema.
 
-Mapping rules
--------------
+#### Mapping rules
+
 - An `object`-typed schema (root or `$defs` entry) becomes a
   `pydantic.BaseModel` subclass (`ClassStyle.PYDANTIC`).
 - Non-object named schemas become PEP 695 `type` aliases.
 - Properties that appear in `required` get a plain annotation;
   all others get `T | None = None`.
 - `$ref: "#/$defs/Name"` becomes a forward reference to the generated class.
-- A declaration composed with `allOf` is flattened first, so the model carries every
-  branch's fields.  Only the declaration's own composition is resolved: a bare `$ref`
-  stays an alias, and a property referencing another schema stays a reference to its
-  class, since inlining either would replace a named model with a copy.
+- A declaration composed with `allOf` is flattened first,
+  so the model carries every branch's fields.
+  Only the declaration's own composition is resolved:
+  A bare `$ref` stays an alias,
+  and a property referencing another schema stays a reference to its class,
+  since inlining either would replace a named model with a copy.
 - `anyOf` / `oneOf` with exactly one non-null branch collapses to `T | None`.
 - `enum` / `const` map to `Literal[…]`.
 - Unsupported constructs emit `TranspilationWarning` and fall back to `Any`.

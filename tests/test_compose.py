@@ -1,6 +1,7 @@
 """Tests for `allOf` / `$ref` flattening.
 
 Covers:
+
 - Targeted: `allOf` merges properties, required, and type.
 - Targeted: single-valued keywords take the first branch that sets one.
 - Targeted: `$ref` targets are followed when a resolver is present, and left alone otherwise.

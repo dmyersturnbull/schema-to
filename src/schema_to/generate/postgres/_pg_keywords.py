@@ -1,9 +1,6 @@
 """Reading of the `x-pg-*` extension keywords that drive PostgreSQL generation.
 
-JSON Schema describes the shape of a value; it does not say which schemas are tables,
-which properties are keys, or how one resource points at another.
-These keywords supply exactly that, and nothing else — every one of them is a
-persistence decision that no standard keyword can express.
+These keywords supply info necessary for PostgreSQL definitions that's not carried in JSON Schema.
 
 | Keyword               | Goes on  | Value                                          | Effect                                     |
 |-----------------------|----------|------------------------------------------------|--------------------------------------------|
@@ -20,7 +17,7 @@ persistence decision that no standard keyword can express.
 | `x-pg-type`           | property | a SQL type, e.g. `jsonb`                       | Override the inferred type.                |
 | `x-pg-skip`           | property | `true`                                         | Do not emit a column.                      |
 
-Taken together:
+Example using these:
 
 ```yaml
 run-version-data:
@@ -48,7 +45,7 @@ run-version-data:
       x-pg-index: true
     is-official:
       type: boolean
-      x-pg-column: official       # `is-official` would otherwise be `is_official`
+      x-pg-column: official # `is-official` would otherwise be `is_official`
     wells:
       type: array
       x-pg-type: jsonb
@@ -57,8 +54,8 @@ run-version-data:
       x-pg-skip: true
 ```
 
-A keyword whose value has the wrong shape raises `KeywordError` rather than being
-ignored: a misspelled foreign key that silently vanishes is worse than a failed build.
+A keyword whose value has the wrong shape raises `KeywordError`,
+which is normally translated into a [TranspilationError][].
 """
 
 from collections.abc import Mapping
@@ -136,9 +133,9 @@ class IndexRequest:
 class ExtraColumn:
     """A column declared by `x-pg-extra-columns`, with no property behind it.
 
-    For values the database owns rather than the API: a load timestamp, a tenant
-    discriminator, a trigger-maintained counter.  They have no schema, so their type
-    is given literally.
+    For values the database owns rather than the API:
+    a load timestamp, a tenant discriminator, a trigger-maintained counter.
+    They have no schema, so their type is given literally.
     """
 
     name: str

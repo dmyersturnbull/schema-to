@@ -1,11 +1,7 @@
 """Target AST for Python output.
 
 Nodes in this module represent Python declarations emitted by the transpiler.
-Reification produces a syntactically-valid `.py` source file that can be
-formatted by `ruff format` without modification.
-
-Supported output styles include bare `@dataclass`, `@dataclass(frozen=True, slots=True)`,
-and [Pydantic v2](https://docs.pydantic.dev/latest/) `BaseModel` subclasses.
+Reification produces a valid `.py` file that approximately follows the Ruff formatter's style.
 """
 
 from dataclasses import dataclass, field
@@ -47,10 +43,11 @@ class ClassStyle(StrEnum):
 
     Attributes:
         PLAIN: A plain class with no decorator.
-        DATACLASS: `@dataclass` — mutable by default.
-        FROZEN_DATACLASS: `@dataclass(frozen=True, slots=True)` — immutable.
+        DATACLASS: `@dataclass`
+        FROZEN_DATACLASS: `@dataclass(frozen=True, slots=True)`
         PYDANTIC: `pydantic.BaseModel` subclass.
-        PYDANTIC_FROZEN: `pydantic.BaseModel` with `model_config = ConfigDict(frozen=True, slots=True)`.
+        PYDANTIC_FROZEN: `pydantic.BaseModel` with
+            `model_config = ConfigDict(frozen=True, slots=True)`.
     """
 
     PLAIN = auto()
@@ -312,10 +309,12 @@ type PyDeclaration = TypeAliasDef | ClassDef | FunctionDef | VarDef
 class PythonModule(AstNode):
     """The root node of a Python output file.
 
-    A module has a name for the same reason an imported one does: it is the identity
-    the file is written under, and two modules in a package cannot share it.  Deciding
-    it belongs to whatever generates the module, which is the only thing that knows
-    what the module is *of*; the reifier only spells it as a file name.
+    A module has a name for the same reason an imported one does:
+    it is the identity the file is written under,
+    and two modules in a package cannot share it.
+    Deciding it belongs to whatever generates the module,
+    which is the only thing that knows what the module is *of*;
+    the reifier only spells it as a file name.
 
     Attributes:
         name: Module name, without the `.py` suffix, as a Python identifier.
@@ -336,8 +335,9 @@ class PythonModule(AstNode):
 class PythonPackage(AstNode):
     """A set of Python modules written together.
 
-    The unit a run of several schemas produces, and the reason module names have to
-    be distinct: the modules land side by side, so two of one name would be one file.
+    The unit a run of several schemas produces,
+    and the reason module names have to be distinct:
+    The modules land side by side, so two of one name would be one file.
 
     Attributes:
         modules: The modules, in emission order.

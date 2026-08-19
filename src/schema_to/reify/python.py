@@ -42,8 +42,8 @@ _INDENT = "    "
 class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     """Serialise a `PythonModule` AST to a single `.py` `Artifact`.
 
-    The file is named after the module, which is the only name it could be: two
-    modules written side by side must differ, and only the module knows what it is of.
+    The file is named after the module, which is the only name it could be:
+    Two modules written side by side must differ, and only the module knows what it is of.
     """
 
     @override
@@ -268,9 +268,9 @@ class PythonPackageReifier(Reifier[PythonPackage, PythonArtifact]):
     """Serialises every module of a package, one `.py` artifact each.
 
     Attributes:
-        modules: How each module is reified and the results concatenated.  The default
-            is `PythonReifier` over the batch; a caller wanting a different per-module
-            reifier composes one rather than subclassing this.
+        modules: How each module is reified and the results concatenated.
+            The default  is `PythonReifier` over the batch;
+            a caller wanting a different per-module reifier composes one rather than subclassing this.
     """
 
     modules: Stage[Sequence[PythonModule], Sequence[PythonArtifact]] = field(

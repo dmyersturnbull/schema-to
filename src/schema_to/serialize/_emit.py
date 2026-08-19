@@ -1,16 +1,17 @@
 """Emits JSON from CST nodes by interpreting their `NodePlan`.
 
-The mirror image of `parse._build`: the same plan that says which key a field
-reads says which key it writes, so a round trip cannot lose a keyword the parser
-understood, and a keyword added to a CST class needs no change here.
+The mirror image of `parse._build`:
+The same plan that says which key a field reads says which key it writes,
+so a round trip cannot lose a keyword the parser understood,
+and a keyword added to a CST class needs no change here.
 
-Output is minimal but complete.  A field emits no key when its value is the way
-the CST spells "the document did not say it" — `None`, a `False` flag, or an
-empty container on a field that neither requires a value nor admits `None`.
+Output is minimal but complete.
+A field emits no key when its value is the way the CST spells "the document did not say it" —
+`None`, a `False` flag, or an empty container on a field that neither requires a value nor admits `None`.
 
-A version-gated field emits no key either, when the document declares a version
-that does not define it.  Emitting one would produce a document that this
-parser, reading the same plans, would then reject.
+A version-gated field emits no key either,
+when the document declares a version that does not define it.
+Emitting one would produce a document that this parser, reading the same plans, would then reject.
 """
 
 from collections.abc import Mapping, Sequence, Set

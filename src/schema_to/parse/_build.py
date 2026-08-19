@@ -1,13 +1,15 @@
 """Builds CST nodes from decoded JSON by interpreting their `NodePlan`.
 
-One walk covers every node type in both CSTs: the plan says which keys to read
-and what shape each value has, and this module turns that into either a node or
-an accumulated diagnostic.  Adding a field to a CST class is therefore enough to
-make the parser read it.
+One walk covers every node type in both CSTs:
+The plan says which keys to read and what shape each value has,
+and this module turns that into either a node or an accumulated diagnostic.
+Adding a field to a CST class is therefore enough to make the parser read it.
 
-Errors never abort the walk.  They collect in the `Cursor`'s shared list so that
-one parse reports every fault, and a node is abandoned — yielding `FAILED` — only
-when a field it cannot be constructed without is missing or unusable.
+Errors never abort the walk.
+They collect in the `Cursor`'s shared list so that one parse reports every fault,
+and a node is abandoned —
+yielding `FAILED` —
+only when a field it cannot be constructed without is missing or unusable.
 """
 
 from collections.abc import Mapping, Sequence, Set
@@ -94,16 +96,17 @@ type ParsedValue = (
 class Cursor:
     """A position in a source document, plus the diagnostics gathered so far.
 
-    Replaces threading `source_id`, `pointer`, and an error list through every
-    builder: pointer arithmetic happens in `at` alone, so an error can only be
-    reported against the node it belongs to.
+    Replaces threading `source_id`, `pointer`, and an error list through every builder:
+    pointer arithmetic happens in `at` alone,
+    so an error can only be reported against the node it belongs to.
 
     Attributes:
         source_id: Identifier matching `RawDoc.doc_id`.
         pointer: RFC 6901 pointer to the value under construction.
         errors: Accumulator shared by every cursor derived from this one.
-        version: The specification version the document declares, against which
-            version-gated keys are checked.  `None` gates nothing.
+        version: The specification version the document declares,
+            against which version-gated keys are checked.
+            `None` gates nothing.
     """
 
     source_id: str
@@ -123,9 +126,9 @@ class Cursor:
     def probe(self) -> Cursor:
         """Return a cursor at this position with a throwaway accumulator.
 
-        Used to try an alternative without leaving diagnostics behind.  Everything
-        else — position and declared version — carries over, so a rejected
-        alternative is judged under the same rules as an accepted one.
+        Used to try an alternative without leaving diagnostics behind.
+        Everything else — position and declared version — carries over,
+        so a rejected alternative is judged under the same rules as an accepted one.
         """
         return Cursor(self.source_id, self.pointer, [], self.version)
 
@@ -288,10 +291,10 @@ def _build_one_of(
 ) -> ParsedValue | Failed:
     """Return the first alternative that builds with no diagnostics at all.
 
-    Each is tried against a throwaway accumulator, so a rejected alternative
-    leaves no trace.  When none succeeds, the diagnostics of the *last* one are
-    surfaced — a union therefore declares its fallback interpretation last, and
-    the alternative recognised by a distinguishing key first.
+    Each is tried against a throwaway accumulator, so a rejected alternative leaves no trace.
+    When none succeeds, the diagnostics of the *last* one are surfaced:
+    A union therefore declares its fallback interpretation last,
+    and the alternative recognised by a distinguishing key first.
     """
     probe = at.probe()
     built: ParsedValue | Failed = FAILED

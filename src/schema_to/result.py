@@ -4,9 +4,9 @@ A `Result[T]` is either `Ok[T]` (success) or `Err` (one or more fatal errors).
 It models the same concept as `Either[NonEmptyList[TranspilationError], T]` in Haskell/Scala,
 providing `map` and `flat_map` for sequential composition that short-circuits on the first failure.
 
-Both variants also carry `warnings`: non-fatal diagnostics travel with the result they were
-raised alongside, rather than in separate mutable state on whatever produced them. `Err` carries
-them too, since a computation can warn about several things before the one that fails it.
+Both variants also carry `warnings`:
+Non-fatal diagnostics travel with the result they were raised alongside.
+[Err][] carries them, too.
 """
 
 from abc import ABC, abstractmethod
@@ -55,8 +55,8 @@ class Ok[T](_Result):
     def flat_map[U](self, f: Callable[[T], Ok[U] | Err]) -> Ok[U] | Err:
         """Chain a fallible computation; propagates `Err` from `f`.
 
-        The chained result's warnings are prefixed with this result's own, so they read in
-        the order they were raised regardless of which side raised them.
+        The chained result's warnings are prefixed with this result's own,
+        so they read in the order they were raised regardless of which side raised them.
         """
         return f(self.value).with_warnings(self.warnings)
 

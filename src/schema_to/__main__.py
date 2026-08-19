@@ -107,8 +107,8 @@ def transpile(
 def _sources(paths: list[Path], *, recursive: bool, schema_map: bool) -> Sequence[DataSource]:
     """Build the data sources for the given paths.
 
-    A schema map cannot be told from a single schema by file name, so the flag — not
-    the extension — selects the source.
+    A schema map cannot be told from a single schema by file name,
+    so the flag — not the extension — selects the source.
     """
     if not schema_map:
         return FileDataSourceFactory(recursive=recursive).get(paths)

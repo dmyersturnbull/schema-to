@@ -1,16 +1,16 @@
 """JSON Schema 2020-12 document parser.
 
 Converts a `RawDoc` (JSON or YAML bytes) into a `JsonSchemaDocument` CST.
-The parser is **non-resolving**: `$ref` and `$dynamicRef` values are stored as
-raw URI strings.  Pass the result to a `RefResolver` stage to inline them.
+The parser is **non-resolving**:
+`$ref` and `$dynamicRef` values are stored as raw URI strings.
+Pass the result to a `RefResolver` stage to inline them.
 
-Every keyword is read by the shared plan interpreter in `parse._build`, driven
-by the field annotations on `ObjectSchema`.  What remains here is the document
-envelope: decoding the bytes, and attaching the identity and base URI that the
-`RawDoc` carries rather than the schema.
+Every keyword is read by the shared plan interpreter in `parse._build`,
+driven by the field annotations on `ObjectSchema`.
+What remains here is the document envelope:
+decoding the bytes, and attaching the identity and base URI that the `RawDoc` carries rather than the schema.
 
-Errors are accumulated so that a single parse call returns the complete set of
-diagnostics rather than stopping at the first fault.
+Errors are accumulated, so a single parse call returns the complete diagnostics.
 """
 
 from dataclasses import dataclass, field
@@ -66,12 +66,10 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
 class JsonSchemaMapParser(DocParser[SchemaMapRawDoc, JsonSchemaMapDocument]):
     """Parses a map of names to schemas into a `JsonSchemaMapDocument` CST.
 
-    Each entry is parsed at the pointer it occupies in the document — schema `foo`
-    at `/foo` — so that a `$ref` written by a sibling file (`./this.yaml#/foo`)
+    Each entry is parsed at the pointer it occupies in the document —
+    schema `foo` at `/foo` —
+    so that a `$ref` written by a sibling file (`./this.yaml#/foo`)
     resolves against the same address.
-
-    Errors are accumulated across every entry, so one malformed schema does not
-    hide the rest.
     """
 
     schema_parser: JsonSchemaParser = field(default_factory=JsonSchemaParser)

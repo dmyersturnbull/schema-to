@@ -5,8 +5,8 @@ Reification produces a `.sql` migration script compatible with PostgreSQL 14+ an
 [pg_jsonschema](https://github.com/supabase/pg_jsonschema)
 for inline JSON validation constraints.
 
-The generator is driven by the `x-pg-*` extension keywords; see
-`schema_to.generate._pg_keywords` for the full vocabulary.
+The generator is driven by the `x-pg-*` extension keywords;
+see [schema_to.generate._pg_keywords][] for the full vocabulary.
 """
 
 from dataclasses import dataclass, field
@@ -49,7 +49,7 @@ class PgDataType(_SqlEnum):
     """PostgreSQL built-in data types used by the code generator.
 
     This list covers the types reachable from JSON Schema primitives plus common extensions.
-    The `CUSTOM` variant allows generators to fall back to a literal type string via `DataType.custom`.
+    The `CUSTOM` variant allows generators to use a literal type string via `DataType.custom`.
     """
 
     # Numeric
@@ -183,9 +183,8 @@ class ColumnConstraint(AstNode):
         on_delete: `ON DELETE` action for the foreign key.
         on_update: `ON UPDATE` action for the foreign key.
         constraint_name: Optional `CONSTRAINT <name>` prefix.
-        deferrable: Emits `DEFERRABLE INITIALLY DEFERRED`, so the foreign key is
-            checked at commit rather than at each statement.  This is what makes a
-            cycle of tables loadable: no single insert can satisfy both directions.
+        deferrable: Emits `DEFERRABLE INITIALLY DEFERRED`,
+            so the foreign key is checked at commit rather than at each statement.
     """
 
     not_null: bool = False

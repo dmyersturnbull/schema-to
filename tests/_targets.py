@@ -1,7 +1,7 @@
 """Building the transpiler for a target, for tests that exercise a whole target.
 
-The router is the only thing that knows how a target is assembled, so a test that
-wants one asks it, exactly as the CLI does.
+The router is the only thing that knows how a target is assembled,
+so a test that wants one asks it, exactly as the CLI does.
 """
 
 from collections.abc import Mapping, Set

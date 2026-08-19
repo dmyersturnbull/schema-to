@@ -1,24 +1,28 @@
 """Composition root: build the `Transpiler`s for a target name.
 
-The `--to` CLI option is a string that names a target format.  This module is the one
-place that knows which stages a target is made of, which keeps every other module free
-of target-specific wiring: a parser does not know what will consume its CST, and a
-generator does not know where its AST will be written.
+The `--to` CLI option is a string that names a target format.
+This module is the one
+place that knows which stages a target is made of,
+which keeps every other module free of target-specific wiring:
+A parser does not know what will consume its CST,
+and a generator does not know where its AST will be written.
 
-A target is a composed `Stage`, not a class.  All of them have the same shape —
+A target is a composed `Stage`, not a class.
+All of them have the same shape:
 
 ```
 Sequence[RawDoc] → parse → resolve → generate → reify → Sequence[Artifact]
 ```
 
-— and differ only in which stages fill those slots, and in whether the batch or the
-single document is the unit.  `Each` lifts a per-document chain over a batch; a target
-whose output depends on the whole set (a migration, whose foreign keys cannot be
-ordered until every table is known) uses a stage that takes the batch directly.
+They differ only in which stages fill those slots,
+and in whether the batch or the single document is the unit.
+[schema_to.pipeline.Each][]
+lifts a per-document chain over a batch;
+a target whose output depends on the whole set uses a stage that takes the batch directly.
 
-Shared state is threaded in from here rather than discovered at run time: the one
-`JsonSchemaRefResolver` a target uses is constructed here and handed to every stage
-that needs it, so no stage has to ask another whether it happens to have one.
+Shared state is threaded in from here rather than discovered at run time:
+The one `JsonSchemaRefResolver` a target uses is constructed here and handed to every stage that needs it,
+so no stage has to ask another whether it happens to have one.
 
 Supported targets:
 
@@ -30,16 +34,13 @@ Supported targets:
   - `postgres`
     JSON Schema 2020-12 → PostgreSQL DDL (`CREATE TABLE` statements).
   - `pg-jsonschema`
-    Like `postgres`, plus `pg_jsonschema` `CHECK` constraints validating each
-    JSON/JSONB column against its sub-schema.
+    Like `postgres`, plus `pg_jsonschema` `CHECK` constraints validating each JSON/JSONB column against its sub-schema.
   - `json-schema`
-    OpenAPI 3.1 → one standalone `.schema.json` / `.schema.yaml` per
-    `components/schemas` entry.
+    OpenAPI 3.1/3.2 → one standalone `.schema.json` / `.schema.yaml` per `components/schemas` entry.
   - `fastapi`
-    OpenAPI 3.1 → FastAPI application module (route stubs + security wiring).
+    OpenAPI 3.1/3.2 → FastAPI application module (route stubs + security wiring).
     Route bodies are filled from each operation's `x-fastapi-body` Jinja extension when present,
-    and left as `...` stubs otherwise;
-    see `examples/postgres/` for a worked PostgreSQL set built on `query-dsl`.
+    and left as `...` stubs otherwise.
 """
 
 from collections.abc import Mapping, Sequence, Set
@@ -106,14 +107,14 @@ class TranspilerRouter:
             output_media_type: Media type for re-emitted schema sources.
             templates: Named endpoint-body Jinja templates (`fastapi` target),
                 registered from the CLI's `--template <name>=<path>`.
-            roots: If given, restricts which named schema nodes become their own
-                artifact — a `$defs` entry (JSON Schema), a schema-map entry, or a
-                `components/schemas` entry (OpenAPI). Every other schema stays
-                available for `$ref` resolution. `None` generates every one.
-            schema_map: Read each source document as a map of named schemas rather
-                than as one schema. Each target is then met on its own terms: one whose
-                unit is the whole set consumes it directly, and one whose unit is a
-                single schema is fed the schemas one at a time.
+            roots: If given, restricts which named schema nodes become their own artifact —
+                a `$defs` entry (JSON Schema), a schema-map entry, or a `components/schemas` entry (OpenAPI).
+                Every other schema stays available for `$ref` resolution.
+                `None` generates every one.
+            schema_map: Read each source document as a map of named schemas rather than as one schema.
+                Each target is then met on its own terms:
+                one whose unit is the whole set consumes it directly,
+                and one whose unit is a single schema is fed the schemas one at a time.
 
         Raises:
             RoutingError: If `target_name` is not recognized or supported.
@@ -240,9 +241,9 @@ class TranspilerRouter:
     ) -> Stage[Sequence[SchemaMapRawDoc], Sequence[SqlArtifact]]:
         """One migration for the whole set: an ordering needs every table to be known.
 
-        Registration and validation are separate passes over the batch because a `$ref`
-        into a sibling file cannot resolve until that file is registered, and the files
-        are read in whatever order the directory gives.
+        Registration and validation are separate passes over the batch
+        because a `$ref` into a sibling file cannot resolve until that file is registered,
+        and the files are read in whatever order the directory gives.
         """
         maps = JsonSchemaMapRefResolver(inner=JsonSchemaRefResolver())
         return (

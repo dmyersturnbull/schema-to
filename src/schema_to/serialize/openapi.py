@@ -17,9 +17,9 @@ __all__ = ["OpenApiSerializer"]
 class OpenApiSerializer:
     """Convert an `OpenApiDocument` CST node to a JSON-serializable `JsonObject`.
 
-    Every object is emitted from the plan compiled off its CST class, so the
-    output covers exactly the keys the parser reads.  The document's own
-    `openapi` version gates which of them apply.
+    Every object is emitted from the plan compiled off its CST class,
+    so the output covers exactly the keys the parser reads.
+    The document's own `openapi` version gates which of them apply.
     """
 
     def serialize(self, doc: OpenApiDocument) -> JsonObject:

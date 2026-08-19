@@ -56,13 +56,13 @@ def choose_output(
 
     Args:
         doc: The parsed document being re-emitted.  Both its ID and its display name
-          are carried over from the `RawDoc` it was parsed from.
+            are carried over from the `RawDoc` it was parsed from.
         output_media_type: A required media-type, currently required to be a YAML or JSON type.
-          If `None`, uses YAML if `doc.source_id.endswith(".yaml")`, otherwise uses JSON.
+            If `None`, uses YAML if `doc.source_id.endswith(".yaml")`, otherwise uses JSON.
         kind: OpenAPI or JSON Schema.
         stem: Base filename, overriding the one derived from `doc`.
-          Required when one source document yields several artifacts,
-          which would otherwise share a filename.
+            Required when one source document yields several artifacts,
+            which would otherwise share a filename.
     """
     source_id = doc.source_id or ""
     # TODO: `writer` can support more, but this forces `.yaml` or `.json`.

@@ -1,6 +1,7 @@
 """Tests for the table-set generator and its `x-pg-*` keywords.
 
 Covers:
+
 - Targeted: only `x-pg-table` schemas become tables.
 - Targeted: each keyword's effect on the emitted DDL.
 - Targeted: malformed keyword values raise rather than being ignored.

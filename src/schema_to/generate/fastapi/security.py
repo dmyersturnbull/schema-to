@@ -5,9 +5,8 @@ emits a `require_scopes` dependency-factory stub for role enforcement,
 and attaches `Security`/`Depends` parameters to guarded routes.
 
 The actual enforcement is intentionally left as a stub:
-`require_scopes` raises `NotImplementedError` so the wiring is structurally complete
-(schemes appear in the generated OpenAPI, scopes are recorded per route)
-without pretending to validate credentials.
+`require_scopes` raises `NotImplementedError`.
+Schemes appear in the generated OpenAPI, and scopes are recorded per route.
 """
 
 from dataclasses import dataclass, field

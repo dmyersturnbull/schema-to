@@ -16,9 +16,9 @@ __all__ = ["JsonSchemaSerializer"]
 class JsonSchemaSerializer:
     """Convert a `JsonSchema` or `JsonSchemaDocument` CST node to a `JsonValue`.
 
-    The output is a plain Python dict/bool suitable for `orjson.dumps` or
-    `yaml12.format_yaml`.  Only keywords that differ from absent/default state
-    are emitted, so the result is minimal but semantically complete.
+    The output is a plain Python dict/bool suitable for `orjson.dumps` or `yaml12.format_yaml`.
+    Only keywords that differ from absent/default state are emitted,
+    so the result is minimal but semantically complete.
     """
 
     def serialize_document(self, doc: JsonSchemaDocument) -> JsonValue:
