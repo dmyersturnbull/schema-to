@@ -1,3 +1,4 @@
+# ruff: noqa: raw-string-in-exception
 """OpenAPI 3.1 document parser.
 
 Converts a `RawDoc` (JSON or YAML bytes) into an `OpenApiDocument` CST.
@@ -78,10 +79,10 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         doc = build_node(OpenApiDocument, data, at)
         if at.errors:
             return Err(tuple(at.errors))
-        if isinstance(doc, Failed):  # pragma: no cover — a failure always records an error
-            return Err.of(
-                ParseError("Malformed OpenAPI document.", location=SourceLocation(input.doc_id, ""))
-            )
+        if isinstance(doc, Failed):  # pragma: no cover
+            msg = "Parsing failed, but there are no errors"
+            # ruff: ignore[type-check-without-type-error]  # `AssertionError` is correct.
+            raise AssertionError(msg)
         return Ok(_with_provenance(doc, input))
 
 

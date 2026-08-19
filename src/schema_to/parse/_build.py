@@ -237,8 +237,9 @@ def _build_leaf(spec: FieldSpec, data: JsonValue, at: Cursor) -> ParsedValue | F
         case EnumSpec(enum=enum):
             member = enum_member(enum, data)
             built = member if member is not None else _reject(spec, at)
-        case _:  # pragma: no cover — every leaf spec is matched above
-            built = _reject(spec, at)
+        case _:  # pragma: no cover
+            msg = f"{spec} is not a leaf"
+            raise AssertionError(msg)
     return built
 
 

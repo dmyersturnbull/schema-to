@@ -1,7 +1,8 @@
 """Tests for the node plan compiler and the parser behaviours it drives.
 
-The golden snapshot is the safety net for deriving plans from annotations:
-A change to the derivation rules, or to a CST field,
+The golden snapshot is the safety net for deriving plans from annotations.
+A change to the derivation rules,
+or to a CST field,
 shows up as a diff in a checked-in table.
 """
 
@@ -91,8 +92,8 @@ _PLANNED = [
 ]
 
 
-def _spec_json(spec: object) -> JsonValue:
-    rendered: JsonValue
+def _spec_json(spec: JsonObject) -> JsonObject:
+    rendered: JsonObject
     match spec:
         case ListSpec(item=item):
             rendered = {"kind": "list", "item": _spec_json(item)}
@@ -115,7 +116,7 @@ def _spec_json(spec: object) -> JsonValue:
     return rendered
 
 
-def _field_json(entry: FieldPlan) -> JsonValue:
+def _field_json(entry: FieldPlan) -> JsonObject:
     rendered: JsonObject = {"property": entry.key, "field": entry.name}
     if entry.required:
         rendered["required"] = True
@@ -130,7 +131,7 @@ def _field_json(entry: FieldPlan) -> JsonValue:
 
 
 def _render_plans() -> str:
-    nodes: list[JsonValue] = []
+    nodes: list[JsonObject] = []
     for node in _PLANNED:
         plan = plan_for(node)
         nodes.append(
@@ -146,7 +147,7 @@ def _render_plans() -> str:
 
 def test_plans_match_golden_snapshot() -> None:
     rendered = _render_plans()
-    if not _GOLDEN.exists():  # pragma: no cover — only on first run
+    if not _GOLDEN.exists():
         _GOLDEN.write_text(rendered, encoding="utf-8")
     assert rendered == _GOLDEN.read_text(encoding="utf-8"), (
         "Compiled plans changed. Review the diff; if it is intended, delete "

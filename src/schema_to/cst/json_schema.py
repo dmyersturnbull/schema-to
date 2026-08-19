@@ -97,8 +97,9 @@ class _JsonSchema(CstNode):
                 return types
             case ObjectSchema(type=JsonSchemaType() as t):
                 return frozenset({t})
-        msg = f"Unsupported JSON Schema node: {type(self).__name__}"
-        raise AssertionError(msg)
+            case _:  # pragma: no cover
+                msg = f"Unsupported JSON Schema node: {type(self).__name__}"
+                raise AssertionError(msg)
 
 
 type JsonSchema = BooleanSchema | ObjectSchema

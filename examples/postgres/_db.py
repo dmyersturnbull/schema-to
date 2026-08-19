@@ -20,7 +20,7 @@ async def get_db() -> AsyncIterator[AsyncConnection]:
     """FastAPI dependency yielding a database connection (stub)."""
     msg = "Configure get_db() with a psycopg AsyncConnection provider."
     raise NotImplementedError(msg)
-    yield  # pragma: no cover - makes this an async generator
+    yield  # pragma: no cover  # to make this an async generator
 
 
 def to_dict(body: Any) -> dict[str, Any]:

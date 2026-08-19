@@ -173,8 +173,9 @@ class SchemaFlattener:
                     out[entry.name] = [step(sub) for sub in value]
                 case MapSpec():
                     out[entry.name] = {name: step(sub) for name, sub in value.items()}
-                case _:  # pragma: no cover — no other shape holds sub-schemas
-                    continue
+                case _:  # pragma: no cover
+                    msg = f"{entry.spec} should not hold a subschema"
+                    raise AssertionError(msg)
         return out
 
     def _parts(

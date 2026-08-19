@@ -51,7 +51,7 @@ def main() -> str:
 def test_generated_source_parses(main: str) -> None:
     try:
         ast.parse(main)
-    except SyntaxError as exc:  # pragma: no cover - failure path
+    except SyntaxError as exc:
         pytest.fail(f"main.py is not valid Python: {exc}")
 
 

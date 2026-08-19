@@ -122,5 +122,6 @@ def _emit_leaf(value: object, version: SpecVersion | None) -> JsonValue:
             return str(value.value)
         case bool() | int() | float():
             return value
-        case _:  # pragma: no cover — no other value reaches a plan-driven field
-            return None
+        case _:  # pragma: no cover
+            msg = f"{value} is not a leaf"
+            raise AssertionError(msg)
