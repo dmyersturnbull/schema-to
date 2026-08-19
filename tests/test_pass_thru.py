@@ -69,8 +69,8 @@ def test_json_schema_pass_thru_invertible(schema: object) -> None:
 
     assert artifact1.content == artifact2.content, (
         f"Not invertible.\n"
-        f"  1st output: {artifact1.content.decode('utf-8')!r:.300}\n"
-        f"  2nd output: {artifact2.content.decode('utf-8')!r:.300}"
+        f"  1st output: {artifact1.content.decode()!r:.300}\n"
+        f"  2nd output: {artifact2.content.decode()!r:.300}"
     )
 
 
@@ -97,8 +97,8 @@ def test_openapi_pass_thru_invertible(openapi: dict) -> None:
 
     assert artifact1.content == artifact2.content, (
         f"Not invertible.\n"
-        f"  1st output: {artifact1.content.decode('utf-8')!r:.300}\n"
-        f"  2nd output: {artifact2.content.decode('utf-8')!r:.300}"
+        f"  1st output: {artifact1.content.decode()!r:.300}\n"
+        f"  2nd output: {artifact2.content.decode()!r:.300}"
     )
 
 

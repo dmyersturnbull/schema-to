@@ -8,58 +8,25 @@ Covers:
 - Integration: a two-file set with cross-file refs produces a full migration.
 """
 
-import orjson
 import pytest
 from tests._targets import transpiler_for
+from tests.postgres._sql_test_utils import get_doc, get_errors, get_sql, get_warnings
 
 from schema_to.errors import GenerationError
 from schema_to.generate.postgres._pg_keywords import read_property_keywords, read_table_keywords
-from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import SchemaMapRawDoc
-from schema_to.result import Err, Ok
-
-
-def _doc(data: object, name: str = "main") -> SchemaMapRawDoc:
-    return SchemaMapRawDoc(
-        doc_id=f"file:///{name}.yaml",
-        content=orjson.dumps(data),
-        media_type=MediaTypes.json,
-        display_name=name,
-    )
-
-
-def _sql(*docs: SchemaMapRawDoc) -> str:
-    transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
-    result = transpiler.transpile_all(docs)
-    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    return result.value[0].content.decode()
-
-
-def _warnings(*docs: SchemaMapRawDoc) -> list[str]:
-    transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
-    result = transpiler.transpile_all(docs)
-    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    return [w.code for w in result.warnings if w.code]
-
-
-def _errors(*docs: SchemaMapRawDoc) -> list[str]:
-    result = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True).transpile_all(
-        docs
-    )
-    assert isinstance(result, Err)
-    return [getattr(e, "message", str(e)) for e in result.errors]
-
+from schema_to.result import Ok
 
 _THING = {"type": "object", "x-pg-table": "thing", "properties": {"id": {"type": "string"}}}
 
 
 def test_primary_key_defaults_to_id() -> None:
     """Almost every resource is keyed by `id`; requiring the keyword on each would be noise."""
-    assert "id text PRIMARY KEY" in _sql(_doc({"thing": _THING}))
+    assert "id text PRIMARY KEY" in get_sql(get_doc({"thing": _THING}))
 
 
 def test_table_without_id_or_declared_key_warns() -> None:
-    docs = _doc(
+    docs = get_doc(
         {
             "thing": {
                 "type": "object",
@@ -68,7 +35,7 @@ def test_table_without_id_or_declared_key_warns() -> None:
             }
         }
     )
-    assert "no-primary-key" in _warnings(docs)
+    assert "no-primary-key" in get_warnings(docs)
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +44,7 @@ def test_table_without_id_or_declared_key_warns() -> None:
 
 
 def test_only_marked_schemas_become_tables() -> None:
-    sql = _sql(_doc({"thing-data": _THING, "thing-patch": {"type": "object"}}))
+    sql = get_sql(get_doc({"thing-data": _THING, "thing-patch": {"type": "object"}}))
     assert "CREATE TABLE IF NOT EXISTS thing (" in sql
     assert "thing_patch" not in sql
 
@@ -88,7 +55,7 @@ def test_roots_narrows_marked_schemas_considered_for_a_table() -> None:
     transpiler = transpiler_for(
         "postgres", selects=SchemaMapRawDoc, schema_map=True, roots=frozenset({"thing-data"})
     )
-    result = transpiler.transpile_all([_doc({"thing-data": _THING, "other-data": other})])
+    result = transpiler.transpile_all([get_doc({"thing-data": _THING, "other-data": other})])
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     sql = result.value[0].content.decode()
     assert "CREATE TABLE IF NOT EXISTS thing (" in sql
@@ -96,23 +63,26 @@ def test_roots_narrows_marked_schemas_considered_for_a_table() -> None:
 
 
 def test_table_name_comes_from_the_keyword() -> None:
-    sql = _sql(_doc({"run-version-data": {**_THING, "x-pg-table": "run_version"}}))
+    sql = get_sql(get_doc({"run-version-data": {**_THING, "x-pg-table": "run_version"}}))
     assert "CREATE TABLE IF NOT EXISTS run_version (" in sql
 
 
 def test_schema_name_is_the_fallback_table_name() -> None:
     """`x-pg-table: true` is not valid; the keyword always names the table."""
-    assert "must be a non-empty string" in _errors(_doc({"thing": {**_THING, "x-pg-table": ""}}))[0]
+    assert (
+        "must be a non-empty string"
+        in get_errors(get_doc({"thing": {**_THING, "x-pg-table": ""}}))[0]
+    )
 
 
 def test_two_schemas_cannot_declare_one_table() -> None:
-    docs = _doc({"a-data": _THING, "b-data": _THING})
-    assert "Two schemas both declare table 'thing'" in _errors(docs)[0]
+    docs = get_doc({"a-data": _THING, "b-data": _THING})
+    assert "Two schemas both declare table 'thing'" in get_errors(docs)[0]
 
 
 def test_non_object_schema_marked_as_a_table_is_an_error() -> None:
-    docs = _doc({"thing": {"type": "string", "x-pg-table": "thing"}})
-    assert "not an object schema" in _errors(docs)[0]
+    docs = get_doc({"thing": {"type": "string", "x-pg-table": "thing"}})
+    assert "not an object schema" in get_errors(docs)[0]
 
 
 # ---------------------------------------------------------------------------
@@ -121,8 +91,8 @@ def test_non_object_schema_marked_as_a_table_is_an_error() -> None:
 
 
 def test_primary_key_on_a_property() -> None:
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "thing": {
                     "type": "object",
@@ -139,8 +109,8 @@ def test_primary_key_on_a_property() -> None:
 
 
 def test_composite_primary_key_becomes_a_table_constraint() -> None:
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "thing": {
                     "type": "object",
@@ -155,8 +125,8 @@ def test_composite_primary_key_becomes_a_table_constraint() -> None:
 
 
 def test_foreign_key_from_a_table_name() -> None:
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "other": {"type": "object", "x-pg-table": "other"},
                 "thing": {
@@ -171,8 +141,8 @@ def test_foreign_key_from_a_table_name() -> None:
 
 
 def test_foreign_key_with_actions() -> None:
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "other": {"type": "object", "x-pg-table": "other"},
                 "thing": {
@@ -192,8 +162,8 @@ def test_foreign_key_with_actions() -> None:
 
 
 def test_index_on_a_property() -> None:
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "thing": {
                     "type": "object",
@@ -208,8 +178,8 @@ def test_index_on_a_property() -> None:
 
 
 def test_composite_index_from_the_schema() -> None:
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "thing": {
                     "type": "object",
@@ -224,13 +194,13 @@ def test_composite_index_from_the_schema() -> None:
 
 
 def test_overflow_column() -> None:
-    sql = _sql(_doc({"thing": {**_THING, "x-pg-overflow": "unmodelled"}}))
+    sql = get_sql(get_doc({"thing": {**_THING, "x-pg-overflow": "unmodelled"}}))
     assert "unmodelled jsonb NOT NULL DEFAULT '{}'::jsonb" in sql
 
 
 def test_column_rename() -> None:
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "thing": {
                     "type": "object",
@@ -244,8 +214,8 @@ def test_column_rename() -> None:
 
 
 def test_skip_omits_the_column() -> None:
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "thing": {
                     "type": "object",
@@ -264,8 +234,8 @@ def test_skip_omits_the_column() -> None:
 
 def test_json_type_override_is_recognised_structurally() -> None:
     """`x-pg-type: jsonb` names a type the generator also understands, not an opaque string."""
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "thing": {
                     "type": "object",
@@ -279,8 +249,8 @@ def test_json_type_override_is_recognised_structurally() -> None:
 
 
 def test_sql_type_override() -> None:
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "thing": {
                     "type": "object",
@@ -344,8 +314,8 @@ def test_hyphenated_on_delete_action_is_accepted() -> None:
 
 
 def test_referenced_table_is_declared_first() -> None:
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "child": {
                     "type": "object",
@@ -362,7 +332,7 @@ def test_referenced_table_is_declared_first() -> None:
 
 
 def test_unknown_reference_target_warns() -> None:
-    docs = _doc(
+    docs = get_doc(
         {
             "thing": {
                 "type": "object",
@@ -371,11 +341,11 @@ def test_unknown_reference_target_warns() -> None:
             }
         }
     )
-    assert "unknown-fk-target" in _warnings(docs)
+    assert "unknown-fk-target" in get_warnings(docs)
 
 
 def test_reference_cycle_warns_instead_of_hanging() -> None:
-    docs = _doc(
+    docs = get_doc(
         {
             "a": {
                 "type": "object",
@@ -389,11 +359,11 @@ def test_reference_cycle_warns_instead_of_hanging() -> None:
             },
         }
     )
-    assert "reference-cycle" in _warnings(docs)
+    assert "reference-cycle" in get_warnings(docs)
 
 
 def test_self_reference_is_not_a_cycle() -> None:
-    docs = _doc(
+    docs = get_doc(
         {
             "node": {
                 "type": "object",
@@ -402,7 +372,7 @@ def test_self_reference_is_not_a_cycle() -> None:
             }
         }
     )
-    assert "reference-cycle" not in _warnings(docs)
+    assert "reference-cycle" not in get_warnings(docs)
 
 
 # ---------------------------------------------------------------------------
@@ -412,8 +382,8 @@ def test_self_reference_is_not_a_cycle() -> None:
 
 def test_reserved_words_are_quoted() -> None:
     """Goldberry has properties named `end`, `group`, `left`, and `right`."""
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "thing": {
                     "type": "object",
@@ -437,8 +407,8 @@ def test_reserved_words_are_quoted() -> None:
 
 
 def test_check_expressions_quote_the_column() -> None:
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "thing": {
                     "type": "object",
@@ -457,8 +427,8 @@ def test_check_expressions_quote_the_column() -> None:
 
 
 def test_extra_columns_are_appended() -> None:
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "thing": {
                     **_THING,
@@ -483,8 +453,8 @@ def test_extra_column_without_a_type_raises() -> None:
 
 
 def test_cycle_keys_are_deferrable() -> None:
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "a-data": {
                     "type": "object",
@@ -509,8 +479,8 @@ def test_cycle_keys_are_deferrable() -> None:
 
 
 def test_keys_outside_a_cycle_are_not_deferrable() -> None:
-    sql = _sql(
-        _doc(
+    sql = get_sql(
+        get_doc(
             {
                 "a-data": {
                     "type": "object",

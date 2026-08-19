@@ -4,36 +4,19 @@ Separate from `test_sql_tables.py`, which exercises one keyword at a time.
 These assert on whole scripts built from several documents.
 """
 
-import orjson
 from tests._targets import transpiler_for
+from tests.postgres._sql_test_utils import get_doc, get_sql
 
-from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import SchemaMapRawDoc
 from schema_to.result import Err, Ok
 
 
-def _doc(data: object, name: str = "main") -> SchemaMapRawDoc:
-    return SchemaMapRawDoc(
-        doc_id=f"file:///{name}.yaml",
-        content=orjson.dumps(data),
-        media_type=MediaTypes.json,
-        display_name=name,
-    )
-
-
-def _sql(*docs: SchemaMapRawDoc) -> str:
-    transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
-    result = transpiler.transpile_all(docs)
-    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    return result.value[0].content.decode()
-
-
 def test_two_file_set_with_cross_file_refs() -> None:
     """The Goldberry shape: primitives in one file, resources composing them in another."""
-    base = _doc(
+    base = get_doc(
         {"timestamp": {"type": "string", "pattern": "^2", "description": "A timestamp."}}, "base"
     )
-    main = _doc(
+    main = get_doc(
         {
             "author-data": {
                 "type": "object",
@@ -64,7 +47,7 @@ def test_two_file_set_with_cross_file_refs() -> None:
         },
         "main",
     )
-    sql = _sql(base, main)
+    sql = get_sql(base, main)
 
     assert sql.index("CREATE TABLE IF NOT EXISTS author") < sql.index(
         "CREATE TABLE IF NOT EXISTS run"
@@ -82,7 +65,7 @@ def test_two_file_set_with_cross_file_refs() -> None:
 
 
 def test_unresolvable_cross_file_ref_is_an_error() -> None:
-    docs = _doc(
+    docs = get_doc(
         {
             "thing": {
                 "type": "object",
@@ -91,17 +74,16 @@ def test_unresolvable_cross_file_ref_is_an_error() -> None:
             }
         }
     )
-    result = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True).transpile_all(
-        [docs]
-    )
+    transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
+    result = transpiler.transpile_all([docs])
     assert isinstance(result, Err)
     assert any("missing.yaml" in getattr(e, "message", str(e)) for e in result.errors)
 
 
 def test_pg_jsonschema_check_has_no_unresolved_refs() -> None:
     """Inlining runs before serialization, so the embedded schema is self-contained."""
-    base = _doc({"stamp": {"type": "string", "pattern": "^2"}}, "base")
-    main = _doc(
+    base = get_doc({"stamp": {"type": "string", "pattern": "^2"}}, "base")
+    main = get_doc(
         {
             "thing": {
                 "type": "object",
@@ -128,8 +110,8 @@ def test_pg_jsonschema_check_has_no_unresolved_refs() -> None:
 
 def test_one_schema_name_may_not_be_used_in_two_files() -> None:
     """A set of schema-map files is one namespace, so the merge has to reject a clash."""
-    first = _doc({"thing": {"type": "object", "x-pg-table": "a"}}, "first")
-    second = _doc({"thing": {"type": "object", "x-pg-table": "b"}}, "second")
+    first = get_doc({"thing": {"type": "object", "x-pg-table": "a"}}, "first")
+    second = get_doc({"thing": {"type": "object", "x-pg-table": "b"}}, "second")
     transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
     result = transpiler.transpile_all([first, second])
     assert isinstance(result, Err)
