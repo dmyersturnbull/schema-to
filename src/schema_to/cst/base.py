@@ -59,5 +59,5 @@ class CstNode(ABC):
     """Sealed marker base for every CST node.
 
     Concrete nodes are immutable `@dataclass(frozen=True, slots=True)` subclasses.
-    The hierarchy has two independent subtrees: `JsonSchemaDocument` and `OpenApiDocument`.
+    There are two independent subtrees: `JsonSchemaDocument` and `OpenApiDocument`.
     """

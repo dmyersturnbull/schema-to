@@ -1,9 +1,4 @@
-"""Shared primitives for all target-language AST modules.
-
-Each target language has its own independent AST hierarchy (`_python`,
-`_typescript`, `_sql`).  This module provides only the common marker base and
-cross-cutting enumerations used by more than one target.
-"""
+"""Shared primitives for all target-language AST modules."""
 
 from abc import ABC
 from enum import StrEnum, auto
@@ -14,8 +9,8 @@ __all__ = ["AstNode", "DocString", "Visibility"]
 class Visibility(StrEnum):
     """Visibility modifier applicable across multiple target languages.
 
-    Not all targets support every level; generators emit the closest equivalent
-    or omit the modifier when the concept does not apply.
+    Not all targets support every level;
+    generators emit the closest equivalent or omit the modifier when the concept does not apply.
     """
 
     PUBLIC = auto()
@@ -40,7 +35,8 @@ class DocString(AstNode, ABC):
     """Abstract documentation comment attached to a declaration.
 
     The concrete subclass lives in the target-language module,
-    allowing them to carry language-specific metadata (e.g. JSDoc tags, Google-style sections).
+    allowing them to carry language-specific metadata
+    (e.g. JSDoc tags, Google-style sections).
     """
 
     @property

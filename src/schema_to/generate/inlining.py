@@ -7,31 +7,38 @@ schema that composes them.
 
 Three terms, used strictly in this sense throughout the module:
 
-- **Merging** combines exactly two schemas into one, keyword by keyword.
-  It is the primitive the other two are built from, and is never applied recursively.
-- **Flattening** resolves one schema's own composition: it merges in each `allOf`
-  branch and the `$ref` target, recursively, and clears both keywords.
+- **Merging**
+  combines exactly two schemas into one, keyword by keyword.
+  It is the non-recursive primitive the other two are built from.
+- **Flattening**
+  resolves one schema's own composition:
+  It merges in each `allOf`  branch and the `$ref` target, recursively, and clears both keywords.
   Sub-schemas are left as written, so a `$ref` may remain deeper in the tree.
-- **Inlining** flattens a schema *and every sub-schema*, so nothing anywhere in the
-  result is a `$ref`.  Needed only when the result is handed to something that
+- **Inlining**
+  flattens a schema and every sub-schema, so nothing anywhere in the result is a `$ref`.
+  Needed only when the result is handed to something that
   cannot follow a reference, such as `pg_jsonschema`.
 
 Merging follows JSON Schema semantics where a target can express them
 and falls back to a documented choice where it cannot:
 
-- `properties` are unioned; a name defined by more than one branch keeps its first
-  definition and raises a warning, since a column has exactly one type.
+- `properties` are unioned;
+  a name defined by more than one branch keeps its first definition and raises a warning,
+  since a column has exactly one type.
 - `required` is unioned, matching `allOf` exactly.
 - `type` is intersected across the branches that declare it, matching `allOf` exactly.
-- A singular keyword (`description`, `propertyNames`, …) is taken from the first schema
-  that sets one.  Two `allOf` branches disagreeing on a *constraint* warns, because only
-  one of the two assertions survives into the output.  Disagreeing on a `title` or
-  `description` does not — that costs prose, not validation — and neither does a keyword
-  written beside a `$ref`, since overriding the target is what that idiom is for.
-- A resolved `$ref` target brings its own document with it, so a reference written
-  inside it resolves against *that* file rather than against the one pointing at it.
-- Extensions merge with the outer schema winning, so a `$ref`ed schema cannot
-  override an `x-pg-*` keyword written at the point of use.
+- A singular keyword (`description`, `propertyNames`, …)
+  is taken from the first schema that sets one.
+  Two `allOf` branches disagreeing on a **constraint** warns,
+  because only one of the two assertions survives into the output.
+  Disagreeing on a `title` or `description` does not,
+  and neither does a keyword written beside a `$ref`,
+  since overriding the target is what that idiom is for.
+- A resolved `$ref` target brings its own document with it,
+  so a reference written  inside it resolves against **that** file,
+  rather than against the one pointing at it.
+- Extensions merge with the outer schema winning,
+  so a `$ref`ed schema cannot override an `x-pg-*` keyword written at the point of use.
 """
 
 from dataclasses import dataclass, field, replace
@@ -111,9 +118,9 @@ class SchemaFlattener:
     def inline(self, schema: JsonSchema, *, base_uri: str) -> FlatteningResult:
         """Flatten `schema` and every sub-schema, leaving no `$ref` anywhere in the result.
 
-        Needed wherever a schema is handed to something that cannot follow a reference —
-        `pg_jsonschema`, for instance, validates against a literal embedded in the DDL
-        and has no way to fetch `./other-file.yaml#/thing`.
+        Needed wherever a schema is handed to something that cannot follow a reference.
+        `pg_jsonschema`, for instance, validates against a literal embedded in the DDL,
+        and it has no way to fetch `./other-file.yaml#/thing`.
         """
         self._warnings.clear()
         merged = self._inline(schema, base_uri=base_uri, seen=frozenset(), depth=0)
@@ -147,8 +154,8 @@ class SchemaFlattener:
     ) -> dict[str, _SubSchemaValue]:
         """Inline every keyword whose value holds sub-schemas.
 
-        Driven by the same plans the parser and serializer run on, so a keyword
-        added to `ObjectSchema` is covered here without touching this method.
+        Driven by the same plans the parser and serializer run on,
+        so a keyword added to `ObjectSchema` is covered here without touching this method.
         """
 
         def step(sub: JsonSchema) -> JsonSchema:
@@ -175,8 +182,8 @@ class SchemaFlattener:
     ) -> list[tuple[ObjectSchema, bool]]:
         """Return the flattened `$ref` target and `allOf` branches contributing to `schema`.
 
-        Each is paired with whether it came from the `$ref`, which decides how a
-        keyword set on both it and `schema` is treated.
+        Each is paired with whether it came from the `$ref`,
+        which decides how a keyword set on both it and `schema` is treated.
         """
         sources: list[tuple[JsonSchema, bool]] = []
         if schema.ref is not None:
@@ -234,15 +241,21 @@ class SchemaFlattener:
     ) -> dict[str, _KeywordValue]:
         """Take each singular keyword from the first schema that sets one.
 
-        Two `allOf` branches setting one to *different* values warns: `allOf` means both
-        assertions hold, but only one can survive into a single flat schema.  A keyword
-        written beside a `$ref` is not that case — 2020-12 makes siblings override the
-        target, and narrowing a shared definition in place is the whole point of the
-        idiom — so it overrides silently.
+        `allOf` means both assertions hold.
+        However, one must be chosen for a flat schema.
+
+        A warning is issued if, for a keyword <var>k</var>:
+
+        - <var>k</var> is neither `title` nor `description`;
+        - There exist 2 branches providing different values for <var>k</var>;
+        - Neither value is the default (unspecified); and
+        - Neither value is provided as a sibling of a `$ref`
+          (E.g. `{"$ref": "#/foo", "minimum": 1}`).
         """
         out: dict[str, _KeywordValue] = {}
         for name in SINGULAR_KEYWORDS:
             mine, theirs = getattr(base, name), getattr(other, name)
+            # TODO: How does this if condition work? Don't we still need to warn for some cases?
             # Identity, not equality: `False` is the unset state for the boolean keywords,
             # but `0 == False`, and `0` is a real bound for `minimum` and friends.
             if mine is None or mine is False:
@@ -259,12 +272,7 @@ class SchemaFlattener:
     def _is_conflict(
         self, name: str, mine: _KeywordValue, theirs: _KeywordValue, *, from_ref: bool
     ) -> bool:
-        """Report whether losing `theirs` to `mine` costs anything worth saying.
-
-        Overriding a `$ref` target is the point of that idiom, and a `title` or
-        `description` that loses a merge costs prose rather than validation — the outer
-        one is the one meant to survive.  Everything else drops a constraint silently.
-        """
+        """Report whether losing `theirs` to `mine` costs anything important."""
         if from_ref or name in DOC_KEYWORDS:
             return False
         return theirs is not None and theirs is not False and mine != theirs
@@ -312,8 +320,9 @@ def _base_of(schema: JsonSchema, fallback: str) -> str:
 def _same_schema(a: JsonSchema, b: JsonSchema) -> bool:
     """Report whether two schemas say the same thing.
 
-    CST nodes carry a `source_ref`, so two branches that spell out an identical schema
-    are unequal as values.  Comparing the serialized form ignores provenance.
+    CST nodes carry a `source_ref`,
+    so two branches that spell out an identical schema are unequal as values.
+    Comparing the serialized form ignores provenance.
     """
     serializer = JsonSchemaSerializer()
     return serializer.serialize(a) == serializer.serialize(b)

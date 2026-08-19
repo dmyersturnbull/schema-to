@@ -1,6 +1,7 @@
 """Tests for schema-map documents: files holding several named schemas at the top level.
 
 Covers:
+
 - Targeted: each named schema is parsed at its own pointer.
 - Targeted: a non-object root, and a malformed entry, are reported as errors.
 - Targeted: the resolver indexes entries at `/name` and resolves refs across files.

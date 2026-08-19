@@ -1,17 +1,19 @@
 """Compiles a CST node class into the plan that describes its wire format.
 
-A `NodePlan` says, for one `CstNode` subclass, which JSON key each field reads
-and writes, what shape that key's value has, and whether it must be present.
-Everything in it is *derived* from the class itself — from
-`dataclasses.fields()` and `typing.get_type_hints()` — so the annotation is the
-single description of a field, and no hand-written tag can drift from it.
+A `NodePlan` says, for one `CstNode` subclass, which JSON key each field reads and writes,
+what shape that key's value has, and whether it must be present.
+Everything in it is *derived* from the class itself —
+from `dataclasses.fields()` and `typing.get_type_hints()` —
+so the annotation is the single description of a field,
+and no hand-written tag can drift from it.
 
-Three consumers share the plans: the parser (`parse._build`), the serializer,
+Three consumers share the plans:
+the parser (`parse._build`),
+the serializer,
 and the sub-schema walk in `generate.inlining`.
 
 Deriving from type hints requires the annotations to be resolvable at runtime,
-so CST modules import their annotation types normally rather than under
-`TYPE_CHECKING`.
+so CST modules import their annotation types normally rather than under `TYPE_CHECKING`.
 """
 
 import re
@@ -253,17 +255,18 @@ class FieldPlan:
         name: The Python attribute name.
         key: The JSON key it reads and writes.
         spec: The shape of the key's value.
-        required: Whether the key must be present.  True exactly when the field
-            declares no default, which across both CSTs coincides with the
-            specification's own requiredness.
+        required: Whether the key must be present.
+            True exactly when the field declares no default,
+            which across both CSTs coincides with the specification's own requiredness.
         nullable: Whether the annotation admits `None`, meaning the CST tells an
-            absent key apart from a present one.  A non-nullable `False` or empty
-            container is how the CST spells absence, so it emits no key; a
-            nullable one was really there and does.
-        since: The first version defining this key, from the field's `since`
-            metadata.  `None` means every version this CST describes has it.
-        until: The last version still defining it, from the field's `until`
-            metadata.  Inclusive: a key dropped in 3.3 is `until="3.2"`.
+            absent key apart from a present one.
+            A non-nullable `False` or empty container is how the CST spells absence,
+            so it emits no key;
+            a nullable one was really there and does.
+        since: The first version defining this key, from the field's `since` metadata.
+            `None` means every version this CST describes has it.
+        until: The last version still defining it, from the field's `until` metadata.
+            Inclusive: a key dropped in 3.3 is `until="3.2"`.
     """
 
     name: str
@@ -275,12 +278,7 @@ class FieldPlan:
     until: SpecVersion | None = None
 
     def applies_to(self, version: SpecVersion | None) -> bool:
-        """Return whether a document declaring `version` may carry this key.
-
-        An unknown version gates nothing: a document whose version could not be
-        read has worse problems, and reporting every gated key on top of that
-        would bury them.
-        """
+        """Return whether a document declaring `version` may carry this key."""
         return not version or (
             (not self.since or version.at_least(self.since))
             and (not self.until or version.at_most(self.until))
@@ -311,9 +309,7 @@ class NodePlan:
 def json_key(name: str) -> str:
     """Return the JSON key a Python field name stands for.
 
-    One trailing underscore is dropped — it only ever escapes a Python keyword
-    or avoids a shadowed builtin (`in_`, `not_`, `type_`) — and the remainder is
-    lower-camel-cased: `terms_of_service` becomes `termsOfService`.
+    Drops one trailing underscore and converts to camelCase.
     """
     head, *rest = name.removesuffix("_").split("_")
     return head + "".join(word.capitalize() for word in rest)
@@ -321,7 +317,7 @@ def json_key(name: str) -> str:
 
 @cache
 def plan_for(node: type[CstNode]) -> NodePlan:
-    """Compile — and memoise — the plan for one CST node type."""
+    """Compile and memoise the plan for one CST node type."""
     hints = cast("Mapping[str, Annotation]", typing.get_type_hints(node))
     entries: list[FieldPlan] = []
     has_extensions = False

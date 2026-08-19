@@ -2,7 +2,7 @@
 
 A `DataSink` is the write-side dual of `DataSource`:
 It accepts `Artifact`s produced by the pipeline without exposing how or where they are stored.
-Concrete implementations may write to a directory, accumulate in memory, upload to an object store, etc.
+Concrete implementations may write to a directory, accumulate in memory, upload, etc.
 """
 
 from abc import ABC, abstractmethod

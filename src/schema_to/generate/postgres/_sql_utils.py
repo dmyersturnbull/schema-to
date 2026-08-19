@@ -138,16 +138,14 @@ _BARE_IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]*$")
 
 
 def quote_sql_identifier(name: str) -> str:
-    """Return *name* ready to appear in SQL, double-quoted only when it has to be.
+    """Return `name` ready to appear in SQL, double-quoted only when it has to be.
 
-    Quoting is not free: a quoted identifier is case-sensitive and must then be quoted
-    everywhere it appears.  So quote only what PostgreSQL would otherwise reject — a
-    reserved word such as `end` or `group`, or a name with characters outside
-    `[a-z0-9_]` — and leave ordinary names bare, which keeps generated DDL readable
-    and hand-editable.
+    `name` will be returned as-is if it already contains a double quote.
+    A quoted identifier is case-sensitive and must then be quoted everywhere it appears.
+    So quote only what PostgreSQL would otherwise reject:
 
-    A name already containing a double quote is assumed to be a qualified or
-    pre-quoted expression (`myschema.things`) and is passed through untouched.
+    - Characters outside `[a-z0-9_]`
+    - Reserved words
     """
     if "." in name or '"' in name:
         return name

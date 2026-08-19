@@ -2,8 +2,9 @@
 
 Endpoint-body templates sometimes need to know a resource's property names,
 or which properties hold structured JSON so dotted query paths can address into them.
-This is plain JSON Schema introspection — no persistence layer is assumed;
-property names are returned verbatim, not sanitised for any target.
+This is plain JSON Schema introspection:
+No persistence layer is assumed,
+and property names are returned verbatim, not sanitised for any target.
 """
 
 from typing import TYPE_CHECKING

@@ -1,7 +1,7 @@
 """Target AST for TypeScript output.
 
 Nodes represent TypeScript declarations emitted by the transpiler.
-Reification produces a `.ts` source file formatted to match Biome's default settings.
+Reification produces a valid `.ts` file that approximately follows Biome's style.
 
 The AST covers the subset of TypeScript needed to express schemas:
 `interface`, `type`, `enum`, and optionally function signatures for FastAPI-style endpoints.

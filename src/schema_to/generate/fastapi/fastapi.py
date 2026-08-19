@@ -1,7 +1,7 @@
-"""Generator: OpenAPI 3.1 CST → FastAPI application Python AST.
+"""Generator: FastAPI from OpenAPI.
 
-Mapping rules
--------------
+#### Mapping rules
+
 - `components/schemas` entries are converted to Pydantic v2 `BaseModel` classes via `PydanticTransformer`.
 - Each path × HTTP-method pair becomes an `async def` route function decorated with `@app.<method>("<path>")`.
 - Path parameters are annotated with `Annotated[T, Path()]`.
@@ -235,14 +235,18 @@ def _build_imports(
 
 @dataclass(frozen=True, slots=True)
 class FastApiTransformer(Transformer[OpenApiDocument, PythonModule]):
-    """Generates a FastAPI application `PythonModule` from an `OpenApiDocument` CST.
+    """Generates a FastAPI app from an OpenAPI doc.
 
     Attributes:
         body_backend: Strategy that fills each route body.
-          Defaults to `NullBodyBackend`, which leaves the reifier's `...` stub.
-        roots: If given, only `components/schemas` entries named here become their
-            own Pydantic model; the rest are still available for `$ref` resolution.
-            `None` emits every entry, as before. Routes are unaffected.
+            Defaults to
+            [endpoint_body.NullBodyBackend][],
+            which leaves the reifier's `...` stub.
+        roots: If given,
+            only `components/schemas` entries named here become their own Pydantic model;
+            the rest are still available for `$ref` resolution.
+            `None` emits every entry, as before.
+            Routes are unaffected.
     """
 
     body_backend: EndpointBodyBackend = field(default_factory=NullBodyBackend)
@@ -528,8 +532,8 @@ def _opt_default(p: OasParameter) -> str | None:
 def _order_params(params: list[PyParameter]) -> list[PyParameter]:
     """Make a positional parameter list valid Python.
 
-    Drops duplicate names (keeping the first) and orders parameters without a default before those with one,
-    since a non-default parameter cannot follow a defaulted one.
+    Drops duplicate names, keeping the first.
+    Orders parameters without a default before those with one.
     FastAPI matches parameters by name, so reordering is safe.
     """
     seen: set[str] = set()

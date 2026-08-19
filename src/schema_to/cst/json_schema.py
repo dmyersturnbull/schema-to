@@ -1,7 +1,7 @@
 """Concrete Syntax Tree for [JSON Schema 2020-12](https://json-schema.org/specification).
 
 Each node type holds the set of keywords defined by the specification, grouped by vocabulary.
-The flat `ObjectSchema` avoids indirection through vocabulary sub-objects,
+The flat [ObjectSchema][] avoids indirection through vocabulary sub-objects,
 so that serializers and parsers can iterate `dataclasses.fields()` directly.
 """
 
@@ -166,8 +166,9 @@ DOC_KEYWORDS: Set[str] = frozenset({"title", "description"})
 def is_object_schema(schema: JsonSchema) -> TypeIs[ObjectSchema]:
     """Return `True` if *schema* describes a JSON object (a table/model).
 
-    True when `object` is among the declared types, or when no type is declared
-    but `properties` are present (a common shorthand for an object schema).
+    True when `object` is among the declared types,
+    or when no type is declared but `properties` are present
+    (a common shorthand for an object schema).
     """
     if not isinstance(schema, ObjectSchema):
         return False
@@ -377,11 +378,11 @@ class JsonSchemaDocument(CstNode):
 class JsonSchemaMapDocument(CstNode):
     """A document whose root is a map of names to schemas, rather than one schema.
 
-    This is the shape of an OpenAPI `components/schemas` fragment, and of any file
-    that collects several related schemas without nesting them under `$defs`.
-    Each entry sits directly at the document root, so schema `foo` is addressed by
-    the JSON Pointer `/foo` — the form a sibling file's `$ref` uses when it writes
-    `./that-file.yaml#/foo`.
+    This is the shape of an OpenAPI `components/schemas` fragment,
+    and of any file that collects several related schemas without nesting them under `$defs`.
+    Each entry sits directly at the document root,
+    so schema `foo` is addressed by the JSON Pointer `/foo` —
+    the form a sibling file's `$ref` uses when it writes `./that-file.yaml#/foo`.
 
     Attributes:
         schemas: The named schemas, in document order.

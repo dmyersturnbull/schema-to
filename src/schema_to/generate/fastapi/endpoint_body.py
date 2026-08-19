@@ -5,10 +5,13 @@ the *bodies* are delegated to an `EndpointBodyBackend`, mirroring the way
 `FastApiTransformer` already embeds `PydanticTransformer` for models.
 This keeps the FastAPI generator agnostic of any particular persistence layer.
 
-A backend receives an `EndpointContext` —
-the operation's method, path, resolved parameters, security, merged `x-` extensions, and resource schema —
-and returns an `EndpointBody`,
-which includes rendered statement lines, the imports and extra signature parameters those lines need, and any warnings.
+A backend receives an `EndpointContext` and returns an `EndpointBody`.
+The `EndpointContext` holds the operation's
+method, path, resolved parameters, security, merged `x-` extensions, and resource schema.
+
+`EndpointBody` includes rendered statement lines,
+the imports and extra signature parameters those lines need,
+and any warnings.
 The context carries no persistence-specific fields;
 a backend that wants e.g. a table name reads it from the extensions.
 """
@@ -96,8 +99,8 @@ class EndpointBody:
     Attributes:
         lines: Body statement lines, each without leading indentation.
         parameters: Extra route parameters the body needs
-          (e.g. an injected database connection);
-          appended to the route signature.
+            (e.g. an injected database connection);
+            appended to the route signature.
         imports: Imports the body statements require.
         warnings: Non-fatal diagnostics raised while rendering.
     """

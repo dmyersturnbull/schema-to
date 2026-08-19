@@ -1,6 +1,7 @@
 """Tests for the JSON Schema → PostgreSQL DDL transpiler pipeline.
 
 Covers:
+
 - Property: generated SQL always contains a CREATE TABLE statement.
 - Property: generation is stable (idempotent across two calls).
 - Property: $defs object entries produce extra tables.

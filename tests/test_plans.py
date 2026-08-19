@@ -1,8 +1,8 @@
 """Tests for the node plan compiler and the parser behaviours it drives.
 
-The golden snapshot is the safety net for deriving plans from annotations: a
-change to the derivation rules, or to a CST field, shows up as a diff in a
-checked-in table rather than as a silently different parse.
+The golden snapshot is the safety net for deriving plans from annotations:
+A change to the derivation rules, or to a CST field,
+shows up as a diff in a checked-in table.
 """
 
 import json

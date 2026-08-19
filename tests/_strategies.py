@@ -3,14 +3,10 @@
 All strategies produce values that the corresponding parser can parse without errors,
 and that the corresponding serializer can round-trip faithfully.
 
-Strategies are intentionally conservative:
-They only generate fields that the parser and serializer both handle,
-and they avoid degenerate values
-(NaN, Inf, empty strings in required-string fields)
-that would trigger parser errors.
+Strategies only generate fields that the parser and serializer both handle.
 
-Additional strategies
----------------------
+Additional strategies:
+
 - `json_schema_with_defs_st` — schemas that include `$defs` and internal
   `$ref` pointers, exercising the resolver.
 - `object_schema_st` — schemas typed `object` with named properties,

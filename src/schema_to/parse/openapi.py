@@ -2,16 +2,21 @@
 
 Converts a `RawDoc` (JSON or YAML bytes) into an `OpenApiDocument` CST.
 
-Every object in the document is built by the shared plan interpreter in
-`parse._build`, driven by the field annotations on `cst.openapi`.  What remains
-here is the part no plan can express: decoding the bytes, checking the version
-string that decides whether the plans apply at all, and attaching the
-provenance the `RawDoc` carries rather than the document.
+Every object in the document is built by the shared plan interpreter,
+driven by the field annotations on
+[schema_to.cst.openapi][].
+What remains here is
+decoding the bytes,
+checking the version string,
+and attaching provenance from the [RawDoc].
 
-Like the JSON Schema parser, this is **non-resolving**.  A `$ref` inside a
-schema stays a string, and a `$ref` standing in for a Parameter, Response,
-Header, Request Body, Link, Example, Security Scheme, or Path Item becomes a
-`Reference` node for a later stage to inline.
+Like the JSON Schema parser, this is **non-resolving**.
+A `$ref` inside a schema stays a string,
+and a `$ref` standing in for a
+Parameter, Response, Header, Request Body, Link, Example, Security Scheme, or Path Item
+becomes a
+[schema_to.cst.openapi.Reference][]
+node for a later stage to inline.
 
 Errors are accumulated, so a single parse call yields the complete diagnostic set.
 """
@@ -46,9 +51,9 @@ _SUPPORTED_MAJOR = "3."
 class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
     """Parses JSON or YAML bytes into an `OpenApiDocument` CST.
 
-    Accepts documents whose root object contains an `"openapi"` field starting
-    with `"3."`.  JSON Schema embedded in `schema` fields is parsed by the same
-    interpreter, from the same `ObjectSchema` plan the JSON Schema parser uses.
+    Accepts documents whose root object contains an `"openapi"` field starting with `"3."`.
+    JSON Schema embedded in `schema` fields is parsed by the same interpreter,
+    from the same `ObjectSchema` plan the JSON Schema parser uses.
 
     The parser is stateless: a single instance may be reused across documents.
     """
@@ -89,8 +94,8 @@ def _declared_version(root: Mapping[str, JsonValue]) -> SpecVersion | None:
 def _check_version(root: Mapping[str, JsonValue], at: Cursor) -> None:
     """Reject a document this parser's plans do not describe.
 
-    Absence is left to the plan, which reports `openapi` as required; only a
-    present-but-unsupported version is diagnosed here.
+    Absence is left to the plan, which reports `openapi` as required;
+    only a present-but-unsupported version is diagnosed here.
     """
     version = root.get("openapi")
     if version is None:

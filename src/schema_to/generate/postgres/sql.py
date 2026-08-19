@@ -1,7 +1,7 @@
-"""Generator: JSON Schema 2020-12 CST → PostgreSQL DDL AST.
+"""Generator: PostgreSQL DDLs from JSON Schema.
 
-Mapping rules
--------------
+#### Mapping rules
+
 - The root schema and each `$defs` entry are flattened (see `generate._compose`)
   and become a `CREATE TABLE` statement if the result is `object`-typed.
   Flattening merges `allOf` branches and, given a resolver, follows `$ref`,

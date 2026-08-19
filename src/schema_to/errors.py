@@ -72,9 +72,9 @@ class GenerationError(TranspilationError):
 class KeywordError(GenerationError):
     """A target-specific extension keyword carries a value of the wrong shape.
 
-    Distinct from a schema that a target merely cannot express: this is a keyword
-    written for the target, addressed to it, and malformed.  Silently ignoring one
-    would drop the very instruction it was written to give.
+    Distinct from a schema that a target merely cannot express:
+    This is a keyword written for the target, addressed to it, and malformed.
+    Silently ignoring one would drop the very instruction it was written to give.
     """
 
 

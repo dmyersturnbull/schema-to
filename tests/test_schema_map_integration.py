@@ -1,7 +1,8 @@
 """Integration: a directory tree of named-schema files resolving refs across files.
 
-Separate from `test_schema_map.py`, which exercises the parser, resolver, and
-directory source in isolation.  This walks a real tree on disk end to end.
+Separate from `test_schema_map.py`,
+which exercises the parser, resolver, and directory source in isolation.
+This walks a real tree on disk end-to-end.
 """
 
 from pathlib import Path

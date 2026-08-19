@@ -1,9 +1,12 @@
 """Abstract data-source types.
 
 A `DataSource` is an abstract, lazily-iterable supplier of `RawDoc`s.
-Concrete implementations may represent a single file, a directory tree,
-an HTTP endpoint, an in-memory buffer, or any other origin — the pipeline
-never assumes a filesystem is present.
+Concrete implementations may represent
+a single file,
+a directory tree,
+an HTTP endpoint,
+an in-memory buffer,
+or another origin.
 """
 
 from abc import ABC, abstractmethod

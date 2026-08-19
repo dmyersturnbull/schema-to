@@ -1,6 +1,8 @@
 """Concrete Syntax Tree for OpenAPI 3.1 and 3.2.
 
-Covers [OAS 3.1](https://spec.openapis.org/oas/v3.1.0) and
+Covers
+[OAS 3.1](https://spec.openapis.org/oas/v3.1.0)
+and
 [OAS 3.2](https://spec.openapis.org/oas/v3.2.0).
 
 OpenAPI 3.1 is compliant with JSON Schema 2020-12,
@@ -194,13 +196,14 @@ class Tag(CstNode):
 class Reference(CstNode):
     """[Reference Object](https://spec.openapis.org/oas/v3.1.0#reference-object).
 
-    OpenAPI allows a `$ref` wherever a Parameter, Response, Header, Request Body,
-    Link, Example, Security Scheme, or Path Item is expected, so those positions
-    are typed `Reference | …`.  The reference alternative is declared first so it
-    is recognised by its `$ref` before the more permissive object shape is tried.
+    OpenAPI allows a `$ref` wherever a
+    Parameter, Response, Header, Request Body, Link, Example, Security Scheme, or Path Item
+    is expected, so those positions are typed `Reference | …`.
+    The reference alternative is declared first,
+    so it is recognised by its `$ref` before the more permissive object shape is tried.
 
-    Like `$ref` inside a schema, the target is *not* resolved here: parsing keeps
-    the URI as written, and `resolve.openapi.OpenApiRefResolver` inlines it.
+    Like `$ref` inside a schema, the target is **not** resolved here:
+    Parsing keeps the URI as written, and `resolve.openapi.OpenApiRefResolver` inlines it.
     """
 
     ref: str = field(metadata={"key": "$ref"})
@@ -382,9 +385,9 @@ type Callback = Mapping[str, PathItem]
 class PathItem(CstNode):
     """[Path Item Object](https://spec.openapis.org/oas/v3.1.0#path-item-object).
 
-    `$ref` is a field here rather than a `Reference` standing in for the whole
-    object: it sits alongside the other fields, and the specification leaves the
-    result undefined when both are given.
+    `$ref` is a field here rather than a `Reference` standing in for the whole object:
+    It sits alongside the other fields,
+    and the specification leaves the result undefined when both are given.
     """
 
     ref: str | None = field(default=None, metadata={"key": "$ref"})

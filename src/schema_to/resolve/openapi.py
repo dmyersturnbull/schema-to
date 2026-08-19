@@ -1,28 +1,30 @@
 """OpenAPI Reference Object resolver.
 
-OpenAPI allows a `$ref` wherever a Parameter, Response, Header, Request Body,
-Link, Example, Security Scheme, Path Item, or Media Type is expected.  The parser
-records those as `Reference` nodes without following them, so a CST fresh from
-`OpenApiParser` still says "look over there" in place of most of its content, and
-a generator reading it sees a `Reference` it cannot act on.
+OpenAPI allows a `$ref` wherever a
+Parameter, Response, Header, Request Body, Link, Example, Security Scheme, Path Item, or Media Type
+is expected.
+The parser records those as `Reference` nodes without following them,
+so a CST fresh from `OpenApiParser` still says "look over there" in place of most of its content,
+and a generator reading it sees a `Reference` it cannot act on.
 
-This stage replaces each one with what it points at.  Two things make that cheap:
+This stage replaces each one with what it points at.
+Two things make that cheap:
 
-- The walk is driven by the same `NodePlan`s the parser and serializer run on, so
-  a referenceable position added to the CST is covered without touching this
-  module.  The plan also names which node types the position accepts, which is
-  how a reference into the wrong kind of object is caught.
-- A JSON Pointer is followed through the CST itself rather than through the raw
-  document, by matching each segment against the plan's keys.
+- The walk is driven by the same `NodePlan`s the parser and serializer run on,
+  so a referenceable position added to the CST is covered without touching this module.
+  The plan also names which node types the position accepts,
+  which is how a reference into the wrong kind of object is caught.
+- A JSON Pointer is followed through the CST itself rather than through the raw document,
+  by matching each segment against the plan's keys.
 
-A schema `$ref` is left alone: that is `resolve.json_schema`'s job, and the two
-run over disjoint parts of the tree.
+A schema `$ref` is left alone:
+That is `resolve.json_schema`'s job, and the two run over disjoint parts of the tree.
 
-Per [OAS 3.1](https://spec.openapis.org/oas/v3.1.0#reference-object), a
-reference's own `summary` and `description` override the target's.  Where the
-target has no such field the override cannot be honoured, and that is a warning
-rather than an error: the description is prose, and losing it costs nothing that
-generated code depends on.
+Per [OAS 3.1](https://spec.openapis.org/oas/v3.1.0#reference-object),
+a reference's own `summary` and `description` override the target's.
+Where the target has no such field the override cannot be honoured,
+and that is a warning rather than an error:
+The description is prose, and losing it costs nothing that generated code depends on.
 """
 
 import urllib.parse
@@ -55,10 +57,10 @@ _OVERRIDABLE = ("summary", "description")
 class OpenApiRefResolver(RefResolver[OpenApiDocument]):
     """Replaces every `Reference` in an OpenAPI CST with the node it names.
 
-    Resolution is transitive — a reference to a reference follows through — and
-    cycle-guarded.  An unresolvable reference, or one naming a node of the wrong
-    kind for the position it sits in, is a `ResolutionError`; errors accumulate,
-    so one bad pointer does not hide the rest.
+    Resolution is transitive and guarded against cycles.
+    An unresolvable reference,
+    or one naming a node of the wrong kind for the position it sits in,
+    is a `ResolutionError`.
 
     Attributes:
         _documents: Registered documents, keyed by every URI they answer to.
@@ -76,10 +78,11 @@ class OpenApiRefResolver(RefResolver[OpenApiDocument]):
     def apply(self, input: OpenApiDocument) -> Result[OpenApiDocument]:
         """Return `input` with every reference replaced by its target.
 
-        Auto-registers the document, so a reference into the document's own
-        `components` resolves without a prior registration pass.  Registering the
-        other documents first is the caller's job; `registering()` composes the
-        two passes when references cross files.
+        Auto-registers the document,
+        so a reference into the document's own `components` resolves,
+        without a prior registration pass.
+        Registering the other documents first is the caller's job;
+        `registering()` composes the two passes when references cross files.
         """
         self.register(input)
         session = _Session(documents=self._documents, base_uri=_base_uri(input))
@@ -98,8 +101,8 @@ def _identities(doc: OpenApiDocument) -> Sequence[str]:
 def _base_uri(doc: OpenApiDocument) -> str:
     """Return what a relative reference inside `doc` resolves against.
 
-    `$self` wins where a 3.2 document sets one — declaring where the document
-    lives is exactly what that keyword is for.
+    `$self` wins where a 3.2 document sets one;
+    declaring where the document lives is exactly what that keyword is for.
     """
     return doc.self_ or doc.source_id or ""
 
@@ -135,9 +138,9 @@ class _Session:
     def value(self, spec: FieldSpec, value: object, chain: Set[str]) -> object:
         """Return `value` with every reference inside it resolved.
 
-        A value holding no reference is returned as-is rather than rebuilt, so
-        `node` can tell an untouched field from a changed one by identity, and a
-        document with nothing to resolve comes back unchanged.
+        A value holding no reference is returned as-is rather than rebuilt,
+        so `node` can tell an untouched field from a changed one by identity,
+        and a document with nothing to resolve comes back unchanged.
         """
         match spec:
             case OneOfSpec(options=options):
@@ -156,10 +159,10 @@ class _Session:
     def alternative(self, options: Sequence[FieldSpec], value: object, chain: Set[str]) -> object:
         """Resolve `value` against whichever alternative of a union it is.
 
-        A `Reference` is followed, provided the position admits one.  Anything
-        else is walked under the first alternative whose shape it has — which is
-        what carries the walk into a `Callback`, a bare map of path items that
-        would otherwise be a blind spot.
+        A `Reference` is followed, provided the position admits one.
+        Anything else is walked under the first alternative whose shape it has —
+        which is what carries the walk into a `Callback`,
+        a bare map of path items that would otherwise be a blind spot.
         """
         others = [option for option in options if option != NodeSpec(Reference)]
         if isinstance(value, Reference) and len(others) < len(options):
@@ -237,8 +240,8 @@ def _all_same(resolved: Iterable[object], original: Iterable[object]) -> bool:
 def _replace[N: CstNode](node: N, changes: Mapping[str, object]) -> N:
     """Return `node` with `changes` applied.
 
-    Every CST node is a frozen dataclass, but `CstNode` is a plain ABC, so that
-    relationship has to be asserted rather than inferred.
+    Every CST node is a frozen dataclass, but `CstNode` is a plain ABC,
+    so that relationship has to be asserted rather than inferred.
     """
     return cast("N", replace(cast("DataclassInstance", node), **changes))
 

@@ -1,9 +1,11 @@
 """Reifiers that write a parsed document back out, normalised.
 
-These close the pass-through targets: the CST *is* the output, so there is no AST
-between parsing and writing.  Everything a filename needs — which file the document
-came from, what it was called — the CST already carries, so the reifier does not need
-the `RawDoc` it was parsed from.
+These close the pass-through targets:
+The CST *is* the output, so there is no AST between parsing and writing.
+Everything a filename needs —
+which file the document came from, what it was called —
+the CST already carries,
+so the reifier does not need the `RawDoc` it was parsed from.
 """
 
 from collections.abc import Sequence

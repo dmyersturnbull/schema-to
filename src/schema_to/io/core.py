@@ -114,7 +114,7 @@ class JsonLikeWriter(ABC):
         Args:
             data: Value to serialize.
             media_type: IANA media-type of the content.
-              Implementations MAY vary the encoding using a `charset` param.
+                Implementations MAY vary the encoding using a `charset` param.
 
         Raises:
             WriteError: If serialization failed.

@@ -351,10 +351,11 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
 class JsonSchemaMapRefResolver(RefResolver[JsonSchemaMapDocument]):
     """The schema-map face of a `JsonSchemaRefResolver`.
 
-    A `JsonSchemaRefResolver` indexes both kinds of document into one registry, which
-    is what lets a reference cross between them; this exposes its map half as an
-    ordinary `RefResolver`, so a set of map documents registers and validates through
-    the same two-pass composition as any other:
+    A `JsonSchemaRefResolver` indexes both kinds of document into one registry,
+    which is what lets a reference cross between them;
+    this exposes its map half as an ordinary `RefResolver`,
+    so a set of map documents registers and validates through,
+    using the same two-pass composition as any other:
 
     ```python
     Each(maps.registering()).then(Each(maps))

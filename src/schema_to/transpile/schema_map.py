@@ -1,17 +1,22 @@
 """Turning documents that hold a set of schemas into the unit a target reads.
 
 A schema-map file is a *set* of schemas, so every target needs an answer to
-"what does one produce from N schemas?"  There are two, and both are a stage here:
+"what does one produce from N schemas?"
+There are two, and both are a stage here:
 
-- A target whose unit is one schema — Pydantic models, a pass-thru re-emit — takes
-  the schemas one at a time.  `SchemaMapExpander` splits a document into one virtual
-  document per named schema, so the target reads what it already knows how to read.
-- A target whose unit is the whole set — a PostgreSQL migration, whose foreign keys
-  cannot be ordered until every table is known — needs the set as one document.
+- A target whose unit is one schema —
+  Pydantic models, a pass-thru re-emit —
+  takes the schemas one at a time.
+  `SchemaMapExpander` splits a document into one virtual document per named schema,
+  so the target reads what it already knows how to read.
+- A target whose unit is the whole set —
+  a PostgreSQL migration, whose foreign keys cannot be ordered until every table is known —
+  needs the set as one document.
   `SchemaMapMerger` folds it into one.
 
-Both are ordinary cardinality kinds — an `Expander` and a `Reducer` — so they compose
-in front of a target rather than wrapping it:
+Both are ordinary cardinality kinds —
+an `Expander` and a `Reducer` —
+so they compose in front of a target rather than wrapping it:
 
 ```python
 Each(SchemaMapExpander(resolver=r)).then(Flatten()).then(per_schema_target)
@@ -19,24 +24,32 @@ Each(JsonSchemaMapParser()).then(SchemaMapMerger()).then(whole_set_target)
 ```
 
 A virtual document keeps the file it came from in its ID
-(`…/catalog.yaml#/author-data`), so a diagnostic names the real file *and* the schema
-within it, rather than one at the cost of the other.  That fragment is also the
-pointer a sibling file's `$ref` would use, so the ID stays a real address.
+(`…/catalog.yaml#/author-data`),
+so a diagnostic names the real file *and* the schema in it,
+rather than one at the cost of the other.
+That fragment is also the pointer a sibling file's `$ref` would use,
+so the ID stays a real address.
 
-Splitting a file would ordinarily break the references written *within* it: `#/other`
-means "the `other` member of this document", and once the file is split, each schema
-*is* the document.  So the unsplit document is registered with the resolver the
-following stages use — it is never handed the file, but its inputs point into it.  The
-URI math then works out on its own, because a virtual document's ID is the file's URI
-plus a fragment: resolving `#/other` against `…/catalog.yaml#/author-data` replaces
-the fragment and yields `…/catalog.yaml#/other`, which is exactly where the sibling
-was registered.  Expanding under `Each` registers every file before any target stage
-runs, so a reference into a file read later still resolves.
+Splitting a file would ordinarily break the references written **within&* it:
+`#/other` means "the `other` member of this document",
+and once the file is split, each schema **is** the document.
+So the unsplit document is registered with the resolver the following stages use;
+it is never handed the file, but its inputs point into it.
+The URI math then works out on its own,
+because a virtual document's ID is the file's URI plus a fragment:
+Resolving `#/other` against
+`…/catalog.yaml#/author-data`
+replaces the fragment and yields
+`…/catalog.yaml#/other`,
+which is exactly where the sibling was registered.
+Expanding under `Each` registers every file before any target stage runs,
+so a reference into a file read later still resolves.
 
-Seeding rather than inlining keeps references shared.  Inlining each schema until it
-stands alone would also work, but it erases every reference to fix the few that broke
-— and a definition used in fourteen places would become fourteen copies, which for a
-target whose purpose is named types is the whole game.
+Seeding rather than inlining keeps references shared.
+Inlining each schema until it stands alone would also work,
+but it erases every reference to fix the few that broke —
+and a definition used in fourteen places would become fourteen copies,
+which for a target whose purpose is named types is the whole game.
 """
 
 from collections.abc import Sequence, Set
@@ -68,14 +81,15 @@ class SchemaMapExpander(Expander[SchemaMapRawDoc, JsonSchemaRawDoc]):
     """Splits a schema-map document into one virtual document per named schema.
 
     Attributes:
-        resolver: Registered with the unsplit document, so references written within
-            the file still resolve once it is split.  `None` when the stages that
-            follow do not resolve references and there is nothing to seed.
-        parser: Parses the schema map.  Injected for testability.
+        resolver: Registered with the unsplit document,
+            so references written within the file still resolve once it's split.
+            `None` when the stages that follow don't resolve references and there's nothing to seed.
+        parser: Parses the schema map.
+            Injected for testability.
         writer: Re-encodes each named schema as bytes for the next stage to parse back.
-        roots: If given, only schemas named here are expanded; the rest are still
-            registered, so a `$ref` into one of them still resolves. `None` expands
-            every schema.
+        roots: If given, only schemas named here are expanded;
+            the rest are still registered, so a `$ref` into one of them still resolves.
+            `None` expands every schema.
     """
 
     resolver: JsonSchemaRefResolver | None = None
@@ -111,19 +125,22 @@ class SchemaMapExpander(Expander[SchemaMapRawDoc, JsonSchemaRawDoc]):
 class SchemaMapMerger(Reducer[JsonSchemaMapDocument, JsonSchemaMapDocument]):
     """Folds a set of schema-map documents into the single map they describe together.
 
-    A directory of schema files is one namespace: `./other.yaml#/thing` and
-    `#/thing` name the same schema from different files, and a target whose unit is
-    the set — a migration, say — has no use for the file boundaries.  Merging them
-    here means such a target is an ordinary `Transformer` over one document rather
-    than a stage that folds and generates at once.
+    A directory of schema files is one namespace:
+    `./other.yaml#/thing` and `#/thing` name the same schema from different files,
+    and a target whose unit is the set —
+    a migration, say —
+    has no use for the file boundaries.
+    Merging them here means such a target is an ordinary `Transformer` over one document
+    rather than a stage that folds and generates at once.
 
-    Each schema keeps its own `source_ref`, so which file it came from survives the
-    merge and a diagnostic can still name it.  Two files may not use one schema name:
+    Each schema keeps its own `source_ref`,
+    so which file it came from survives the merge and a diagnostic can still name it.
+    Two files may not use one schema name:
     within a single namespace that is a genuine ambiguity, not a merge artefact.
 
     Attributes:
-        source_id: Identifier for the merged document.  It names the set, not a file,
-            since no one file is where these schemas live.
+        source_id: Identifier for the merged document.
+            It names the set, not a file, since no one file is where these schemas live.
     """
 
     source_id: str = "urn:schema-to:schema-map-set"
