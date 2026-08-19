@@ -47,7 +47,7 @@ def _transpile(data: object, source_id: str = "test://schema") -> str:
     assert isinstance(result, Ok), (
         f"Transpile failed: {[getattr(e, 'message', str(e)) for e in result.errors]}"
     )
-    return result.value[0].content.decode("utf-8")
+    return result.value[0].content.decode()
 
 
 def _parse_and_generate(data: object) -> str:
@@ -64,7 +64,7 @@ def _parse_and_generate(data: object) -> str:
     )
     reify_r = PythonReifier().apply(ast_r.value)
     assert isinstance(reify_r, Ok)
-    return reify_r.value[0].content.decode("utf-8")
+    return reify_r.value[0].content.decode()
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +244,7 @@ def test_roots_keeps_only_named_defs() -> None:
     transpiler = transpiler_for("pydantic", roots=frozenset({"Kept"}))
     result = transpiler.transpile(_doc(schema))
     assert isinstance(result, Ok)
-    src = result.value[0].content.decode("utf-8")
+    src = result.value[0].content.decode()
     assert "class Kept(BaseModel):" in src
     assert "class Dropped(BaseModel):" not in src
     assert "class Root(BaseModel):" in src
@@ -256,7 +256,7 @@ def test_roots_none_keeps_every_def() -> None:
     transpiler = transpiler_for("pydantic", roots=None)
     result = transpiler.transpile(_doc(schema))
     assert isinstance(result, Ok)
-    assert "class A(BaseModel):" in result.value[0].content.decode("utf-8")
+    assert "class A(BaseModel):" in result.value[0].content.decode()
 
 
 # ---------------------------------------------------------------------------
@@ -550,7 +550,7 @@ def test_display_name_fallback() -> None:
     transpiler = transpiler_for("pydantic")
     result = transpiler.transpile(doc)
     assert isinstance(result, Ok)
-    src = result.value[0].content.decode("utf-8")
+    src = result.value[0].content.decode()
     assert "class UserProfile(BaseModel):" in src
 
 
@@ -699,7 +699,7 @@ def test_all_of_composed_schema_becomes_a_model() -> None:
     )
     result = transpiler_for("pydantic").transpile(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    src = result.value[0].content.decode("utf-8")
+    src = result.value[0].content.decode()
     assert "class Battery(BaseModel):" in src
     assert "id: str" in src
     assert "count: int | None = None" in src
@@ -721,7 +721,7 @@ def test_composition_does_not_inline_referenced_models() -> None:
     )
     result = transpiler_for("pydantic").transpile(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    src = result.value[0].content.decode("utf-8")
+    src = result.value[0].content.decode()
     # The shared definition keeps its own declaration, and the field names it.
     assert "type Stamp = str" in src
     assert "at: Stamp | None = None" in src
@@ -742,6 +742,6 @@ def test_a_bare_ref_declaration_stays_an_alias() -> None:
     )
     result = transpiler_for("pydantic").transpile(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    src = result.value[0].content.decode("utf-8")
+    src = result.value[0].content.decode()
     assert "class Named(BaseModel):" in src
     assert "type Alias = Named" in src

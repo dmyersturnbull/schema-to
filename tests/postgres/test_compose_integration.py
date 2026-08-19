@@ -23,7 +23,7 @@ def _transpile(data: object) -> str:
     )
     result = transpiler_for("postgres").transpile(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    return result.value[0].content.decode("utf-8")
+    return result.value[0].content.decode()
 
 
 def test_all_of_root_produces_a_table_with_every_column() -> None:

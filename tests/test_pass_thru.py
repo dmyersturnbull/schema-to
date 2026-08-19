@@ -140,7 +140,7 @@ def test_json_schema_yaml_output() -> None:
     assert artifact.artifact_id.endswith(".schema.yaml")
     assert isinstance(artifact, JsonSchemaYamlArtifact)
     assert artifact.media_type == MediaTypes.json_schema_yaml
-    assert "type" in artifact.content.decode("utf-8")
+    assert "type" in artifact.content.decode()
 
 
 def test_openapi_yaml_output() -> None:
@@ -153,4 +153,4 @@ def test_openapi_yaml_output() -> None:
     assert artifact.artifact_id.endswith(".yaml")
     assert isinstance(artifact, OpenApiYamlArtifact)
     assert artifact.media_type == MediaTypes.openapi_yaml
-    assert "openapi" in artifact.content.decode("utf-8")
+    assert "openapi" in artifact.content.decode()

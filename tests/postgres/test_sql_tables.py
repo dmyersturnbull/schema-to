@@ -32,7 +32,7 @@ def _sql(*docs: SchemaMapRawDoc) -> str:
     transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
     result = transpiler.transpile_all(docs)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    return result.value[0].content.decode("utf-8")
+    return result.value[0].content.decode()
 
 
 def _warnings(*docs: SchemaMapRawDoc) -> list[str]:
@@ -90,7 +90,7 @@ def test_roots_narrows_marked_schemas_considered_for_a_table() -> None:
     )
     result = transpiler.transpile_all([_doc({"thing-data": _THING, "other-data": other})])
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    sql = result.value[0].content.decode("utf-8")
+    sql = result.value[0].content.decode()
     assert "CREATE TABLE IF NOT EXISTS thing (" in sql
     assert "CREATE TABLE IF NOT EXISTS other (" not in sql
 

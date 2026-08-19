@@ -15,7 +15,7 @@ def _emit(fn: FunctionDef) -> str:
     module = PythonModule(name="m", declarations=[fn])
     result = PythonReifier().apply(module)
     assert isinstance(result, Ok)
-    return result.value[0].content.decode("utf-8")
+    return result.value[0].content.decode()
 
 
 def test_empty_body_emits_stub() -> None:

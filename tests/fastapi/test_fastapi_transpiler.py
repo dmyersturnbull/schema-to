@@ -62,7 +62,7 @@ def _transpile(data: object) -> str:
     assert isinstance(result, Ok), (
         f"Transpile failed: {[getattr(e, 'message', str(e)) for e in result.errors]}"
     )
-    return result.value[0].content.decode("utf-8")
+    return result.value[0].content.decode()
 
 
 def _count_operations(doc: dict) -> int:
@@ -436,7 +436,7 @@ def test_roots_keeps_only_named_component_schemas() -> None:
     assert isinstance(result, Ok)
     src = PythonReifier().apply(result.value)
     assert isinstance(src, Ok)
-    content = src.value[0].content.decode("utf-8")
+    content = src.value[0].content.decode()
     assert "class Pet(BaseModel):" in content
     assert "class NewPet(BaseModel):" not in content
     assert "async def list_pets(" in content

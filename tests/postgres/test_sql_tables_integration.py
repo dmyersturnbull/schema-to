@@ -25,7 +25,7 @@ def _sql(*docs: SchemaMapRawDoc) -> str:
     transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
     result = transpiler.transpile_all(docs)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    return result.value[0].content.decode("utf-8")
+    return result.value[0].content.decode()
 
 
 def test_two_file_set_with_cross_file_refs() -> None:
@@ -119,7 +119,7 @@ def test_pg_jsonschema_check_has_no_unresolved_refs() -> None:
     transpiler = transpiler_for("pg-jsonschema", selects=SchemaMapRawDoc, schema_map=True)
     result = transpiler.transpile_all([base, main])
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    sql = result.value[0].content.decode("utf-8")
+    sql = result.value[0].content.decode()
     assert "jsonb_matches_schema(" in sql
     # pg_jsonschema cannot fetch a remote ref, so none may survive into the check.
     assert "$ref" not in sql

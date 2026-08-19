@@ -49,7 +49,7 @@ def _transpile(data: object, source_id: str = "test://schema") -> str:
     assert isinstance(result, Ok), (
         f"Transpile failed: {[getattr(e, 'message', str(e)) for e in result.errors]}"
     )
-    return result.value[0].content.decode("utf-8")
+    return result.value[0].content.decode()
 
 
 # ---------------------------------------------------------------------------
@@ -569,7 +569,7 @@ def test_table_name_from_source_id() -> None:
     )
     result = transpiler_for("postgres").transpile(doc)
     assert isinstance(result, Ok)
-    src = result.value[0].content.decode("utf-8")
+    src = result.value[0].content.decode()
     assert "CREATE TABLE IF NOT EXISTS https_example_com_product_json" in src
 
 
@@ -607,7 +607,7 @@ def test_roots_keeps_only_named_defs() -> None:
     transpiler = transpiler_for("postgres", roots=frozenset({"Kept"}))
     result = transpiler.transpile(_doc(schema))
     assert isinstance(result, Ok)
-    src = result.value[0].content.decode("utf-8")
+    src = result.value[0].content.decode()
     assert "CREATE TABLE IF NOT EXISTS kept" in src
     assert "CREATE TABLE IF NOT EXISTS dropped" not in src
     assert "CREATE TABLE IF NOT EXISTS root" in src

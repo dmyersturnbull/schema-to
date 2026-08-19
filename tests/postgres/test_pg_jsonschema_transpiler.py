@@ -28,7 +28,7 @@ def _transpile(target: str) -> str:
     [transpiler] = TranspilerRouter().route(target, output_media_type=MediaTypes.json)
     result = transpiler.transpile(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    return result.value[0].content.decode("utf-8")
+    return result.value[0].content.decode()
 
 
 def test_pg_jsonschema_emits_extension_preamble() -> None:

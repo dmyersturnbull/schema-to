@@ -148,7 +148,7 @@ class DefaultJsonLikeWriter(JsonLikeWriter):
 class YamlReader:
     def read(self, text: str | bytes) -> JsonValue:
         if isinstance(text, bytes):
-            text = text.decode("utf-8")
+            text = text.decode()
         try:
             return cast("JsonValue", parse_yaml(text))  # yaml12.Yaml is structurally compatible
         except (OSError, TypeError, ValueError) as e:
@@ -180,6 +180,6 @@ class JsonWriter:
     def write(self, data: JsonValue) -> str:
         option = orjson.OPT_APPEND_NEWLINE | orjson.OPT_INDENT_2 if self.pretty else 0
         try:
-            return orjson.dumps(data, option=option).decode("utf-8")  # type: ignore[return-value]  # orjson lacks precise stubs
+            return orjson.dumps(data, option=option).decode()  # type: ignore[return-value]  # orjson lacks precise stubs
         except JSONEncodeError as e:
             raise ReadError(str(e), line=None, column=None) from e

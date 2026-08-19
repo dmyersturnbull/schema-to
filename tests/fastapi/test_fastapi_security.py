@@ -50,7 +50,7 @@ def _src() -> str:
     )
     result = transpiler_for("fastapi", selects=OpenApiRawDoc).transpile(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    return result.value[0].content.decode("utf-8")
+    return result.value[0].content.decode()
 
 
 def test_schemes_become_module_variables() -> None:

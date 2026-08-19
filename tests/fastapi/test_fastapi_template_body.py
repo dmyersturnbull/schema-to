@@ -40,7 +40,7 @@ def _generate(target: str) -> str:
     result = transpiler.transpile(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     assert len(result.value) == 1
-    return result.value[0].content.decode("utf-8")
+    return result.value[0].content.decode()
 
 
 @pytest.fixture(scope="module")
