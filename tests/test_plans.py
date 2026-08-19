@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from schema_to.core import JsonObject
+from schema_to.core import JsonObject, JsonValue
 from schema_to.cst.json_schema import ObjectSchema
 from schema_to.cst.openapi import (
     Components,
@@ -44,6 +44,7 @@ from schema_to.io.source import OpenApiRawDoc
 from schema_to.parse._plan import (
     EnumSpec,
     FieldPlan,
+    IntSpec,
     ListSpec,
     MapSpec,
     NodeSpec,
@@ -58,7 +59,7 @@ from schema_to.parse.openapi import OpenApiParser
 from schema_to.result import Err, Ok
 from schema_to.serialize.openapi import OpenApiSerializer
 
-_GOLDEN = Path(__file__).parent / "plans.golden.txt"
+_GOLDEN = Path(__file__).parent / "plans.golden.json"
 
 # Every node built from a plan. The document envelopes are excluded: a JSON
 # Schema document *is* its root schema rather than an object of keywords.
@@ -90,57 +91,57 @@ _PLANNED = [
 ]
 
 
-def _render_spec(spec: object) -> str:
+def _spec_json(spec: object) -> JsonValue:
+    rendered: JsonValue
     match spec:
         case ListSpec(item=item):
-            rendered = f"list[{_render_spec(item)}]"
+            rendered = {"kind": "list", "item": _spec_json(item)}
         case SetSpec(item=item):
-            rendered = f"set[{_render_spec(item)}]"
+            rendered = {"kind": "set", "item": _spec_json(item)}
         case MapSpec(value=value):
-            rendered = f"map[{_render_spec(value)}]"
+            rendered = {"kind": "map", "value": _spec_json(value)}
         case OneOfSpec(options=options):
-            rendered = "one-of[" + " | ".join(_render_spec(o) for o in options) + "]"
+            rendered = {"kind": "one-of", "options": [_spec_json(o) for o in options]}
         case NodeSpec(node=node):
-            rendered = node.__name__
+            rendered = {"kind": "node", "type": node.__name__}
         case EnumSpec(enum=enum):
-            rendered = f"enum[{enum.__name__}]"
+            rendered = {"kind": "enum", "type": enum.__name__}
         case SchemaSpec():
-            rendered = "schema"
+            rendered = {"kind": "schema"}
+        case IntSpec(minimum=minimum) if minimum is not None:
+            rendered = {"kind": "int", "minimum": minimum}
         case _:
-            rendered = type(spec).__name__.removesuffix("Spec").lower() + _render_bound(spec)
+            rendered = {"kind": type(spec).__name__.removesuffix("Spec").lower()}
     return rendered
 
 
-def _render_range(entry: FieldPlan) -> str:
-    since = entry.since.text if entry.since is not None else ""
-    until = entry.until.text if entry.until is not None else ""
-    return f"[{since}..{until}]" if since or until else ""
-
-
-def _render_bound(spec: object) -> str:
-    minimum = getattr(spec, "minimum", None)
-    return f"(>={minimum})" if minimum is not None else ""
+def _field_json(entry: FieldPlan) -> JsonValue:
+    rendered: JsonObject = {"property": entry.key, "field": entry.name}
+    if entry.required:
+        rendered["required"] = True
+    if entry.nullable:
+        rendered["nullable"] = True
+    if entry.since is not None:
+        rendered["since"] = entry.since.text
+    if entry.until is not None:
+        rendered["until"] = entry.until.text
+    rendered["spec"] = _spec_json(entry.spec)
+    return rendered
 
 
 def _render_plans() -> str:
-    lines: list[str] = []
+    nodes: list[JsonValue] = []
     for node in _PLANNED:
         plan = plan_for(node)
-        flags = "".join(
-            [
-                " +extensions" if plan.has_extensions else "",
-                " +source_ref" if plan.has_source_ref else "",
-            ]
+        nodes.append(
+            {
+                "node": node.__name__,
+                "extensions": plan.has_extensions,
+                "sourceRef": plan.has_source_ref,
+                "fields": [_field_json(entry) for entry in plan.entries],
+            }
         )
-        lines.append(f"{node.__name__}{flags}")
-        for entry in plan.entries:
-            marks = "".join(["!" if entry.required else " ", "?" if entry.nullable else " "])
-            lines.append(
-                f"  {marks} {entry.key:<24} {entry.name:<24} "
-                f"{_render_range(entry):<10} {_render_spec(entry.spec)}"
-            )
-        lines.append("")
-    return "\n".join(lines)
+    return json.dumps(nodes, indent=2) + "\n"
 
 
 def test_plans_match_golden_snapshot() -> None:

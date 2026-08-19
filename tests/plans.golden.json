@@ -1,0 +1,2200 @@
+[
+  {
+    "node": "ObjectSchema",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "$id",
+        "field": "id",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "$schema",
+        "field": "schema",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "$anchor",
+        "field": "anchor",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "$dynamicAnchor",
+        "field": "dynamic_anchor",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "$ref",
+        "field": "ref",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "$dynamicRef",
+        "field": "dynamic_ref",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "$defs",
+        "field": "defs",
+        "nullable": true,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "property": "$comment",
+        "field": "comment",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "$vocabulary",
+        "field": "vocabulary",
+        "nullable": true,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "bool"
+          }
+        }
+      },
+      {
+        "property": "title",
+        "field": "title",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "default",
+        "field": "default",
+        "nullable": true,
+        "spec": {
+          "kind": "wrap"
+        }
+      },
+      {
+        "property": "deprecated",
+        "field": "deprecated",
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "property": "readOnly",
+        "field": "read_only",
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "property": "writeOnly",
+        "field": "write_only",
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "property": "examples",
+        "field": "examples",
+        "nullable": true,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "raw"
+          }
+        }
+      },
+      {
+        "property": "type",
+        "field": "type",
+        "nullable": true,
+        "spec": {
+          "kind": "one-of",
+          "options": [
+            {
+              "kind": "enum",
+              "type": "JsonSchemaType"
+            },
+            {
+              "kind": "set",
+              "item": {
+                "kind": "enum",
+                "type": "JsonSchemaType"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "property": "enum",
+        "field": "enum",
+        "nullable": true,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "raw"
+          }
+        }
+      },
+      {
+        "property": "const",
+        "field": "const",
+        "nullable": true,
+        "spec": {
+          "kind": "wrap"
+        }
+      },
+      {
+        "property": "multipleOf",
+        "field": "multiple_of",
+        "nullable": true,
+        "spec": {
+          "kind": "num"
+        }
+      },
+      {
+        "property": "maximum",
+        "field": "maximum",
+        "nullable": true,
+        "spec": {
+          "kind": "num"
+        }
+      },
+      {
+        "property": "exclusiveMaximum",
+        "field": "exclusive_maximum",
+        "nullable": true,
+        "spec": {
+          "kind": "num"
+        }
+      },
+      {
+        "property": "minimum",
+        "field": "minimum",
+        "nullable": true,
+        "spec": {
+          "kind": "num"
+        }
+      },
+      {
+        "property": "exclusiveMinimum",
+        "field": "exclusive_minimum",
+        "nullable": true,
+        "spec": {
+          "kind": "num"
+        }
+      },
+      {
+        "property": "maxLength",
+        "field": "max_length",
+        "nullable": true,
+        "spec": {
+          "kind": "int",
+          "minimum": 0
+        }
+      },
+      {
+        "property": "minLength",
+        "field": "min_length",
+        "nullable": true,
+        "spec": {
+          "kind": "int",
+          "minimum": 0
+        }
+      },
+      {
+        "property": "pattern",
+        "field": "pattern",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "prefixItems",
+        "field": "prefix_items",
+        "nullable": true,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "property": "items",
+        "field": "items",
+        "nullable": true,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "contains",
+        "field": "contains",
+        "nullable": true,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "minContains",
+        "field": "min_contains",
+        "nullable": true,
+        "spec": {
+          "kind": "int"
+        }
+      },
+      {
+        "property": "maxContains",
+        "field": "max_contains",
+        "nullable": true,
+        "spec": {
+          "kind": "int"
+        }
+      },
+      {
+        "property": "minItems",
+        "field": "min_items",
+        "nullable": true,
+        "spec": {
+          "kind": "int"
+        }
+      },
+      {
+        "property": "maxItems",
+        "field": "max_items",
+        "nullable": true,
+        "spec": {
+          "kind": "int"
+        }
+      },
+      {
+        "property": "uniqueItems",
+        "field": "unique_items",
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "property": "properties",
+        "field": "properties",
+        "nullable": true,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "property": "patternProperties",
+        "field": "pattern_properties",
+        "nullable": true,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "property": "additionalProperties",
+        "field": "additional_properties",
+        "nullable": true,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "propertyNames",
+        "field": "property_names",
+        "nullable": true,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "required",
+        "field": "required",
+        "nullable": true,
+        "spec": {
+          "kind": "set",
+          "item": {
+            "kind": "str"
+          }
+        }
+      },
+      {
+        "property": "dependentRequired",
+        "field": "dependent_required",
+        "nullable": true,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "set",
+            "item": {
+              "kind": "str"
+            }
+          }
+        }
+      },
+      {
+        "property": "dependentSchemas",
+        "field": "dependent_schemas",
+        "nullable": true,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "property": "minProperties",
+        "field": "min_properties",
+        "nullable": true,
+        "spec": {
+          "kind": "int"
+        }
+      },
+      {
+        "property": "maxProperties",
+        "field": "max_properties",
+        "nullable": true,
+        "spec": {
+          "kind": "int"
+        }
+      },
+      {
+        "property": "allOf",
+        "field": "all_of",
+        "nullable": true,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "property": "anyOf",
+        "field": "any_of",
+        "nullable": true,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "property": "oneOf",
+        "field": "one_of",
+        "nullable": true,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "property": "not",
+        "field": "not_",
+        "nullable": true,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "if",
+        "field": "if_",
+        "nullable": true,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "then",
+        "field": "then_",
+        "nullable": true,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "else",
+        "field": "else_",
+        "nullable": true,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "unevaluatedItems",
+        "field": "unevaluated_items",
+        "nullable": true,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "unevaluatedProperties",
+        "field": "unevaluated_properties",
+        "nullable": true,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "contentEncoding",
+        "field": "content_encoding",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "contentMediaType",
+        "field": "content_media_type",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "contentSchema",
+        "field": "content_schema",
+        "nullable": true,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "format",
+        "field": "format",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "OpenApiDocument",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "openapi",
+        "field": "openapi",
+        "required": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "info",
+        "field": "info",
+        "required": true,
+        "spec": {
+          "kind": "node",
+          "type": "Info"
+        }
+      },
+      {
+        "property": "$self",
+        "field": "self_",
+        "nullable": true,
+        "since": "3.2",
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "jsonSchemaDialect",
+        "field": "json_schema_dialect",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "paths",
+        "field": "paths",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "PathItem"
+          }
+        }
+      },
+      {
+        "property": "components",
+        "field": "components",
+        "spec": {
+          "kind": "node",
+          "type": "Components"
+        }
+      },
+      {
+        "property": "servers",
+        "field": "servers",
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "node",
+            "type": "Server"
+          }
+        }
+      },
+      {
+        "property": "security",
+        "field": "security",
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "map",
+            "value": {
+              "kind": "list",
+              "item": {
+                "kind": "str"
+              }
+            }
+          }
+        }
+      },
+      {
+        "property": "tags",
+        "field": "tags",
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "node",
+            "type": "Tag"
+          }
+        }
+      },
+      {
+        "property": "externalDocs",
+        "field": "external_docs",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "ExternalDocumentation"
+        }
+      },
+      {
+        "property": "webhooks",
+        "field": "webhooks",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "PathItem"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "Components",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "schemas",
+        "field": "schemas",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "property": "responses",
+        "field": "responses",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Response"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "parameters",
+        "field": "parameters",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Parameter"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "examples",
+        "field": "examples",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Example"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "requestBodies",
+        "field": "request_bodies",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "RequestBody"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "headers",
+        "field": "headers",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Header"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "securitySchemes",
+        "field": "security_schemes",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "SecurityScheme"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "links",
+        "field": "links",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Link"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "callbacks",
+        "field": "callbacks",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "map",
+                "value": {
+                  "kind": "node",
+                  "type": "PathItem"
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "pathItems",
+        "field": "path_items",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "PathItem"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "mediaTypes",
+        "field": "media_types",
+        "since": "3.2",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "MediaTypeObject"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "Contact",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "name",
+        "field": "name",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "url",
+        "field": "url",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "email",
+        "field": "email",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Encoding",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "contentType",
+        "field": "content_type",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "headers",
+        "field": "headers",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Header"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "style",
+        "field": "style",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "explode",
+        "field": "explode",
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "property": "allowReserved",
+        "field": "allow_reserved",
+        "spec": {
+          "kind": "bool"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Example",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "summary",
+        "field": "summary",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "value",
+        "field": "value",
+        "nullable": true,
+        "spec": {
+          "kind": "raw"
+        }
+      },
+      {
+        "property": "externalValue",
+        "field": "external_value",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "ExternalDocumentation",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "url",
+        "field": "url",
+        "required": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Header",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "schema",
+        "field": "schema",
+        "nullable": true,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "content",
+        "field": "content",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "MediaTypeObject"
+          }
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "required",
+        "field": "required",
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "property": "deprecated",
+        "field": "deprecated",
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "property": "style",
+        "field": "style",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "explode",
+        "field": "explode",
+        "nullable": true,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "property": "example",
+        "field": "example",
+        "nullable": true,
+        "spec": {
+          "kind": "raw"
+        }
+      },
+      {
+        "property": "examples",
+        "field": "examples",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Example"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "Info",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "title",
+        "field": "title",
+        "required": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "version",
+        "field": "version",
+        "required": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "summary",
+        "field": "summary",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "termsOfService",
+        "field": "terms_of_service",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "contact",
+        "field": "contact",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "Contact"
+        }
+      },
+      {
+        "property": "license",
+        "field": "license_",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "License"
+        }
+      }
+    ]
+  },
+  {
+    "node": "License",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "name",
+        "field": "name",
+        "required": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "identifier",
+        "field": "identifier",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "url",
+        "field": "url",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Link",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "operationRef",
+        "field": "operation_ref",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "operationId",
+        "field": "operation_id",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "parameters",
+        "field": "parameters",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "raw"
+          }
+        }
+      },
+      {
+        "property": "requestBody",
+        "field": "request_body",
+        "nullable": true,
+        "spec": {
+          "kind": "raw"
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "server",
+        "field": "server",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "Server"
+        }
+      }
+    ]
+  },
+  {
+    "node": "MediaTypeObject",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "schema",
+        "field": "schema",
+        "nullable": true,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "itemSchema",
+        "field": "item_schema",
+        "nullable": true,
+        "since": "3.2",
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "example",
+        "field": "example",
+        "nullable": true,
+        "spec": {
+          "kind": "raw"
+        }
+      },
+      {
+        "property": "examples",
+        "field": "examples",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Example"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "encoding",
+        "field": "encoding",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "Encoding"
+          }
+        }
+      },
+      {
+        "property": "prefixEncoding",
+        "field": "prefix_encoding",
+        "since": "3.2",
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "node",
+            "type": "Encoding"
+          }
+        }
+      },
+      {
+        "property": "itemEncoding",
+        "field": "item_encoding",
+        "nullable": true,
+        "since": "3.2",
+        "spec": {
+          "kind": "node",
+          "type": "Encoding"
+        }
+      }
+    ]
+  },
+  {
+    "node": "OAuthFlow",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "scopes",
+        "field": "scopes",
+        "required": true,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "str"
+          }
+        }
+      },
+      {
+        "property": "authorizationUrl",
+        "field": "authorization_url",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "tokenUrl",
+        "field": "token_url",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "refreshUrl",
+        "field": "refresh_url",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "OAuthFlows",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "implicit",
+        "field": "implicit",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "OAuthFlow"
+        }
+      },
+      {
+        "property": "password",
+        "field": "password",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "OAuthFlow"
+        }
+      },
+      {
+        "property": "clientCredentials",
+        "field": "client_credentials",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "OAuthFlow"
+        }
+      },
+      {
+        "property": "authorizationCode",
+        "field": "authorization_code",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "OAuthFlow"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Operation",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "responses",
+        "field": "responses",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Response"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "tags",
+        "field": "tags",
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "str"
+          }
+        }
+      },
+      {
+        "property": "summary",
+        "field": "summary",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "externalDocs",
+        "field": "external_docs",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "ExternalDocumentation"
+        }
+      },
+      {
+        "property": "operationId",
+        "field": "operation_id",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "parameters",
+        "field": "parameters",
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Parameter"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "requestBody",
+        "field": "request_body",
+        "nullable": true,
+        "spec": {
+          "kind": "one-of",
+          "options": [
+            {
+              "kind": "node",
+              "type": "Reference"
+            },
+            {
+              "kind": "node",
+              "type": "RequestBody"
+            }
+          ]
+        }
+      },
+      {
+        "property": "callbacks",
+        "field": "callbacks",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "map",
+                "value": {
+                  "kind": "node",
+                  "type": "PathItem"
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "deprecated",
+        "field": "deprecated",
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "property": "security",
+        "field": "security",
+        "nullable": true,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "map",
+            "value": {
+              "kind": "list",
+              "item": {
+                "kind": "str"
+              }
+            }
+          }
+        }
+      },
+      {
+        "property": "servers",
+        "field": "servers",
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "node",
+            "type": "Server"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "Parameter",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "name",
+        "field": "name",
+        "required": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "in",
+        "field": "in_",
+        "required": true,
+        "spec": {
+          "kind": "enum",
+          "type": "ParameterLocation"
+        }
+      },
+      {
+        "property": "schema",
+        "field": "schema",
+        "nullable": true,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "property": "content",
+        "field": "content",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "MediaTypeObject"
+          }
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "required",
+        "field": "required",
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "property": "deprecated",
+        "field": "deprecated",
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "property": "allowEmptyValue",
+        "field": "allow_empty_value",
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "property": "style",
+        "field": "style",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "explode",
+        "field": "explode",
+        "nullable": true,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "property": "allowReserved",
+        "field": "allow_reserved",
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "property": "example",
+        "field": "example",
+        "nullable": true,
+        "spec": {
+          "kind": "raw"
+        }
+      },
+      {
+        "property": "examples",
+        "field": "examples",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Example"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "PathItem",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "$ref",
+        "field": "ref",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "summary",
+        "field": "summary",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "get",
+        "field": "get",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "property": "put",
+        "field": "put",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "property": "post",
+        "field": "post",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "property": "delete",
+        "field": "delete",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "property": "options",
+        "field": "options",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "property": "head",
+        "field": "head",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "property": "patch",
+        "field": "patch",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "property": "trace",
+        "field": "trace",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "property": "query",
+        "field": "query",
+        "nullable": true,
+        "since": "3.2",
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "property": "additionalOperations",
+        "field": "additional_operations",
+        "since": "3.2",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "Operation"
+          }
+        }
+      },
+      {
+        "property": "parameters",
+        "field": "parameters",
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Parameter"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "servers",
+        "field": "servers",
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "node",
+            "type": "Server"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "Reference",
+    "extensions": false,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "$ref",
+        "field": "ref",
+        "required": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "summary",
+        "field": "summary",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "RequestBody",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "content",
+        "field": "content",
+        "required": true,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "MediaTypeObject"
+          }
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "required",
+        "field": "required",
+        "spec": {
+          "kind": "bool"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Response",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "description",
+        "field": "description",
+        "required": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "summary",
+        "field": "summary",
+        "nullable": true,
+        "since": "3.2",
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "headers",
+        "field": "headers",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Header"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "property": "content",
+        "field": "content",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "MediaTypeObject"
+          }
+        }
+      },
+      {
+        "property": "links",
+        "field": "links",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Link"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "SecurityScheme",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "type",
+        "field": "type_",
+        "required": true,
+        "spec": {
+          "kind": "enum",
+          "type": "SecuritySchemeType"
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "name",
+        "field": "name",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "in",
+        "field": "in_",
+        "nullable": true,
+        "spec": {
+          "kind": "enum",
+          "type": "ApiKeyLocation"
+        }
+      },
+      {
+        "property": "scheme",
+        "field": "scheme",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "bearerFormat",
+        "field": "bearer_format",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "flows",
+        "field": "flows",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "OAuthFlows"
+        }
+      },
+      {
+        "property": "openIdConnectUrl",
+        "field": "open_id_connect_url",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Server",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "url",
+        "field": "url",
+        "required": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "name",
+        "field": "name",
+        "nullable": true,
+        "since": "3.2",
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "variables",
+        "field": "variables",
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "ServerVariable"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "ServerVariable",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "default",
+        "field": "default",
+        "required": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "enum",
+        "field": "enum",
+        "nullable": true,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "str"
+          }
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Tag",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "property": "name",
+        "field": "name",
+        "required": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "description",
+        "field": "description",
+        "nullable": true,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "property": "externalDocs",
+        "field": "external_docs",
+        "nullable": true,
+        "spec": {
+          "kind": "node",
+          "type": "ExternalDocumentation"
+        }
+      }
+    ]
+  }
+]
