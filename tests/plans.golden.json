@@ -1,0 +1,2849 @@
+[
+  {
+    "node": "ObjectSchema",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "$id",
+        "name": "id",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "$schema",
+        "name": "schema",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "$anchor",
+        "name": "anchor",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "$dynamicAnchor",
+        "name": "dynamic_anchor",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "$ref",
+        "name": "ref",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "$dynamicRef",
+        "name": "dynamic_ref",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "$defs",
+        "name": "defs",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "key": "$comment",
+        "name": "comment",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "$vocabulary",
+        "name": "vocabulary",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "bool"
+          }
+        }
+      },
+      {
+        "key": "title",
+        "name": "title",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "default",
+        "name": "default",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "wrap"
+        }
+      },
+      {
+        "key": "deprecated",
+        "name": "deprecated",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "key": "readOnly",
+        "name": "read_only",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "key": "writeOnly",
+        "name": "write_only",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "key": "examples",
+        "name": "examples",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "raw"
+          }
+        }
+      },
+      {
+        "key": "type",
+        "name": "type",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "one-of",
+          "options": [
+            {
+              "kind": "enum",
+              "type": "JsonSchemaType"
+            },
+            {
+              "kind": "set",
+              "item": {
+                "kind": "enum",
+                "type": "JsonSchemaType"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "enum",
+        "name": "enum",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "raw"
+          }
+        }
+      },
+      {
+        "key": "const",
+        "name": "const",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "wrap"
+        }
+      },
+      {
+        "key": "multipleOf",
+        "name": "multiple_of",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "num"
+        }
+      },
+      {
+        "key": "maximum",
+        "name": "maximum",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "num"
+        }
+      },
+      {
+        "key": "exclusiveMaximum",
+        "name": "exclusive_maximum",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "num"
+        }
+      },
+      {
+        "key": "minimum",
+        "name": "minimum",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "num"
+        }
+      },
+      {
+        "key": "exclusiveMinimum",
+        "name": "exclusive_minimum",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "num"
+        }
+      },
+      {
+        "key": "maxLength",
+        "name": "max_length",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "int",
+          "minimum": 0
+        }
+      },
+      {
+        "key": "minLength",
+        "name": "min_length",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "int",
+          "minimum": 0
+        }
+      },
+      {
+        "key": "pattern",
+        "name": "pattern",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "prefixItems",
+        "name": "prefix_items",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "key": "items",
+        "name": "items",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "contains",
+        "name": "contains",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "minContains",
+        "name": "min_contains",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "int"
+        }
+      },
+      {
+        "key": "maxContains",
+        "name": "max_contains",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "int"
+        }
+      },
+      {
+        "key": "minItems",
+        "name": "min_items",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "int"
+        }
+      },
+      {
+        "key": "maxItems",
+        "name": "max_items",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "int"
+        }
+      },
+      {
+        "key": "uniqueItems",
+        "name": "unique_items",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "key": "properties",
+        "name": "properties",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "key": "patternProperties",
+        "name": "pattern_properties",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "key": "additionalProperties",
+        "name": "additional_properties",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "propertyNames",
+        "name": "property_names",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "required",
+        "name": "required",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "set",
+          "item": {
+            "kind": "str"
+          }
+        }
+      },
+      {
+        "key": "dependentRequired",
+        "name": "dependent_required",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "set",
+            "item": {
+              "kind": "str"
+            }
+          }
+        }
+      },
+      {
+        "key": "dependentSchemas",
+        "name": "dependent_schemas",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "key": "minProperties",
+        "name": "min_properties",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "int"
+        }
+      },
+      {
+        "key": "maxProperties",
+        "name": "max_properties",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "int"
+        }
+      },
+      {
+        "key": "allOf",
+        "name": "all_of",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "key": "anyOf",
+        "name": "any_of",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "key": "oneOf",
+        "name": "one_of",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "key": "not",
+        "name": "not_",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "if",
+        "name": "if_",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "then",
+        "name": "then_",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "else",
+        "name": "else_",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "unevaluatedItems",
+        "name": "unevaluated_items",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "unevaluatedProperties",
+        "name": "unevaluated_properties",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "contentEncoding",
+        "name": "content_encoding",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "contentMediaType",
+        "name": "content_media_type",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "contentSchema",
+        "name": "content_schema",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "format",
+        "name": "format",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "OpenApiDocument",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "openapi",
+        "name": "openapi",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "info",
+        "name": "info",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "Info"
+        }
+      },
+      {
+        "key": "$self",
+        "name": "self_",
+        "required": false,
+        "nullable": true,
+        "since": "3.2",
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "jsonSchemaDialect",
+        "name": "json_schema_dialect",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "paths",
+        "name": "paths",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "PathItem"
+          }
+        }
+      },
+      {
+        "key": "components",
+        "name": "components",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "Components"
+        }
+      },
+      {
+        "key": "servers",
+        "name": "servers",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "node",
+            "type": "Server"
+          }
+        }
+      },
+      {
+        "key": "security",
+        "name": "security",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "map",
+            "value": {
+              "kind": "list",
+              "item": {
+                "kind": "str"
+              }
+            }
+          }
+        }
+      },
+      {
+        "key": "tags",
+        "name": "tags",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "node",
+            "type": "Tag"
+          }
+        }
+      },
+      {
+        "key": "externalDocs",
+        "name": "external_docs",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "ExternalDocumentation"
+        }
+      },
+      {
+        "key": "webhooks",
+        "name": "webhooks",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "PathItem"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "Components",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "schemas",
+        "name": "schemas",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "schema"
+          }
+        }
+      },
+      {
+        "key": "responses",
+        "name": "responses",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Response"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "parameters",
+        "name": "parameters",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Parameter"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "examples",
+        "name": "examples",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Example"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "requestBodies",
+        "name": "request_bodies",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "RequestBody"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "headers",
+        "name": "headers",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Header"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "securitySchemes",
+        "name": "security_schemes",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "SecurityScheme"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "links",
+        "name": "links",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Link"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "callbacks",
+        "name": "callbacks",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "map",
+                "value": {
+                  "kind": "node",
+                  "type": "PathItem"
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "pathItems",
+        "name": "path_items",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "PathItem"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "mediaTypes",
+        "name": "media_types",
+        "required": false,
+        "nullable": false,
+        "since": "3.2",
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "MediaTypeObject"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "Contact",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "name",
+        "name": "name",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "url",
+        "name": "url",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "email",
+        "name": "email",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Encoding",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "contentType",
+        "name": "content_type",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "headers",
+        "name": "headers",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Header"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "style",
+        "name": "style",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "explode",
+        "name": "explode",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "key": "allowReserved",
+        "name": "allow_reserved",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Example",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "summary",
+        "name": "summary",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "value",
+        "name": "value",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "raw"
+        }
+      },
+      {
+        "key": "externalValue",
+        "name": "external_value",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "ExternalDocumentation",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "url",
+        "name": "url",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Header",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "schema",
+        "name": "schema",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "content",
+        "name": "content",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "MediaTypeObject"
+          }
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "required",
+        "name": "required",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "key": "deprecated",
+        "name": "deprecated",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "key": "style",
+        "name": "style",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "explode",
+        "name": "explode",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "key": "example",
+        "name": "example",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "raw"
+        }
+      },
+      {
+        "key": "examples",
+        "name": "examples",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Example"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "Info",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "title",
+        "name": "title",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "version",
+        "name": "version",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "summary",
+        "name": "summary",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "termsOfService",
+        "name": "terms_of_service",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "contact",
+        "name": "contact",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "Contact"
+        }
+      },
+      {
+        "key": "license",
+        "name": "license_",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "License"
+        }
+      }
+    ]
+  },
+  {
+    "node": "License",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "name",
+        "name": "name",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "identifier",
+        "name": "identifier",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "url",
+        "name": "url",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Link",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "operationRef",
+        "name": "operation_ref",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "operationId",
+        "name": "operation_id",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "parameters",
+        "name": "parameters",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "raw"
+          }
+        }
+      },
+      {
+        "key": "requestBody",
+        "name": "request_body",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "raw"
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "server",
+        "name": "server",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "Server"
+        }
+      }
+    ]
+  },
+  {
+    "node": "MediaTypeObject",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "schema",
+        "name": "schema",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "itemSchema",
+        "name": "item_schema",
+        "required": false,
+        "nullable": true,
+        "since": "3.2",
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "example",
+        "name": "example",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "raw"
+        }
+      },
+      {
+        "key": "examples",
+        "name": "examples",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Example"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "encoding",
+        "name": "encoding",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "Encoding"
+          }
+        }
+      },
+      {
+        "key": "prefixEncoding",
+        "name": "prefix_encoding",
+        "required": false,
+        "nullable": false,
+        "since": "3.2",
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "node",
+            "type": "Encoding"
+          }
+        }
+      },
+      {
+        "key": "itemEncoding",
+        "name": "item_encoding",
+        "required": false,
+        "nullable": true,
+        "since": "3.2",
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "Encoding"
+        }
+      }
+    ]
+  },
+  {
+    "node": "OAuthFlow",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "scopes",
+        "name": "scopes",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "str"
+          }
+        }
+      },
+      {
+        "key": "authorizationUrl",
+        "name": "authorization_url",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "tokenUrl",
+        "name": "token_url",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "refreshUrl",
+        "name": "refresh_url",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "OAuthFlows",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "implicit",
+        "name": "implicit",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "OAuthFlow"
+        }
+      },
+      {
+        "key": "password",
+        "name": "password",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "OAuthFlow"
+        }
+      },
+      {
+        "key": "clientCredentials",
+        "name": "client_credentials",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "OAuthFlow"
+        }
+      },
+      {
+        "key": "authorizationCode",
+        "name": "authorization_code",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "OAuthFlow"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Operation",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "responses",
+        "name": "responses",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Response"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "tags",
+        "name": "tags",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "str"
+          }
+        }
+      },
+      {
+        "key": "summary",
+        "name": "summary",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "externalDocs",
+        "name": "external_docs",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "ExternalDocumentation"
+        }
+      },
+      {
+        "key": "operationId",
+        "name": "operation_id",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "parameters",
+        "name": "parameters",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Parameter"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "requestBody",
+        "name": "request_body",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "one-of",
+          "options": [
+            {
+              "kind": "node",
+              "type": "Reference"
+            },
+            {
+              "kind": "node",
+              "type": "RequestBody"
+            }
+          ]
+        }
+      },
+      {
+        "key": "callbacks",
+        "name": "callbacks",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "map",
+                "value": {
+                  "kind": "node",
+                  "type": "PathItem"
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "deprecated",
+        "name": "deprecated",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "key": "security",
+        "name": "security",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "map",
+            "value": {
+              "kind": "list",
+              "item": {
+                "kind": "str"
+              }
+            }
+          }
+        }
+      },
+      {
+        "key": "servers",
+        "name": "servers",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "node",
+            "type": "Server"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "Parameter",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "name",
+        "name": "name",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "in",
+        "name": "in_",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "enum",
+          "type": "ParameterLocation"
+        }
+      },
+      {
+        "key": "schema",
+        "name": "schema",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "schema"
+        }
+      },
+      {
+        "key": "content",
+        "name": "content",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "MediaTypeObject"
+          }
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "required",
+        "name": "required",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "key": "deprecated",
+        "name": "deprecated",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "key": "allowEmptyValue",
+        "name": "allow_empty_value",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "key": "style",
+        "name": "style",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "explode",
+        "name": "explode",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "key": "allowReserved",
+        "name": "allow_reserved",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      },
+      {
+        "key": "example",
+        "name": "example",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "raw"
+        }
+      },
+      {
+        "key": "examples",
+        "name": "examples",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Example"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "PathItem",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "$ref",
+        "name": "ref",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "summary",
+        "name": "summary",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "get",
+        "name": "get",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "key": "put",
+        "name": "put",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "key": "post",
+        "name": "post",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "key": "delete",
+        "name": "delete",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "key": "options",
+        "name": "options",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "key": "head",
+        "name": "head",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "key": "patch",
+        "name": "patch",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "key": "trace",
+        "name": "trace",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "key": "query",
+        "name": "query",
+        "required": false,
+        "nullable": true,
+        "since": "3.2",
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "Operation"
+        }
+      },
+      {
+        "key": "additionalOperations",
+        "name": "additional_operations",
+        "required": false,
+        "nullable": false,
+        "since": "3.2",
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "Operation"
+          }
+        }
+      },
+      {
+        "key": "parameters",
+        "name": "parameters",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Parameter"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "servers",
+        "name": "servers",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "node",
+            "type": "Server"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "Reference",
+    "extensions": false,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "$ref",
+        "name": "ref",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "summary",
+        "name": "summary",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "RequestBody",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "content",
+        "name": "content",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "MediaTypeObject"
+          }
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "required",
+        "name": "required",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "bool"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Response",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "description",
+        "name": "description",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "summary",
+        "name": "summary",
+        "required": false,
+        "nullable": true,
+        "since": "3.2",
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "headers",
+        "name": "headers",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Header"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "key": "content",
+        "name": "content",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "MediaTypeObject"
+          }
+        }
+      },
+      {
+        "key": "links",
+        "name": "links",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "one-of",
+            "options": [
+              {
+                "kind": "node",
+                "type": "Reference"
+              },
+              {
+                "kind": "node",
+                "type": "Link"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "SecurityScheme",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "type",
+        "name": "type_",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "enum",
+          "type": "SecuritySchemeType"
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "name",
+        "name": "name",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "in",
+        "name": "in_",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "enum",
+          "type": "ApiKeyLocation"
+        }
+      },
+      {
+        "key": "scheme",
+        "name": "scheme",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "bearerFormat",
+        "name": "bearer_format",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "flows",
+        "name": "flows",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "OAuthFlows"
+        }
+      },
+      {
+        "key": "openIdConnectUrl",
+        "name": "open_id_connect_url",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Server",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "url",
+        "name": "url",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "name",
+        "name": "name",
+        "required": false,
+        "nullable": true,
+        "since": "3.2",
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "variables",
+        "name": "variables",
+        "required": false,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "map",
+          "value": {
+            "kind": "node",
+            "type": "ServerVariable"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "node": "ServerVariable",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "default",
+        "name": "default",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "enum",
+        "name": "enum",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "list",
+          "item": {
+            "kind": "str"
+          }
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      }
+    ]
+  },
+  {
+    "node": "Tag",
+    "extensions": true,
+    "sourceRef": true,
+    "fields": [
+      {
+        "key": "name",
+        "name": "name",
+        "required": true,
+        "nullable": false,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "description",
+        "name": "description",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "str"
+        }
+      },
+      {
+        "key": "externalDocs",
+        "name": "external_docs",
+        "required": false,
+        "nullable": true,
+        "since": null,
+        "until": null,
+        "spec": {
+          "kind": "node",
+          "type": "ExternalDocumentation"
+        }
+      }
+    ]
+  }
+]
