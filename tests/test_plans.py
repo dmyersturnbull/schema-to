@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from schema_to.core import JsonObject, JsonValue
+from schema_to.core import JsonObject
 from schema_to.cst.json_schema import ObjectSchema
 from schema_to.cst.openapi import (
     Components,

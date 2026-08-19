@@ -107,7 +107,7 @@ paths:
         - from psycopg import AsyncConnection
         - from psycopg.rows import dict_row
         - from query_dsl import build_replace_query
-        - from _db import get_db, to_dict
+        - from _db import get_db
       responses:
         "200":
           description: ok
@@ -128,7 +128,7 @@ paths:
         - from psycopg import AsyncConnection
         - from psycopg.rows import dict_row
         - from query_dsl import build_merge_patch_query
-        - from _db import get_db, to_dict
+        - from _db import get_db
       responses:
         "200":
           description: ok

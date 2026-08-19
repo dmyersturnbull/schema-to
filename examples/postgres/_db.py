@@ -21,11 +21,3 @@ async def get_db() -> AsyncIterator[AsyncConnection]:
     msg = "Configure get_db() with a psycopg AsyncConnection provider."
     raise NotImplementedError(msg)
     yield  # pragma: no cover  # to make this an async generator
-
-
-def to_dict(body: Any) -> dict[str, Any]:
-    """Coerce a request body (Pydantic model or mapping) to a plain dict."""
-    dump = getattr(body, "model_dump", None)
-    if callable(dump):
-        return dump(mode="json")
-    return dict(body)

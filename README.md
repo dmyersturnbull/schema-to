@@ -95,12 +95,22 @@ Requires Python 3.14+.
 
 The Python API emphasizes composition and immutability:
 
-**Core principles:**
-- **Pipeline first:** Define the entire transpilation pipeline before processing files. The pipeline is immutable once created.
-- **Inversion of control:** Pass sources and targets to the pipeline; let it orchestrate the stages.
-- **Separated inputs:** `JsonSchemaSource` and `OpenAPISource` provide distinct type-safe APIs for their respective formats.
-- **Immutable types:** Inputs, intermediate representations (CST, AST), and outputs are immutable. Changes produce new instances.
-- **Composable stages:** Each pipeline stage (read → resolve → generate → reify) exposes a clean API for custom extensions.
+### Core principles
+
+- **Pipeline first:**
+  Define the entire transpilation pipeline before processing files.
+  The pipeline is immutable once created.
+- **Inversion of control:**
+  Pass sources and targets to the pipeline; let it orchestrate the stages.
+- **Separated inputs:**
+  `JsonSchemaSource` and `OpenAPISource` provide distinct type-safe APIs.
+- **Immutable types:**
+  Inputs, intermediate representations (CST, AST), and outputs are immutable.
+  Changes produce new instances.
+- **Composable stages:**
+  Each pipeline stage
+  (read → resolve → generate → reify)
+  exposes a clean API for custom extensions.
 
 ## Architecture
 
@@ -120,11 +130,18 @@ graph LR
 
 **Pipeline stages:**
 
-1. **Read:** Parse JSON/YAML into typed input representation (JSON Schema or OpenAPI object)
-2. **Resolve & Verify:** Dereference `$ref` links, validate against schema spec
-3. **CST (Concrete Syntax Tree):** Full tree with all keywords and metadata preserved
-4. **Generate:** Transform CST into language-specific AST (TypeScript AST, Python AST, SQL AST, etc.)
-5. **Reify:** Emit final output (TypeScript code, Python code, SQL DDL, documentation, etc.)
+1. **Read:**
+  Parse JSON/YAML into typed input representation (JSON Schema or OpenAPI object).
+2. **Resolve & Verify:**
+  Dereference `$ref` links, validate against schema spec.
+3. **Build a CST (Concrete Syntax Tree):**
+  Full tree with all keywords and metadata preserved.
+4. **Generate:**
+  Transform CST into language-specific AST
+  (TypeScript AST, Python AST, SQL AST, etc.).
+5. **Reify:**
+  Emit final output from the AST
+  (TypeScript code, Python code, SQL DDL, documentation, etc.).
 
 Each stage has a well-defined interface, allowing custom sources, targets, and transformations.
 
@@ -132,4 +149,5 @@ Each stage has a well-defined interface, allowing custom sources, targets, and t
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License.
+See [LICENSE](LICENSE.txt) for details.

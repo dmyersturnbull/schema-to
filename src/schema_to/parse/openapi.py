@@ -1,4 +1,3 @@
-# ruff: noqa: raw-string-in-exception
 """OpenAPI 3.1 document parser.
 
 Converts a `RawDoc` (JSON or YAML bytes) into an `OpenApiDocument` CST.

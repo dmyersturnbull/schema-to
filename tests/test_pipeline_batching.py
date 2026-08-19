@@ -1,6 +1,7 @@
 """Tests for many-to-many routing between input documents and output artifacts.
 
 Covers:
+
 - Targeted: `Each` treats documents independently, one artifact each.
 - Targeted: a transpiler sees all of its documents at once, so N can yield one.
 - Targeted: documents are grouped by the first transpiler that accepts them.

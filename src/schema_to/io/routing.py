@@ -4,8 +4,6 @@ Called by `PeekingDirectorySource` as a content-aware secondary guard after filt
 Think: magic bytes.
 Files with compound extensions like `.openapi.json` can be checked for specific content,
 before being narrowed to their `RawDoc` subclasses.
-
-The
 """
 
 from collections.abc import Callable, Set

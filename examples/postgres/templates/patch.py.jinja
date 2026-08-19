@@ -4,7 +4,7 @@ async with conn.cursor(row_factory=dict_row) as cur:
         table={{ ext["x-pg-table"] | repr }},
         pk_column={{ ext.get("x-pg-id", "id") | repr }},
         pk_value={{ param("id") }},
-        patch=to_dict({{ param("body") }}),
+        patch={{ param("body") }},
     )
     await cur.execute(query, params)
     row = await cur.fetchone()
