@@ -310,6 +310,111 @@ def test_hyphenated_on_delete_action_is_accepted() -> None:
 
 
 # ---------------------------------------------------------------------------
+# x-pg-pk-for
+# ---------------------------------------------------------------------------
+
+_AUTHOR_ID = {"type": "string", "pattern": "^[A-Z][a-z]*$", "x-pg-pk-for": "authors"}
+
+
+def test_ref_to_a_pk_for_schema_becomes_a_foreign_key() -> None:
+    sql = get_sql(
+        get_doc(
+            {
+                "author-id": _AUTHOR_ID,
+                "author": {
+                    "type": "object",
+                    "x-pg-table": "authors",
+                    "properties": {"id": {"$ref": "#/author-id"}},
+                },
+                "book": {
+                    "type": "object",
+                    "x-pg-table": "books",
+                    "properties": {"author": {"$ref": "#/author-id"}, "title": {"type": "string"}},
+                },
+            }
+        )
+    )
+    assert "REFERENCES authors" in sql
+
+
+def test_ref_to_a_pk_for_schema_within_its_own_table_is_not_a_foreign_key() -> None:
+    sql = get_sql(
+        get_doc(
+            {
+                "author-id": _AUTHOR_ID,
+                "author": {
+                    "type": "object",
+                    "x-pg-table": "authors",
+                    "properties": {"id": {"$ref": "#/author-id"}},
+                },
+            }
+        )
+    )
+    assert "id text PRIMARY KEY CHECK" in sql
+    assert "REFERENCES" not in sql
+
+
+def test_explicit_refs_overrides_pk_for() -> None:
+    sql = get_sql(
+        get_doc(
+            {
+                "author-id": _AUTHOR_ID,
+                "author": {
+                    "type": "object",
+                    "x-pg-table": "authors",
+                    "properties": {"id": {"$ref": "#/author-id"}},
+                },
+                "editor": {"type": "object", "x-pg-table": "editors"},
+                "book": {
+                    "type": "object",
+                    "x-pg-table": "books",
+                    "properties": {"author": {"$ref": "#/author-id", "x-pg-refs": "editors"}},
+                },
+            }
+        )
+    )
+    assert "REFERENCES editors" in sql
+    assert "REFERENCES authors" not in sql
+
+
+def test_pk_for_orders_the_referenced_table_first() -> None:
+    sql = get_sql(
+        get_doc(
+            {
+                "author-id": _AUTHOR_ID,
+                "book": {
+                    "type": "object",
+                    "x-pg-table": "books",
+                    "properties": {"author": {"$ref": "#/author-id"}},
+                },
+                "author": {
+                    "type": "object",
+                    "x-pg-table": "authors",
+                    "properties": {"id": {"$ref": "#/author-id"}},
+                },
+            }
+        )
+    )
+    assert sql.index("CREATE TABLE IF NOT EXISTS authors") < sql.index(
+        "CREATE TABLE IF NOT EXISTS books"
+    )
+
+
+def test_pk_for_pointing_at_an_undeclared_table_warns() -> None:
+    docs = get_doc(
+        {
+            "author-id": _AUTHOR_ID,
+            "book": {
+                "type": "object",
+                "x-pg-table": "books",
+                "properties": {"author": {"$ref": "#/author-id"}},
+            },
+        }
+    )
+    assert "unknown-fk-target" in get_warnings(docs)
+
+
+# ---------------------------------------------------------------------------
 # Ordering
 # ---------------------------------------------------------------------------
 

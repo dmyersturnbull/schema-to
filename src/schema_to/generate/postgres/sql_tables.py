@@ -36,6 +36,7 @@ from schema_to.generate.postgres._pg_keywords import (
     IndexRequest,
     PropertyKeywords,
     TableKeywords,
+    read_pk_for,
     read_property_keywords,
     read_table_keywords,
 )
@@ -119,13 +120,14 @@ class _GenCtx:
     validate_json: bool
     roots: Set[str] | None
     warnings: list[TranspilationWarning] = field(default_factory=list)
+    _flat_prop_cache: dict[tuple[int, str], JsonSchema] = field(default_factory=dict, repr=False)
 
     def build(self, input: JsonSchemaMapDocument) -> SqlScript:
         specs = self._collect(input)
         _reject_duplicate_names(specs)
         self._check_reference_targets(specs)
         self._warn_keyless(specs)
-        ordered, cycles = _in_dependency_order(specs)
+        ordered, cycles = self._in_dependency_order(specs)
         self._warn_cycles(cycles, specs)
         tables = [self._build_table(spec, cycles) for spec in ordered]
         indexes = [stmt for spec in ordered for stmt in self._build_indexes(spec)]
@@ -180,6 +182,71 @@ class _GenCtx:
         self.warnings.extend(result.warnings)
         return result.schema
 
+    def _flatten_prop(self, spec: TableSpec, prop_name: str, prop_schema: JsonSchema) -> JsonSchema:
+        """Flatten one property's schema, cached per spec so its warnings aren't repeated.
+
+        A property's foreign-key status is read in three separate places (dependency
+        ordering, cycle warnings, column building); without caching, each would
+        re-flatten the same schema and re-emit the same warnings.
+        """
+        key = (id(spec), prop_name)
+        flat = self._flat_prop_cache.get(key)
+        if flat is None:
+            flat = self._flatten(prop_schema, base_uri=spec.source_id)
+            self._flat_prop_cache[key] = flat
+        return flat
+
+    def _referenced_tables(self, spec: TableSpec) -> list[str]:
+        """Return the tables this table's foreign keys point at.
+
+        Covers both an explicit `x-pg-refs` and a `$ref` to an `x-pg-pk-for` schema.
+        """
+        targets: list[str] = []
+        for prop_name, prop_schema in (spec.schema.properties or {}).items():
+            where = f"property {prop_name!r} of schema {spec.schema_name!r}"
+            flat = self._flatten_prop(spec, prop_name, prop_schema)
+            keywords = read_property_keywords(_extensions_of(flat), where=where)
+            if keywords.skip:
+                continue
+            ref = keywords.refs or _pk_for_ref(spec, _extensions_of(flat), where=where)
+            if ref is not None and ref.table != spec.table_name:
+                targets.append(ref.table)
+        return targets
+
+    def _in_dependency_order(self, specs: Sequence[TableSpec]) -> tuple[list[TableSpec], set[str]]:
+        """Sort so that a table follows every table it references.
+
+        Ties keep the input order, which keeps output stable across runs.
+
+        Returns the ordered tables and the names of every table taking part in a
+        reference cycle, which by definition cannot all follow their dependencies.
+        """
+        by_name = {spec.table_name: spec for spec in specs}
+        ordered: list[TableSpec] = []
+        placed: set[str] = set()
+        visiting: list[str] = []
+        cycles: set[str] = set()
+
+        def visit(spec: TableSpec) -> None:
+            if spec.table_name in placed:
+                return
+            if spec.table_name in visiting:
+                # Everything still open back to the repeat is part of the same cycle.
+                cycles.update(visiting[visiting.index(spec.table_name) :])
+                return
+            visiting.append(spec.table_name)
+            for target in self._referenced_tables(spec):
+                dependency = by_name.get(target)
+                if dependency is not None:
+                    visit(dependency)
+            visiting.pop()
+            placed.add(spec.table_name)
+            ordered.append(spec)
+
+        for spec in specs:
+            visit(spec)
+        return ordered, cycles
+
     def _check_reference_targets(self, specs: Sequence[TableSpec]) -> None:
         """Warn about foreign keys pointing at tables no schema in this set declares.
 
@@ -188,7 +255,7 @@ class _GenCtx:
         """
         declared = {spec.table_name for spec in specs}
         for spec in specs:
-            for target in _referenced_tables(spec):
+            for target in self._referenced_tables(spec):
                 if target not in declared:
                     self.warnings.append(
                         TranspilationWarning(
@@ -262,13 +329,13 @@ class _GenCtx:
         required: Set[str],
         cycles: Set[str],
     ) -> ColumnDef | None:
-        flat = self._flatten(prop_schema, base_uri=spec.source_id)
+        flat = self._flatten_prop(spec, prop_name, prop_schema)
         where = f"property {prop_name!r} of schema {spec.schema_name!r}"
         keywords = read_property_keywords(_extensions_of(flat), where=where)
         if keywords.skip:
             return None
         col_name = keywords.column or safe_sql_identifier(prop_name)
-        refs = keywords.refs
+        refs = keywords.refs or _pk_for_ref(spec, _extensions_of(flat), where=where)
         column = builder.build(
             col_name, flat, required=prop_name in required, sql_type=keywords.sql_type
         )
@@ -300,6 +367,16 @@ class _GenCtx:
 # ---------------------------------------------------------------------------
 # Column and constraint assembly
 # ---------------------------------------------------------------------------
+
+
+def _pk_for_ref(
+    spec: TableSpec, extensions: Mapping[str, JsonValue], *, where: str
+) -> ForeignKeyRef | None:
+    """Return the foreign key implied by `x-pg-pk-for` when used outside its own table."""
+    pk_for = read_pk_for(extensions, where=where)
+    if pk_for is None or pk_for == spec.table_name:
+        return None
+    return ForeignKeyRef(table=pk_for)
 
 
 def _with_keywords(
@@ -400,54 +477,6 @@ def _reject_duplicate_names(specs: Sequence[TableSpec]) -> None:
             )
             raise GenerationError(msg)
         seen[spec.table_name] = spec
-
-
-def _in_dependency_order(specs: Sequence[TableSpec]) -> tuple[list[TableSpec], set[str]]:
-    """Sort so that a table follows every table it references.
-
-    Ties keep the input order, which keeps output stable across runs.
-
-    Returns the ordered tables and the names of every table taking part in a
-    reference cycle, which by definition cannot all follow their dependencies.
-    """
-    by_name = {spec.table_name: spec for spec in specs}
-    ordered: list[TableSpec] = []
-    placed: set[str] = set()
-    visiting: list[str] = []
-    cycles: set[str] = set()
-
-    def visit(spec: TableSpec) -> None:
-        if spec.table_name in placed:
-            return
-        if spec.table_name in visiting:
-            # Everything still open back to the repeat is part of the same cycle.
-            cycles.update(visiting[visiting.index(spec.table_name) :])
-            return
-        visiting.append(spec.table_name)
-        for target in _referenced_tables(spec):
-            dependency = by_name.get(target)
-            if dependency is not None:
-                visit(dependency)
-        visiting.pop()
-        placed.add(spec.table_name)
-        ordered.append(spec)
-
-    for spec in specs:
-        visit(spec)
-    return ordered, cycles
-
-
-def _referenced_tables(spec: TableSpec) -> list[str]:
-    """Return the tables this table's foreign keys point at."""
-    targets: list[str] = []
-    for prop_name, prop_schema in (spec.schema.properties or {}).items():
-        where = f"property {prop_name!r} of schema {spec.schema_name!r}"
-        keywords = read_property_keywords(_extensions_of(prop_schema), where=where)
-        if keywords.skip or keywords.refs is None:
-            continue
-        if keywords.refs.table != spec.table_name:
-            targets.append(keywords.refs.table)
-    return targets
 
 
 def _extensions_of(schema: JsonSchema) -> Mapping[str, JsonValue]:
