@@ -5,6 +5,7 @@ These keywords supply info necessary for PostgreSQL definitions that's not carri
 | Keyword               | Goes on  | Value                                          | Effect                                     |
 |-----------------------|----------|------------------------------------------------|--------------------------------------------|
 | `x-pg-table`          | schema   | table name                                     | Emit a table. Absent: no table.            |
+| `x-pg-pk-for`         | schema   | table name                                     | Mark as the primary-key type of that table; a `$ref` to it elsewhere becomes a foreign key. |
 | `x-pg-primary-key`    | schema   | column name, or a list of them                 | Composite key. Defaults to `id`.           |
 | `x-pg-primary-key`    | property | `true`                                         | Single-column key.                         |
 | `x-pg-indexes`        | schema   | list of `{columns, name, method, unique, where}` | Composite or partial indexes.            |
@@ -54,6 +55,33 @@ run-version-data:
       x-pg-skip: true
 ```
 
+`x-pg-pk-for` marks a schema as the primary-key type of a table.
+A `$ref` to it anywhere outside that table's own schema becomes a foreign key
+to the table's primary key, with no `x-pg-refs` needed:
+
+```yaml
+author-id:
+  type: string
+  pattern: "^[A-Z][a-z]*$"
+  x-pg-pk-for: authors
+
+author:
+  x-pg-table: authors
+  type: object
+  properties:
+    id:
+      $ref: "#/author-id"
+
+book:
+  x-pg-table: books
+  type: object
+  properties:
+    author:
+      $ref: "#/author-id" # foreign key to authors(id)
+    title:
+      type: string
+```
+
 A keyword whose value has the wrong shape raises `KeywordError`,
 which is normally translated into a [TranspilationError][].
 """
@@ -75,6 +103,7 @@ __all__ = [
     "INDEX",
     "INDEXES",
     "OVERFLOW",
+    "PK_FOR",
     "PRIMARY_KEY",
     "REFS",
     "SKIP",
@@ -86,11 +115,13 @@ __all__ = [
     "IndexRequest",
     "PropertyKeywords",
     "TableKeywords",
+    "read_pk_for",
     "read_property_keywords",
     "read_table_keywords",
 ]
 
 TABLE = "x-pg-table"
+PK_FOR = "x-pg-pk-for"
 PRIMARY_KEY = "x-pg-primary-key"
 OVERFLOW = "x-pg-overflow"
 EXTRA_COLUMNS = "x-pg-extra-columns"
@@ -203,6 +234,15 @@ def read_property_keywords(extensions: Mapping[str, JsonValue], *, where: str) -
         sql_type=_opt_str(extensions, TYPE, where=where),
         skip=_flag(extensions, SKIP, where=where),
     )
+
+
+def read_pk_for(extensions: Mapping[str, JsonValue], *, where: str) -> str | None:
+    """Read `x-pg-pk-for` from `extensions`: the table this schema is the primary key type of.
+
+    Arguments:
+        where: Human-readable name of the schema, used in error messages.
+    """
+    return _opt_str(extensions, PK_FOR, where=where)
 
 
 # ---------------------------------------------------------------------------
