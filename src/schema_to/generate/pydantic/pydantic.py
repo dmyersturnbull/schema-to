@@ -17,6 +17,12 @@
 - `anyOf` / `oneOf` with exactly one non-null branch collapses to `T | None`.
 - `enum` / `const` map to `Literal[…]`.
 - Unsupported constructs emit `TranspilationWarning` and fall back to `Any`.
+
+#### Extension keywords
+
+`x-pydantic-frozen` and `x-pydantic-skip` adjust generation beyond what JSON
+Schema itself expresses. See [generate.pydantic._pydantic_keywords][] for the
+keyword vocabulary.
 """
 
 from collections.abc import Set
@@ -41,18 +47,14 @@ from schema_to.cst.json_schema import (
     ObjectSchema,
     is_object_schema,
 )
-from schema_to.errors import (
-    GenerationError,
-    SourceLocation,
-    TranspilationError,
-    TranspilationWarning,
-)
+from schema_to.errors import GenerationError, SourceLocation, TranspilationWarning
 from schema_to.generate._python_utils import (
     safe_python_class_name,
     safe_python_field_name,
     split_class_name,
 )
 from schema_to.generate.inlining import SchemaFlattener
+from schema_to.generate.pydantic._pydantic_keywords import read_frozen, read_skip
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 
@@ -141,30 +143,16 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
             split_names=_compute_split_names(input),
         )
 
-        declarations: list[TypeAliasDef | ClassDef] = []
-        errors: list[TranspilationError] = []
+        try:
+            declarations = ctx.build_declarations(input, roots=self.roots)
+        except GenerationError as exc:
+            return Err((exc,), warnings=tuple(warnings))
 
-        # --- Named definitions ($defs) ---
-        if isinstance(input.root, ObjectSchema) and input.root.defs:
-            for def_name, def_schema in input.root.defs.items():
-                if self.roots is not None and def_name not in self.roots:
-                    continue
-                declarations.extend(ctx.schema_to_declarations(def_schema, name=def_name))
-
-        # --- Root schema ---
-        root_name = _root_class_name(input)
-        root_decls = ctx.schema_to_declarations(input.root, name=root_name)
-        declarations.extend(root_decls)
-        if not root_decls and not declarations:
-            errors.append(
-                GenerationError(
-                    "Root schema is a boolean schema; cannot generate a Pydantic model.",
-                    location=None,
-                )
+        if not declarations:
+            error = GenerationError(
+                "Root schema is a boolean schema; cannot generate a Pydantic model.", location=None
             )
-
-        if errors:
-            return Err(tuple(errors), warnings=tuple(warnings))
+            return Err((error,), warnings=tuple(warnings))
 
         imports = _build_imports(declarations)
         return Ok(
@@ -218,6 +206,20 @@ class _GenCtx:
     warnings: list[TranspilationWarning]
     base_uri: str = ""
     split_names: Set[str] = field(default_factory=frozenset)
+
+    def build_declarations(
+        self, input: JsonSchemaDocument, *, roots: Set[str] | None
+    ) -> list[TypeAliasDef | ClassDef]:
+        """Convert every `$defs` entry (subject to *roots*) and the root schema."""
+        declarations: list[TypeAliasDef | ClassDef] = []
+        if isinstance(input.root, ObjectSchema) and input.root.defs:
+            for def_name, def_schema in input.root.defs.items():
+                if roots is not None and def_name not in roots:
+                    continue
+                declarations.extend(self.schema_to_declarations(def_schema, name=def_name))
+        root_name = _root_class_name(input)
+        declarations.extend(self.schema_to_declarations(input.root, name=root_name))
+        return declarations
 
     def schema_to_declarations(
         self, schema: JsonSchema, name: str
@@ -275,7 +277,7 @@ class _GenCtx:
                 prop_name, prop_schema, is_required=(prop_name in required_set), variant=variant
             )
             for prop_name, prop_schema in (schema.properties or {}).items()
-            if self._field_included(prop_schema, variant=variant)
+            if self._field_included(prop_name, prop_schema, variant=variant)
         ]
         doc_node: PythonDocString | None = None
         if schema.title or schema.description:
@@ -283,12 +285,18 @@ class _GenCtx:
                 summary=schema.title or schema.description or "",
                 description=schema.description if schema.title else None,
             )
-        return ClassDef(name=class_name, style=ClassStyle.PYDANTIC, fields=fields, doc=doc_node)
+        frozen = read_frozen(schema.get_extensions(), where=f"schema {name!r}")
+        style = ClassStyle.PYDANTIC_FROZEN if frozen else ClassStyle.PYDANTIC
+        return ClassDef(name=class_name, style=style, fields=fields, doc=doc_node)
 
     def _field_included(
-        self, prop_schema: JsonSchema, *, variant: Literal["read", "write"] | None
+        self, prop_name: str, prop_schema: JsonSchema, *, variant: Literal["read", "write"] | None
     ) -> bool:
-        if variant is None or not isinstance(prop_schema, ObjectSchema):
+        if not isinstance(prop_schema, ObjectSchema):
+            return True
+        if read_skip(prop_schema.get_extensions(), where=f"property {prop_name!r}"):
+            return False
+        if variant is None:
             return True
         if variant == "read":
             return not prop_schema.write_only
@@ -496,6 +504,8 @@ def _build_imports(declarations: list[TypeAliasDef | ClassDef]) -> list[FromImpo
     for decl in declarations:
         if isinstance(decl, ClassDef):
             has_class = True
+            if decl.style == ClassStyle.PYDANTIC_FROZEN:
+                needed.setdefault("pydantic", set()).add("ConfigDict")
             for f in decl.fields:
                 _scan_annotation(f.annotation, needed)
                 if f.default and "Field(" in f.default:
