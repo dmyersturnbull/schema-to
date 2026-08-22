@@ -496,3 +496,63 @@ def test_referenced_parameter_reaches_the_generated_route() -> None:
 def test_referenced_response_reaches_the_generated_route() -> None:
     source = _transpile(_REF_DOC)
     assert "Thing" in source
+
+
+# ---------------------------------------------------------------------------
+# Multi-document references
+# ---------------------------------------------------------------------------
+
+_MULTI_MAIN = {
+    "openapi": "3.1.0",
+    "info": {"title": "Multi", "version": "1.0.0"},
+    "paths": {
+        "/things/{thingId}": {
+            "get": {
+                "operationId": "getThing",
+                "parameters": [{"$ref": "shared.yaml#/components/parameters/ThingId"}],
+                "responses": {"200": {"$ref": "shared.yaml#/components/responses/Thing"}},
+            }
+        }
+    },
+}
+
+_MULTI_SHARED = {
+    "openapi": "3.1.0",
+    "info": {"title": "Shared", "version": "1.0.0"},
+    "components": {
+        "parameters": {
+            "ThingId": {
+                "name": "thingId",
+                "in": "path",
+                "required": True,
+                "schema": {"type": "string"},
+            }
+        },
+        "responses": {
+            "Thing": {
+                "description": "one thing",
+                "content": {"application/json": {"schema": {"type": "object"}}},
+            }
+        },
+    },
+}
+
+
+def test_a_reference_into_a_sibling_document_resolves_through_the_pipeline() -> None:
+    """A `$ref` into another document in the same batch must resolve, not error.
+
+    The FastAPI pipeline resolves each document independently unless every
+    document is registered before any of them is resolved; this exercises the
+    two-pass registration that makes cross-document `$ref`s work.
+    """
+    main = _doc(_MULTI_MAIN, source_id="main.yaml")
+    shared = _doc(_MULTI_SHARED, source_id="shared.yaml")
+    transpiler = transpiler_for("fastapi", selects=OpenApiRawDoc)
+    result = transpiler.transpile_all([main, shared])
+    assert isinstance(result, Ok), (
+        f"Transpile failed: {[getattr(e, 'message', str(e)) for e in result.errors]}"
+    )
+    sources = [artifact.content.decode() for artifact in result.value]
+    main_source = next(src for src in sources if "async def get_thing(" in src)
+    ast.parse(main_source)
+    assert "thing_id" in main_source
