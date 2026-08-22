@@ -50,7 +50,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
         at = Cursor.root(input.doc_id)
         root = build_schema(raw, at)
         if isinstance(root, Failed) or at.errors:
-            return Err(tuple(at.errors))
+            return Err(tuple(at.errors), warnings=tuple(at.warnings))
         return Ok(
             JsonSchemaDocument(
                 root=root,
@@ -58,7 +58,8 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
                 display_name=input.display_name,
                 source_ref=SourceRef(input.doc_id, ""),
                 base_uri=input.base_uri,
-            )
+            ),
+            warnings=tuple(at.warnings),
         )
 
 
@@ -95,12 +96,13 @@ class JsonSchemaMapParser(DocParser[SchemaMapRawDoc, JsonSchemaMapDocument]):
             if not isinstance(schema, Failed):
                 schemas[name] = schema
         if at.errors:
-            return Err(tuple(at.errors))
+            return Err(tuple(at.errors), warnings=tuple(at.warnings))
         return Ok(
             JsonSchemaMapDocument(
                 schemas=schemas,
                 source_id=input.doc_id,
                 display_name=input.display_name,
                 source_ref=SourceRef(input.doc_id, ""),
-            )
+            ),
+            warnings=tuple(at.warnings),
         )
