@@ -263,15 +263,20 @@ class TranspilerRouter:
         self, *, templates: Mapping[str, str] | None, roots: Set[str] | None
     ) -> Stage[Sequence[OpenApiRawDoc], Sequence[PythonArtifact]]:
         backend = TemplateBodyBackend(named_templates=templates or {})
+        resolver = OpenApiRefResolver()
         # References are resolved before generation: a `$ref` standing in for a
         # parameter or a response is something the generator cannot act on, and
         # skipping it would silently drop a route's inputs.
-        per_doc = (
-            OpenApiParser()
-            .then(OpenApiRefResolver())
-            .then(FastApiTransformer(body_backend=backend, roots=roots))
-            .then(PythonReifier())
+        # Registration and resolution are separate passes over the batch, because a
+        # `$ref` into a sibling document cannot resolve until that document is
+        # registered, and documents are parsed in whatever order the source gives.
+        generate = FastApiTransformer(body_backend=backend, roots=roots).then(PythonReifier())
+        pipeline = (
+            Each(OpenApiParser())
+            .then(Each(resolver.registering()))
+            .then(Each(resolver.then(generate)))
+            .then(Flatten())
         )
         # The support modules belong to the run rather than to any one document, so
         # they are appended once the batch is reified rather than once per document.
-        return Each(per_doc).then(Flatten()).then(Append(backend.support_artifacts))
+        return pipeline.then(Append(backend.support_artifacts))
