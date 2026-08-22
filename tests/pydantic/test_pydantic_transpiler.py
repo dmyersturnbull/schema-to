@@ -569,6 +569,64 @@ def test_empty_object_produces_valid_class() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Smoke: `x-pydantic-frozen` and `x-pydantic-skip` extension keywords
+# ---------------------------------------------------------------------------
+
+
+def test_x_pydantic_frozen_emits_config_dict() -> None:
+    schema = {
+        "type": "object",
+        "title": "Point",
+        "x-pydantic-frozen": True,
+        "properties": {"x": {"type": "number"}},
+        "required": ["x"],
+    }
+    src = _transpile(schema)
+    assert "class Point(BaseModel):" in src
+    assert "model_config = ConfigDict(frozen=True)" in src
+    assert "from pydantic import BaseModel, ConfigDict" in src
+
+
+def test_without_x_pydantic_frozen_no_config_dict() -> None:
+    schema = {"type": "object", "title": "Point", "properties": {"x": {"type": "number"}}}
+    src = _transpile(schema)
+    assert "ConfigDict" not in src
+
+
+def test_x_pydantic_frozen_bad_value_fails() -> None:
+    schema = {"type": "object", "title": "Point", "x-pydantic-frozen": "yes"}
+    transpiler = transpiler_for("pydantic")
+    result = transpiler.transpile(_doc(schema))
+    assert isinstance(result, Err)
+
+
+def test_x_pydantic_skip_omits_field() -> None:
+    schema = {
+        "type": "object",
+        "title": "Foo",
+        "properties": {
+            "name": {"type": "string"},
+            "internal": {"type": "string", "x-pydantic-skip": True},
+        },
+        "required": ["name", "internal"],
+    }
+    src = _transpile(schema)
+    assert "name: str" in src
+    assert "internal" not in src
+
+
+def test_x_pydantic_skip_bad_value_fails() -> None:
+    schema = {
+        "type": "object",
+        "title": "Foo",
+        "properties": {"name": {"type": "string", "x-pydantic-skip": "yes"}},
+    }
+    transpiler = transpiler_for("pydantic")
+    result = transpiler.transpile(_doc(schema))
+    assert isinstance(result, Err)
+
+
+# ---------------------------------------------------------------------------
 # Failure: boolean root schema
 # ---------------------------------------------------------------------------
 
