@@ -26,7 +26,12 @@ from schema_to.cst.json_schema import (
     JsonSchema,
     ObjectSchema,
 )
-from schema_to.errors import SchemaValidationError, SourceLocation, TranspilationError
+from schema_to.errors import (
+    SchemaValidationError,
+    SourceLocation,
+    TranspilationError,
+    TranspilationWarning,
+)
 from schema_to.parse._plan import (
     BoolSpec,
     EnumSpec,
@@ -35,6 +40,7 @@ from schema_to.parse._plan import (
     IntSpec,
     ListSpec,
     MapSpec,
+    NodePlan,
     NodeSpec,
     NumSpec,
     OneOfSpec,
@@ -104,6 +110,7 @@ class Cursor:
         source_id: Identifier matching `RawDoc.doc_id`.
         pointer: RFC 6901 pointer to the value under construction.
         errors: Accumulator shared by every cursor derived from this one.
+        warnings: Accumulator shared by every cursor derived from this one.
         version: The specification version the document declares,
             against which version-gated keys are checked.
             `None` gates nothing.
@@ -112,25 +119,28 @@ class Cursor:
     source_id: str
     pointer: str
     errors: list[TranspilationError]
+    warnings: list[TranspilationWarning]
     version: SpecVersion | None = None
 
     @classmethod
     def root(cls, source_id: str, version: SpecVersion | None = None) -> Cursor:
-        """Return a cursor at the document root with a fresh accumulator."""
-        return cls(source_id, "", [], version)
+        """Return a cursor at the document root with fresh accumulators."""
+        return cls(source_id, "", [], [], version)
 
     def at(self, *segments: str | int) -> Cursor:
-        """Return a cursor descended into `segments`, sharing this accumulator."""
-        return Cursor(self.source_id, ptr(self.pointer, *segments), self.errors, self.version)
+        """Return a cursor descended into `segments`, sharing this cursor's accumulators."""
+        return Cursor(
+            self.source_id, ptr(self.pointer, *segments), self.errors, self.warnings, self.version
+        )
 
     def probe(self) -> Cursor:
-        """Return a cursor at this position with a throwaway accumulator.
+        """Return a cursor at this position with throwaway accumulators.
 
         Used to try an alternative without leaving diagnostics behind.
         Everything else — position and declared version — carries over,
         so a rejected alternative is judged under the same rules as an accepted one.
         """
-        return Cursor(self.source_id, self.pointer, [], self.version)
+        return Cursor(self.source_id, self.pointer, [], [], self.version)
 
     def fail(self, message: str) -> Failed:
         """Record a validation error here and return `FAILED`, for use in a `return`."""
@@ -138,6 +148,14 @@ class Cursor:
             SchemaValidationError(message, location=SourceLocation(self.source_id, self.pointer))
         )
         return FAILED
+
+    def warn(self, message: str, *, code: str | None = None) -> None:
+        """Record a non-fatal diagnostic here."""
+        self.warnings.append(
+            TranspilationWarning(
+                message, code=code, location=SourceLocation(self.source_id, self.pointer)
+            )
+        )
 
     def ref(self) -> SourceRef:
         """Return the provenance link for the value under construction."""
@@ -160,6 +178,7 @@ def build_node[N: CstNode](node: type[N], data: JsonValue, at: Cursor) -> N | Fa
     incomplete = False
     for entry in plan.entries:
         incomplete |= _build_field_into(kwargs, entry, obj, at)
+    _warn_unrecognized_keys(plan, obj, at)
     if incomplete:
         return FAILED
     if plan.has_extensions:
@@ -167,6 +186,23 @@ def build_node[N: CstNode](node: type[N], data: JsonValue, at: Cursor) -> N | Fa
     if plan.has_source_ref:
         kwargs["source_ref"] = at.ref()
     return node(**kwargs)
+
+
+def _warn_unrecognized_keys(plan: NodePlan, obj: Mapping[str, JsonValue], at: Cursor) -> None:
+    """Warn about keys this plan neither reads nor treats as an `x-*` extension.
+
+    Catches typos like `descripton` for `description`, which would otherwise
+    be silently dropped.
+    """
+    recognized = plan.keys()
+    for key in obj:
+        if key in recognized:
+            continue
+        if plan.has_extensions and key.startswith("x-"):
+            continue
+        at.at(key).warn(
+            f"{key!r} is not a recognized key; it will be ignored.", code="unrecognized-key"
+        )
 
 
 def _build_field_into(

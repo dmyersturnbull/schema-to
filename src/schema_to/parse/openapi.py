@@ -77,12 +77,12 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         _check_version(root, at)
         doc = build_node(OpenApiDocument, data, at)
         if at.errors:
-            return Err(tuple(at.errors))
+            return Err(tuple(at.errors), warnings=tuple(at.warnings))
         if isinstance(doc, Failed):  # pragma: no cover — a failure always records an error
             return Err.of(
                 ParseError("Malformed OpenAPI document.", location=SourceLocation(input.doc_id, ""))
             )
-        return Ok(_with_provenance(doc, input))
+        return Ok(_with_provenance(doc, input), warnings=tuple(at.warnings))
 
 
 def _declared_version(root: Mapping[str, JsonValue]) -> SpecVersion | None:
