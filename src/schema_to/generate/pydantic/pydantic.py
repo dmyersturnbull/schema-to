@@ -20,12 +20,12 @@
 
 #### Extension keywords
 
-`x-pydantic-frozen` and `x-pydantic-skip` adjust generation beyond what JSON
-Schema itself expresses. See [generate.pydantic._pydantic_keywords][] for the
-keyword vocabulary.
+`x-pydantic-frozen`, `x-pydantic-skip`, and `x-pydantic-class` adjust
+generation beyond what JSON Schema itself expresses. See
+[generate.pydantic._pydantic_keywords][] for the keyword vocabulary.
 """
 
-from collections.abc import Set
+from collections.abc import Mapping, Set
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
@@ -54,7 +54,7 @@ from schema_to.generate._python_utils import (
     split_class_name,
 )
 from schema_to.generate.inlining import SchemaFlattener
-from schema_to.generate.pydantic._pydantic_keywords import read_frozen, read_skip
+from schema_to.generate.pydantic._pydantic_keywords import read_class, read_frozen, read_skip
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 
@@ -102,16 +102,29 @@ def _has_split_properties(schema: JsonSchema) -> bool:
     )
 
 
-def _compute_split_names(input: JsonSchemaDocument) -> Set[str]:
+def _compute_split_names(input: JsonSchemaDocument, overrides: Mapping[str, str]) -> Set[str]:
     """Return the canonical class names of schemas that need a Read/Write split."""
     names: set[str] = set()
     if isinstance(input.root, ObjectSchema) and input.root.defs:
         for def_name, def_schema in input.root.defs.items():
             if _has_split_properties(def_schema):
-                names.add(safe_python_class_name(def_name))
+                names.add(safe_python_class_name(overrides.get(def_name, def_name)))
     if _has_split_properties(input.root):
         names.add(_root_class_name(input))
     return frozenset(names)
+
+
+def _compute_name_overrides(input: JsonSchemaDocument) -> Mapping[str, str]:
+    """Return the `x-pydantic-class` override for each `$defs` entry that sets one."""
+    overrides: dict[str, str] = {}
+    if isinstance(input.root, ObjectSchema) and input.root.defs:
+        for def_name, def_schema in input.root.defs.items():
+            if not isinstance(def_schema, ObjectSchema):
+                continue
+            override = read_class(def_schema.get_extensions(), where=f"schema {def_name!r}")
+            if override:
+                overrides[def_name] = override
+    return overrides
 
 
 # ---------------------------------------------------------------------------
@@ -135,15 +148,16 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
 
     def apply(self, input: JsonSchemaDocument) -> Result[PythonModule]:
         warnings: list[TranspilationWarning] = []
-        ctx = _GenCtx(
-            source_id=input.source_id,
-            resolver=self.resolver,
-            warnings=warnings,
-            base_uri=input.get_base_uri(),
-            split_names=_compute_split_names(input),
-        )
-
         try:
+            name_overrides = _compute_name_overrides(input)
+            ctx = _GenCtx(
+                source_id=input.source_id,
+                resolver=self.resolver,
+                warnings=warnings,
+                base_uri=input.get_base_uri(),
+                split_names=_compute_split_names(input, name_overrides),
+                name_overrides=name_overrides,
+            )
             declarations = ctx.build_declarations(input, roots=self.roots)
         except GenerationError as exc:
             return Err((exc,), warnings=tuple(warnings))
@@ -179,9 +193,17 @@ def _module_name(doc: JsonSchemaDocument) -> str:
 
 
 def _root_class_name(doc: JsonSchemaDocument) -> str:
-    """Name the root model after `title`, then `display_name`, then the source ID's last segment."""
-    if isinstance(doc.root, ObjectSchema) and doc.root.title:
-        return safe_python_class_name(doc.root.title)
+    """Name the root model.
+
+    Prefers `x-pydantic-class`, then `title`, then `display_name`,
+    then the source ID's last segment.
+    """
+    if isinstance(doc.root, ObjectSchema):
+        override = read_class(doc.root.get_extensions(), where="the root schema")
+        if override:
+            return safe_python_class_name(override)
+        if doc.root.title:
+            return safe_python_class_name(doc.root.title)
     if doc.display_name:
         return safe_python_class_name(doc.display_name)
     return safe_python_class_name(doc.source_id.rstrip("/").rsplit("/", 1)[-1])
@@ -206,6 +228,7 @@ class _GenCtx:
     warnings: list[TranspilationWarning]
     base_uri: str = ""
     split_names: Set[str] = field(default_factory=frozenset)
+    name_overrides: Mapping[str, str] = field(default_factory=dict)
 
     def build_declarations(
         self, input: JsonSchemaDocument, *, roots: Set[str] | None
@@ -216,7 +239,8 @@ class _GenCtx:
             for def_name, def_schema in input.root.defs.items():
                 if roots is not None and def_name not in roots:
                     continue
-                declarations.extend(self.schema_to_declarations(def_schema, name=def_name))
+                effective_name = self.name_overrides.get(def_name, def_name)
+                declarations.extend(self.schema_to_declarations(def_schema, name=effective_name))
         root_name = _root_class_name(input)
         declarations.extend(self.schema_to_declarations(input.root, name=root_name))
         return declarations
@@ -369,9 +393,12 @@ class _GenCtx:
         """
         fragment = ref.split("#", 1)[-1] if "#" in ref else ref
         part = fragment.rstrip("/").rsplit("/", 1)[-1]
-        base = safe_python_class_name(part) if part else "Unknown"
+        if not part:
+            return "Unknown"
+        name = self.name_overrides.get(part, part)
+        base = safe_python_class_name(name)
         if base in self.split_names:
-            return split_class_name(part, variant if variant is not None else "read")
+            return split_class_name(name, variant if variant is not None else "read")
         return base
 
     def _annotation_inner(

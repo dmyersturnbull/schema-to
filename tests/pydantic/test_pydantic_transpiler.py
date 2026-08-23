@@ -627,6 +627,79 @@ def test_x_pydantic_skip_bad_value_fails() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Smoke: `x-pydantic-class` extension keyword
+# ---------------------------------------------------------------------------
+
+
+def test_x_pydantic_class_renames_object_def() -> None:
+    schema = {
+        "type": "object",
+        "title": "Root",
+        "$defs": {
+            "internal_address": {
+                "type": "object",
+                "x-pydantic-class": "Address",
+                "properties": {"street": {"type": "string"}},
+            }
+        },
+        "properties": {"shipping": {"$ref": "#/$defs/internal_address"}},
+        "required": ["shipping"],
+    }
+    src = _transpile(schema)
+    assert "class Address(BaseModel):" in src
+    assert "class InternalAddress(BaseModel):" not in src
+    assert "shipping: Address" in src
+
+
+def test_x_pydantic_class_renames_type_alias_def() -> None:
+    schema = {
+        "type": "object",
+        "title": "Root",
+        "$defs": {"customer_id": {"type": "string", "x-pydantic-class": "CustomerIdentifier"}},
+        "properties": {"id": {"$ref": "#/$defs/customer_id"}},
+        "required": ["id"],
+    }
+    src = _transpile(schema)
+    assert "type CustomerIdentifier = str" in src
+    assert "id: CustomerIdentifier" in src
+
+
+def test_x_pydantic_class_renames_root() -> None:
+    schema = {"type": "object", "title": "Root", "x-pydantic-class": "Overridden"}
+    src = _transpile(schema)
+    assert "class Overridden(BaseModel):" in src
+    assert "class Root(BaseModel):" not in src
+
+
+def test_x_pydantic_class_with_readonly_writeonly_split() -> None:
+    schema = {
+        "type": "object",
+        "title": "Root",
+        "$defs": {
+            "internal_item": {
+                "type": "object",
+                "x-pydantic-class": "Item",
+                "properties": {"sku": {"type": "string", "readOnly": True}},
+            }
+        },
+        "properties": {"item": {"$ref": "#/$defs/internal_item", "readOnly": True}},
+        "required": ["item"],
+    }
+    src = _transpile(schema)
+    assert "class ItemRead(BaseModel):" in src
+    assert "class ItemWrite(BaseModel):" in src
+    read_body, _ = _split_slices(src, "Root")
+    assert "item: ItemRead" in read_body
+
+
+def test_x_pydantic_class_bad_value_fails() -> None:
+    schema = {"type": "object", "title": "Foo", "x-pydantic-class": ""}
+    transpiler = transpiler_for("pydantic")
+    result = transpiler.transpile(_doc(schema))
+    assert isinstance(result, Err)
+
+
+# ---------------------------------------------------------------------------
 # Failure: boolean root schema
 # ---------------------------------------------------------------------------
 
