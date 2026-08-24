@@ -383,6 +383,9 @@ class _GenCtx:
     ) -> EnumDef | None:
         """Build the `EnumDef` for a `$defs` entry or root schema, if `x-pydantic-enum` asks for one.
 
+        *values* is *schema*'s already-known `enum` list, passed in rather than read again
+        here so the type checker can see it is not `None` without an `assert`.
+
         `x-pydantic-enum`'s own `name` is ignored here: the name is already resolved
         (via `x-pydantic-class`, title, etc.) before this runs, and letting the enum
         keyword rename it too would silently diverge from what `$ref`s targeting this
@@ -465,6 +468,13 @@ class _GenCtx:
         canonical_class_name: str,
         variant: _Variant = None,
     ) -> FieldDef:
+        """Build the field declaration for one property.
+
+        *canonical_class_name* is the un-suffixed name of the class *prop_schema* belongs
+        to (i.e. before any Read/Write split), used as the prefix for a class name derived
+        from `x-pydantic-enum: true`. Passing the same canonical name for both the Read and
+        Write variant is what lets them share one enum class instead of each emitting a copy.
+        """
         name_hint = f"{canonical_class_name}{safe_python_class_name(prop_name)}"
         ann = self.schema_to_annotation(
             prop_schema, required=is_required, variant=variant, name_hint=name_hint
