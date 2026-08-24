@@ -3,12 +3,12 @@
 These keywords supply info necessary for Pydantic-specific choices that plain
 JSON Schema carries no equivalent for.
 
-| Keyword              | Goes on  | Value               | Effect                                            |
-|-----------------------|----------|---------------------|-----------------------------------------------------|
-| `x-pydantic-frozen`  | schema   | `true`              | Emit an immutable model (`ConfigDict(frozen=True)`). |
-| `x-pydantic-skip`    | property | `true`              | Do not emit a field for this property.            |
-| `x-pydantic-class`   | schema   | a name              | Use this class/alias name instead of the `$defs` key. |
-| `x-pydantic-enum`    | schema with `enum` | `true` / a name / `{name?, base?}` | Emit an `Enum` class instead of `Literal[...]`. |
+| Keyword | Goes on | Value | Effect |
+|---|---|---|---|
+| `x-pydantic-frozen` | schema | `true` | Emit an immutable model (`ConfigDict(frozen=True)`). |
+| `x-pydantic-skip` | property | `true` | Do not emit a field for this property. |
+| `x-pydantic-class` | schema | a name | Use this class/alias name instead of the `$defs` key. |
+| `x-pydantic-enum` | schema with `enum` | `true` / a name / `{name?, base?}` | Emit an `Enum` class instead of `Literal[...]`. |
 
 `x-pydantic-class` on a `$defs` entry also renames every `$ref` pointing at it,
 so the two stay consistent: name the entry once, and its declaration, any
@@ -35,41 +35,25 @@ CustomerId:
 
 ## `x-pydantic-enum`
 
-Placed on any schema carrying `enum`, this generates a real `enum.Enum`
-subclass instead of the default `Literal[...]`. It accepts three shapes:
+Placed on any schema carrying `enum`, this generates a real `enum.Enum` subclass instead of the default `Literal[...]`.
+It accepts three shapes:
 
 - `true`: derive both the class name and the base from context.
 - a string: use it as the class name; derive the base from context.
-- an object `{"name": ..., "base": ...}`: either key may be given alone,
-  falling back to the derived value for the other.
+- an object `{"name": ..., "base": ...}`: either key may be given alone, falling back to the derived value for the other.
 
-The base (`Enum`, `StrEnum`, or `IntEnum`) is auto-detected from the enum's
-value types when not given explicitly: all-`string` values get `StrEnum`,
-all-`integer` values get `IntEnum` (JSON `true`/`false` do not count as
-integers here), anything else that is still a JSON scalar (a mix of types,
-or `number`/`boolean`/`null` values) gets a plain `Enum`. A `list`- or
-`dict`-valued enum entry cannot be expressed as an `Enum` member and falls
-back to `Literal[...]` with a warning, even when `x-pydantic-enum` is set.
+The base (`Enum`, `StrEnum`, or `IntEnum`) is auto-detected from the enum's value types when not given explicitly:
+all-`string` values get `StrEnum`, all-`integer` values get `IntEnum` (JSON `true`/`false` do not count as integers here), and anything else that is still a JSON scalar (a mix of types, or `number`/`boolean`/`null` values) gets a plain `Enum`.
+A `list`- or `dict`-valued enum entry cannot be expressed as an `Enum` member and falls back to `Literal[...]` with a warning, even when `x-pydantic-enum` is set.
 
-`base` may also name a custom class (e.g. `"DashReplacingEnum"`) instead of
-one of the three stdlib names; no import is generated for it, since the
-generator does not yet know how to import a user-supplied base class -- the
-generated module expects it to already be in scope.
+`base` may also name a custom class (e.g. `"DashReplacingEnum"`) instead of one of the three stdlib names.
+No import is generated for it, since the generator does not yet know how to import a user-supplied base class, so the generated module is expected to already have it in scope.
 
-Where the class name is *derived* rather than given explicitly, a property-level
-`enum` uses the enclosing class's name plus the property name (e.g. a `status`
-property on `Order` becomes `OrderStatus`), avoiding collisions between
-same-named properties on unrelated schemas. A top-level (`$defs` entry or root
-schema) `enum` keeps its existing name resolution (`x-pydantic-class`, then
-`title`, etc.) -- `x-pydantic-enum`'s own `name` has no effect there, since
-allowing it to rename a `$defs` entry would silently diverge from what `$ref`s
-targeting it resolve to.
+Where the class name is *derived* rather than given explicitly, a property-level `enum` uses the enclosing class's name plus the property name (e.g. a `status` property on `Order` becomes `OrderStatus`), avoiding collisions between same-named properties on unrelated schemas.
+A top-level (`$defs` entry or root schema) `enum` keeps its existing name resolution (`x-pydantic-class`, then `title`, etc.), since letting `x-pydantic-enum`'s own `name` rename a `$defs` entry would silently diverge from what `$ref`s targeting it resolve to.
 
-Each member's name is derived from its value (e.g. `"active"` becomes
-`ACTIVE`); `auto()` is used in place of an explicit value where it would
-produce the same result -- for `StrEnum`, when the value equals the member
-name lower-cased; for `IntEnum`, when every value in the enum forms the
-sequence `1, 2, 3, ...` in declaration order.
+Each member's name is derived from its value (e.g. `"active"` becomes `ACTIVE`).
+`auto()` is used in place of an explicit value where it would produce the same result: for `StrEnum`, when the value equals the member name lower-cased; for `IntEnum`, when every value in the enum forms the sequence `1, 2, 3, ...` in declaration order.
 
 Example:
 ```yaml
@@ -78,7 +62,7 @@ Order:
   properties:
     status:
       type: string
-      enum: [active, inactive]
+      enum: ["active", "inactive"]
       x-pydantic-enum: true
 ```
 

@@ -29,6 +29,7 @@ from schema_to.ast.python import (
     EnumDef,
     FromImport,
     FunctionDef,
+    PyDeclaration,
     PythonDocString,
     PythonModule,
     PythonTypeAnnotation,
@@ -214,8 +215,7 @@ def _scan_enum_decl(decl: EnumDef, needed: dict[str, set[str]]) -> None:
 
 
 def _build_imports(
-    declarations: list[TypeAliasDef | ClassDef | FunctionDef | VarDef | EnumDef],
-    extra: Sequence[PyImport] = (),
+    declarations: list[PyDeclaration], extra: Sequence[PyImport] = ()
 ) -> list[PyImport]:
     needed: dict[str, set[str]] = {"fastapi": {"FastAPI"}}
     for decl in declarations:
@@ -294,7 +294,7 @@ class _GenCtx:
         self.warnings.extend(security.warnings)
         route_fns = self._generate_routes()
 
-        declarations: list[TypeAliasDef | ClassDef | FunctionDef | VarDef | EnumDef] = [
+        declarations: list[PyDeclaration] = [
             *model_decls,
             app_var,
             *security.declarations,
@@ -315,8 +315,8 @@ class _GenCtx:
 
     # -- Pydantic models from components/schemas --------------------------------
 
-    def _generate_models(self) -> list[TypeAliasDef | ClassDef | FunctionDef | VarDef | EnumDef]:
-        decls: list[TypeAliasDef | ClassDef | FunctionDef | VarDef | EnumDef] = []
+    def _generate_models(self) -> list[PyDeclaration]:
+        decls: list[PyDeclaration] = []
         for name, schema in self.doc.components.schemas.items():
             if self.roots is not None and name not in self.roots:
                 continue

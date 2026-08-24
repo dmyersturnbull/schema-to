@@ -37,6 +37,7 @@ from schema_to.ast.python import (
     EnumMemberDef,
     FieldDef,
     FromImport,
+    PyDeclaration,
     PythonDocString,
     PythonModule,
     PythonTypeAnnotation,
@@ -73,6 +74,9 @@ if TYPE_CHECKING:
     from schema_to.resolve.json_schema import JsonSchemaRefResolver
 
 __all__ = ["PydanticTransformer"]
+
+type _Variant = Literal["read", "write"] | None
+"""Which half of a readOnly/writeOnly split a class or annotation is for; `None` outside a split."""
 
 # ---------------------------------------------------------------------------
 # Type annotation helpers
@@ -326,9 +330,9 @@ class _GenCtx:
 
     def build_declarations(
         self, input: JsonSchemaDocument, *, roots: Set[str] | None
-    ) -> list[TypeAliasDef | ClassDef | EnumDef]:
+    ) -> list[PyDeclaration]:
         """Convert every `$defs` entry (subject to *roots*) and the root schema."""
-        declarations: list[TypeAliasDef | ClassDef | EnumDef] = []
+        declarations: list[PyDeclaration] = []
         if isinstance(input.root, ObjectSchema) and input.root.defs:
             for def_name, def_schema in input.root.defs.items():
                 if roots is not None and def_name not in roots:
@@ -339,9 +343,7 @@ class _GenCtx:
         declarations.extend(self.schema_to_declarations(input.root, name=root_name))
         return declarations
 
-    def schema_to_declarations(
-        self, schema: JsonSchema, name: str
-    ) -> list[TypeAliasDef | ClassDef | EnumDef]:
+    def schema_to_declarations(self, schema: JsonSchema, name: str) -> list[PyDeclaration]:
         """Convert a top-level schema to one or two declaration nodes.
 
         Returns two `ClassDef`s (Read/Write) when *schema* has any
@@ -414,9 +416,7 @@ class _GenCtx:
         self.warnings.extend(result.warnings)
         return result.schema if isinstance(result.schema, ObjectSchema) else schema
 
-    def _make_class(
-        self, schema: ObjectSchema, name: str, *, variant: Literal["read", "write"] | None
-    ) -> ClassDef:
+    def _make_class(self, schema: ObjectSchema, name: str, *, variant: _Variant) -> ClassDef:
         class_name = (
             split_class_name(name, variant) if variant is not None else safe_python_class_name(name)
         )
@@ -444,7 +444,7 @@ class _GenCtx:
         return ClassDef(name=class_name, style=style, fields=fields, doc=doc_node)
 
     def _field_included(
-        self, prop_name: str, prop_schema: JsonSchema, *, variant: Literal["read", "write"] | None
+        self, prop_name: str, prop_schema: JsonSchema, *, variant: _Variant
     ) -> bool:
         if not isinstance(prop_schema, ObjectSchema):
             return True
@@ -463,7 +463,7 @@ class _GenCtx:
         *,
         is_required: bool,
         canonical_class_name: str,
-        variant: Literal["read", "write"] | None = None,
+        variant: _Variant = None,
     ) -> FieldDef:
         name_hint = f"{canonical_class_name}{safe_python_class_name(prop_name)}"
         ann = self.schema_to_annotation(
@@ -514,7 +514,7 @@ class _GenCtx:
         schema: JsonSchema,
         *,
         required: bool,
-        variant: Literal["read", "write"] | None = None,
+        variant: _Variant = None,
         name_hint: str | None = None,
     ) -> PythonTypeAnnotation:
         """Return the Python type annotation for a field's schema."""
@@ -523,7 +523,7 @@ class _GenCtx:
             ann = _nullable(ann)
         return ann
 
-    def _ref_to_class_name(self, ref: str, *, variant: Literal["read", "write"] | None) -> str:
+    def _ref_to_class_name(self, ref: str, *, variant: _Variant) -> str:
         """Extract a class name from a `$ref` like `"#/$defs/MyModel"`.
 
         If the referenced schema is itself split into Read/Write variants, the
@@ -541,11 +541,7 @@ class _GenCtx:
         return base
 
     def _annotation_inner(
-        self,
-        schema: JsonSchema,
-        *,
-        variant: Literal["read", "write"] | None = None,
-        name_hint: str | None = None,
+        self, schema: JsonSchema, *, variant: _Variant = None, name_hint: str | None = None
     ) -> PythonTypeAnnotation:
         if isinstance(schema, BooleanSchema):
             return _ANY if schema.value else PythonTypeAnnotation("Never", module="typing")
@@ -593,11 +589,7 @@ class _GenCtx:
         return PythonTypeAnnotation(enum_def.name)
 
     def _annotation_from_applicators(
-        self,
-        schema: ObjectSchema,
-        *,
-        variant: Literal["read", "write"] | None,
-        name_hint: str | None,
+        self, schema: ObjectSchema, *, variant: _Variant, name_hint: str | None
     ) -> PythonTypeAnnotation | None:
         for applicator in (schema.any_of, schema.one_of):
             if applicator is not None:
@@ -624,11 +616,7 @@ class _GenCtx:
         return None
 
     def _annotation_from_type(
-        self,
-        schema: ObjectSchema,
-        *,
-        variant: Literal["read", "write"] | None,
-        name_hint: str | None,
+        self, schema: ObjectSchema, *, variant: _Variant, name_hint: str | None
     ) -> PythonTypeAnnotation:
         if isinstance(schema.type, Set):
             return self._type_set_annotation(
@@ -641,12 +629,7 @@ class _GenCtx:
         return _ANY
 
     def _single_type_annotation(
-        self,
-        t: JsonSchemaType,
-        schema: ObjectSchema,
-        *,
-        variant: Literal["read", "write"] | None,
-        name_hint: str | None,
+        self, t: JsonSchemaType, schema: ObjectSchema, *, variant: _Variant, name_hint: str | None
     ) -> PythonTypeAnnotation:
         if t == JsonSchemaType.ARRAY:
             if schema.items is not None:
@@ -667,7 +650,7 @@ class _GenCtx:
         types: Set[JsonSchemaType],
         schema: ObjectSchema,
         *,
-        variant: Literal["read", "write"] | None,
+        variant: _Variant,
         name_hint: str | None,
     ) -> PythonTypeAnnotation:
         non_null = types - {JsonSchemaType.NULL}
@@ -687,11 +670,7 @@ class _GenCtx:
         return _nullable(_ANY) if has_null else _ANY
 
     def _nullable_union(
-        self,
-        schemas: list[JsonSchema],
-        *,
-        variant: Literal["read", "write"] | None,
-        name_hint: str | None,
+        self, schemas: list[JsonSchema], *, variant: _Variant, name_hint: str | None
     ) -> PythonTypeAnnotation | None:
         """If exactly one branch is `null` and one is non-null, return `T | None`."""
         null_count = sum(
@@ -747,7 +726,7 @@ def _scan_class_imports(decl: ClassDef, needed: dict[str, set[str]]) -> None:
             needed.setdefault("pydantic", set()).add("Field")
 
 
-def _build_imports(declarations: list[TypeAliasDef | ClassDef | EnumDef]) -> list[FromImport]:
+def _build_imports(declarations: list[PyDeclaration]) -> list[FromImport]:
     """Collect all needed imports from the declaration tree."""
     needed: dict[str, set[str]] = {}
     has_class = False
