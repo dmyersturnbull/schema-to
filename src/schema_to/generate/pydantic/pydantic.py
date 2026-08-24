@@ -15,23 +15,26 @@
   and a property referencing another schema stays a reference to its class,
   since inlining either would replace a named model with a copy.
 - `anyOf` / `oneOf` with exactly one non-null branch collapses to `T | None`.
-- `enum` / `const` map to `Literal[…]`.
+- `enum` / `const` map to `Literal[…]`, unless `x-pydantic-enum` requests a real `Enum` class.
 - Unsupported constructs emit `TranspilationWarning` and fall back to `Any`.
 
 #### Extension keywords
 
-`x-pydantic-frozen`, `x-pydantic-skip`, and `x-pydantic-class` adjust
-generation beyond what JSON Schema itself expresses. See
+`x-pydantic-frozen`, `x-pydantic-skip`, `x-pydantic-class`, and `x-pydantic-enum`
+adjust generation beyond what JSON Schema itself expresses. See
 [generate.pydantic._pydantic_keywords][] for the keyword vocabulary.
 """
 
-from collections.abc import Mapping, Set
+import re
+from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 from schema_to.ast.python import (
     ClassDef,
     ClassStyle,
+    EnumDef,
+    EnumMemberDef,
     FieldDef,
     FromImport,
     PythonDocString,
@@ -39,6 +42,7 @@ from schema_to.ast.python import (
     PythonTypeAnnotation,
     TypeAliasDef,
 )
+from schema_to.core import JsonValue
 from schema_to.cst.json_schema import (
     BooleanSchema,
     JsonSchema,
@@ -52,9 +56,16 @@ from schema_to.generate._python_utils import (
     safe_python_class_name,
     safe_python_field_name,
     split_class_name,
+    to_snake,
 )
 from schema_to.generate.inlining import SchemaFlattener
-from schema_to.generate.pydantic._pydantic_keywords import read_class, read_frozen, read_skip
+from schema_to.generate.pydantic._pydantic_keywords import (
+    EnumKeyword,
+    read_class,
+    read_enum,
+    read_frozen,
+    read_skip,
+)
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 
@@ -90,6 +101,83 @@ def _nullable(ann: PythonTypeAnnotation) -> PythonTypeAnnotation:
 def _literal(*values: object) -> PythonTypeAnnotation:
     args = [PythonTypeAnnotation(repr(v)) for v in values]
     return PythonTypeAnnotation("Literal", args=args, module="typing")
+
+
+# ---------------------------------------------------------------------------
+# `x-pydantic-enum` helpers
+# ---------------------------------------------------------------------------
+
+_NON_IDENT = re.compile(r"\W")
+_STDLIB_ENUM_BASES = frozenset({"Enum", "StrEnum", "IntEnum"})
+
+
+def _classify_enum_base(values: Sequence[JsonValue]) -> str:
+    """Pick `StrEnum`/`IntEnum`/`Enum` from the enum's value types.
+
+    JSON `true`/`false` are Python `bool`, itself an `int` subclass, so they are
+    excluded from the integer check to avoid misclassifying a boolean enum as `IntEnum`.
+    """
+    if values and all(isinstance(v, str) for v in values):
+        return "StrEnum"
+    if values and all(isinstance(v, int) and not isinstance(v, bool) for v in values):
+        return "IntEnum"
+    return "Enum"
+
+
+def _enum_member_name(value: JsonValue, used: set[str]) -> str:
+    """Derive a unique `UPPER_SNAKE_CASE` member identifier for *value*."""
+    if isinstance(value, bool):
+        base = "TRUE" if value else "FALSE"
+    elif isinstance(value, str):
+        base = _NON_IDENT.sub("_", to_snake(value).upper())
+        base = re.sub(r"_+", "_", base).strip("_") or "EMPTY"
+        if base[0].isdigit():
+            base = f"V_{base}"
+    elif isinstance(value, int):
+        base = f"NEG_{-value}" if value < 0 else f"VALUE_{value}"
+    elif isinstance(value, float):
+        digits = str(value).replace(".", "_").replace("-", "")
+        base = f"NEG_{digits}" if value < 0 else f"VALUE_{digits}"
+    else:
+        base = "NONE"
+    name = base
+    n = 2
+    while name in used:
+        name = f"{base}_{n}"
+        n += 1
+    used.add(name)
+    return name
+
+
+def _build_enum_def(
+    name: str, values: Sequence[JsonValue], enum_kw: EnumKeyword, doc: PythonDocString | None
+) -> EnumDef | None:
+    """Build an `EnumDef` for *values*, or `None` if a value can't become a member.
+
+    `list`/`dict` values have no valid `Enum` member expression, so the caller
+    falls back to `Literal[…]` (with a warning) when this returns `None`.
+    """
+    if any(isinstance(v, list | dict) for v in values):
+        return None
+    base = enum_kw.base or _classify_enum_base(values)
+    base_module = "enum" if base in _STDLIB_ENUM_BASES else None
+    int_auto = base == "IntEnum" and list(values) == list(range(1, len(values) + 1))
+    used: set[str] = set()
+    members: list[EnumMemberDef] = []
+    for v in values:
+        member_name = _enum_member_name(v, used)
+        if int_auto or (base == "StrEnum" and isinstance(v, str) and v == member_name.lower()):
+            expr = "auto()"
+        else:
+            expr = repr(v)
+        members.append(EnumMemberDef(name=member_name, value=expr))
+    return EnumDef(
+        name=safe_python_class_name(name),
+        base=base,
+        base_module=base_module,
+        members=members,
+        doc=doc,
+    )
 
 
 def _has_split_properties(schema: JsonSchema) -> bool:
@@ -168,6 +256,10 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
             )
             return Err((error,), warnings=tuple(warnings))
 
+        # Enum classes synthesized from inline (property-level) `x-pydantic-enum` schemas
+        # must precede any declaration referencing them, since generated code doesn't use
+        # `from __future__ import annotations` or string annotations.
+        declarations = [*ctx.enum_decls, *declarations]
         imports = _build_imports(declarations)
         return Ok(
             PythonModule(
@@ -229,12 +321,14 @@ class _GenCtx:
     base_uri: str = ""
     split_names: Set[str] = field(default_factory=frozenset)
     name_overrides: Mapping[str, str] = field(default_factory=dict)
+    enum_decls: list[EnumDef] = field(default_factory=list)
+    enum_name_cache: dict[int, str] = field(default_factory=dict)
 
     def build_declarations(
         self, input: JsonSchemaDocument, *, roots: Set[str] | None
-    ) -> list[TypeAliasDef | ClassDef]:
+    ) -> list[TypeAliasDef | ClassDef | EnumDef]:
         """Convert every `$defs` entry (subject to *roots*) and the root schema."""
-        declarations: list[TypeAliasDef | ClassDef] = []
+        declarations: list[TypeAliasDef | ClassDef | EnumDef] = []
         if isinstance(input.root, ObjectSchema) and input.root.defs:
             for def_name, def_schema in input.root.defs.items():
                 if roots is not None and def_name not in roots:
@@ -247,7 +341,7 @@ class _GenCtx:
 
     def schema_to_declarations(
         self, schema: JsonSchema, name: str
-    ) -> list[TypeAliasDef | ClassDef]:
+    ) -> list[TypeAliasDef | ClassDef | EnumDef]:
         """Convert a top-level schema to one or two declaration nodes.
 
         Returns two `ClassDef`s (Read/Write) when *schema* has any
@@ -264,14 +358,45 @@ class _GenCtx:
                     self._make_class(schema, name, variant="write"),
                 ]
             return [self._make_class(schema, name, variant=None)]
-        ann = self.schema_to_annotation(schema, required=True)
         doc = None
         if schema.title or schema.description:
             doc = PythonDocString(
                 summary=schema.title or schema.description or "",
                 description=schema.description if schema.title else None,
             )
+        if schema.enum is not None:
+            enum_decl = self._top_level_enum(schema, schema.enum, name=name, doc=doc)
+            if enum_decl is not None:
+                return [enum_decl]
+        ann = self.schema_to_annotation(schema, required=True)
         return [TypeAliasDef(name=safe_python_class_name(name), annotation=ann, doc=doc)]
+
+    def _top_level_enum(
+        self,
+        schema: ObjectSchema,
+        values: Sequence[JsonValue],
+        *,
+        name: str,
+        doc: PythonDocString | None,
+    ) -> EnumDef | None:
+        """Build the `EnumDef` for a `$defs` entry or root schema, if `x-pydantic-enum` asks for one.
+
+        `x-pydantic-enum`'s own `name` is ignored here: the name is already resolved
+        (via `x-pydantic-class`, title, etc.) before this runs, and letting the enum
+        keyword rename it too would silently diverge from what `$ref`s targeting this
+        schema resolve to, since `_ref_to_class_name` has no visibility into it.
+        """
+        enum_kw = read_enum(schema.get_extensions(), where=f"schema {name!r}")
+        if enum_kw is None:
+            return None
+        enum_def = _build_enum_def(name, values, enum_kw, doc)
+        if enum_def is None:
+            self._warn(
+                "enum contains list/dict values, which cannot become Enum members; using Literal.",
+                code="enum-value-unsupported",
+                schema=schema,
+            )
+        return enum_def
 
     def _composed(self, schema: ObjectSchema) -> ObjectSchema:
         """Merge an `allOf` composition so the model gets every branch's fields.
@@ -295,10 +420,15 @@ class _GenCtx:
         class_name = (
             split_class_name(name, variant) if variant is not None else safe_python_class_name(name)
         )
+        canonical_name = safe_python_class_name(name)
         required_set = set(schema.required or frozenset())
         fields = [
             self._build_field_def(
-                prop_name, prop_schema, is_required=(prop_name in required_set), variant=variant
+                prop_name,
+                prop_schema,
+                is_required=(prop_name in required_set),
+                variant=variant,
+                canonical_class_name=canonical_name,
             )
             for prop_name, prop_schema in (schema.properties or {}).items()
             if self._field_included(prop_name, prop_schema, variant=variant)
@@ -332,9 +462,13 @@ class _GenCtx:
         prop_schema: JsonSchema,
         *,
         is_required: bool,
+        canonical_class_name: str,
         variant: Literal["read", "write"] | None = None,
     ) -> FieldDef:
-        ann = self.schema_to_annotation(prop_schema, required=is_required, variant=variant)
+        name_hint = f"{canonical_class_name}{safe_python_class_name(prop_name)}"
+        ann = self.schema_to_annotation(
+            prop_schema, required=is_required, variant=variant, name_hint=name_hint
+        )
         py_name = safe_python_field_name(prop_name)
         alias = f'alias="{prop_name}"' if py_name != prop_name else ""
         default_ = self._build_field_default(prop_schema, is_required=is_required)
@@ -376,10 +510,15 @@ class _GenCtx:
         return field_kw
 
     def schema_to_annotation(
-        self, schema: JsonSchema, *, required: bool, variant: Literal["read", "write"] | None = None
+        self,
+        schema: JsonSchema,
+        *,
+        required: bool,
+        variant: Literal["read", "write"] | None = None,
+        name_hint: str | None = None,
     ) -> PythonTypeAnnotation:
         """Return the Python type annotation for a field's schema."""
-        ann = self._annotation_inner(schema, variant=variant)
+        ann = self._annotation_inner(schema, variant=variant, name_hint=name_hint)
         if not required and not ann.nullable and ann != _NONE:
             ann = _nullable(ann)
         return ann
@@ -402,27 +541,69 @@ class _GenCtx:
         return base
 
     def _annotation_inner(
-        self, schema: JsonSchema, *, variant: Literal["read", "write"] | None = None
+        self,
+        schema: JsonSchema,
+        *,
+        variant: Literal["read", "write"] | None = None,
+        name_hint: str | None = None,
     ) -> PythonTypeAnnotation:
         if isinstance(schema, BooleanSchema):
             return _ANY if schema.value else PythonTypeAnnotation("Never", module="typing")
         if schema.ref:
             return PythonTypeAnnotation(self._ref_to_class_name(schema.ref, variant=variant))
         if schema.enum is not None:
-            return _literal(*schema.enum)
+            return self._inline_enum_annotation(schema, schema.enum, name_hint=name_hint)
         if schema.const is not None:
             return _literal(schema.const.value)
-        ann = self._annotation_from_applicators(schema, variant=variant)
+        ann = self._annotation_from_applicators(schema, variant=variant, name_hint=name_hint)
         if ann is not None:
             return ann
-        return self._annotation_from_type(schema, variant=variant)
+        return self._annotation_from_type(schema, variant=variant, name_hint=name_hint)
+
+    def _inline_enum_annotation(
+        self, schema: ObjectSchema, values: Sequence[JsonValue], *, name_hint: str | None
+    ) -> PythonTypeAnnotation:
+        """Build (or reuse) the `EnumDef` for an inline (property-level) `enum` schema.
+
+        Falls back to `Literal[…]` when `x-pydantic-enum` isn't set, or when it is but the
+        values can't become `Enum` members (a `list`/`dict` value; see `_build_enum_def`).
+
+        Reuse is keyed by the schema node's identity: a readOnly/writeOnly split visits the
+        same property schema twice (once per Read/Write variant class), and both visits carry
+        the same *canonical* `name_hint`, so the second visit reuses the first's class name
+        instead of emitting a duplicate declaration.
+        """
+        where = f"schema for {name_hint!r}" if name_hint else "an inline enum"
+        enum_kw = read_enum(schema.get_extensions(), where=where)
+        if enum_kw is None:
+            return _literal(*values)
+        cached = self.enum_name_cache.get(id(schema))
+        if cached is not None:
+            return PythonTypeAnnotation(cached)
+        enum_def = _build_enum_def(enum_kw.name or name_hint or "Enum", values, enum_kw, doc=None)
+        if enum_def is None:
+            self._warn(
+                "enum contains list/dict values, which cannot become Enum members; using Literal.",
+                code="enum-value-unsupported",
+                schema=schema,
+            )
+            return _literal(*values)
+        self.enum_name_cache[id(schema)] = enum_def.name
+        self.enum_decls.append(enum_def)
+        return PythonTypeAnnotation(enum_def.name)
 
     def _annotation_from_applicators(
-        self, schema: ObjectSchema, *, variant: Literal["read", "write"] | None
+        self,
+        schema: ObjectSchema,
+        *,
+        variant: Literal["read", "write"] | None,
+        name_hint: str | None,
     ) -> PythonTypeAnnotation | None:
         for applicator in (schema.any_of, schema.one_of):
             if applicator is not None:
-                result = self._nullable_union(list(applicator), variant=variant)
+                result = self._nullable_union(
+                    list(applicator), variant=variant, name_hint=name_hint
+                )
                 if result is not None:
                     return result
                 self._warn(
@@ -433,7 +614,9 @@ class _GenCtx:
                 return _ANY
         if schema.all_of is not None:
             if len(schema.all_of) == 1:
-                return self._annotation_inner(schema.all_of[0], variant=variant)
+                return self._annotation_inner(
+                    schema.all_of[0], variant=variant, name_hint=name_hint
+                )
             self._warn(
                 "allOf with multiple branches uses Any.", code="allof-fallback", schema=schema
             )
@@ -441,20 +624,35 @@ class _GenCtx:
         return None
 
     def _annotation_from_type(
-        self, schema: ObjectSchema, *, variant: Literal["read", "write"] | None
+        self,
+        schema: ObjectSchema,
+        *,
+        variant: Literal["read", "write"] | None,
+        name_hint: str | None,
     ) -> PythonTypeAnnotation:
         if isinstance(schema.type, Set):
-            return self._type_set_annotation(schema.type, schema, variant=variant)
+            return self._type_set_annotation(
+                schema.type, schema, variant=variant, name_hint=name_hint
+            )
         if schema.type is not None:
-            return self._single_type_annotation(schema.type, schema, variant=variant)
+            return self._single_type_annotation(
+                schema.type, schema, variant=variant, name_hint=name_hint
+            )
         return _ANY
 
     def _single_type_annotation(
-        self, t: JsonSchemaType, schema: ObjectSchema, *, variant: Literal["read", "write"] | None
+        self,
+        t: JsonSchemaType,
+        schema: ObjectSchema,
+        *,
+        variant: Literal["read", "write"] | None,
+        name_hint: str | None,
     ) -> PythonTypeAnnotation:
         if t == JsonSchemaType.ARRAY:
             if schema.items is not None:
-                item_ann = self._annotation_inner(schema.items, variant=variant)
+                item_ann = self._annotation_inner(
+                    schema.items, variant=variant, name_hint=name_hint
+                )
             elif schema.prefix_items:
                 item_ann = _ANY
             else:
@@ -470,13 +668,16 @@ class _GenCtx:
         schema: ObjectSchema,
         *,
         variant: Literal["read", "write"] | None,
+        name_hint: str | None,
     ) -> PythonTypeAnnotation:
         non_null = types - {JsonSchemaType.NULL}
         has_null = JsonSchemaType.NULL in types
         if not non_null:
             return _NONE
         if len(non_null) == 1:
-            base = self._single_type_annotation(next(iter(non_null)), schema, variant=variant)
+            base = self._single_type_annotation(
+                next(iter(non_null)), schema, variant=variant, name_hint=name_hint
+            )
             return _nullable(base) if has_null else base
         self._warn(
             f"type array {sorted(str(t) for t in types)} maps to Any.",
@@ -486,7 +687,11 @@ class _GenCtx:
         return _nullable(_ANY) if has_null else _ANY
 
     def _nullable_union(
-        self, schemas: list[JsonSchema], *, variant: Literal["read", "write"] | None
+        self,
+        schemas: list[JsonSchema],
+        *,
+        variant: Literal["read", "write"] | None,
+        name_hint: str | None,
     ) -> PythonTypeAnnotation | None:
         """If exactly one branch is `null` and one is non-null, return `T | None`."""
         null_count = sum(
@@ -498,9 +703,11 @@ class _GenCtx:
             if not (isinstance(s, ObjectSchema) and s.type == JsonSchemaType.NULL)
         ]
         if null_count == 1 and len(non_null) == 1:
-            return _nullable(self._annotation_inner(non_null[0], variant=variant))
+            return _nullable(
+                self._annotation_inner(non_null[0], variant=variant, name_hint=name_hint)
+            )
         if null_count == 0 and len(schemas) == 1:
-            return self._annotation_inner(schemas[0], variant=variant)
+            return self._annotation_inner(schemas[0], variant=variant, name_hint=name_hint)
         return None
 
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:
@@ -524,19 +731,32 @@ def _scan_annotation(ann: PythonTypeAnnotation, needed: dict[str, set[str]]) -> 
         _scan_annotation(arg, needed)
 
 
-def _build_imports(declarations: list[TypeAliasDef | ClassDef]) -> list[FromImport]:
+def _scan_enum_imports(decl: EnumDef, needed: dict[str, set[str]]) -> None:
+    if decl.base_module:
+        needed.setdefault(decl.base_module, set()).add(decl.base)
+    if any(m.value == "auto()" for m in decl.members):
+        needed.setdefault("enum", set()).add("auto")
+
+
+def _scan_class_imports(decl: ClassDef, needed: dict[str, set[str]]) -> None:
+    if decl.style == ClassStyle.PYDANTIC_FROZEN:
+        needed.setdefault("pydantic", set()).add("ConfigDict")
+    for f in decl.fields:
+        _scan_annotation(f.annotation, needed)
+        if f.default and "Field(" in f.default:
+            needed.setdefault("pydantic", set()).add("Field")
+
+
+def _build_imports(declarations: list[TypeAliasDef | ClassDef | EnumDef]) -> list[FromImport]:
     """Collect all needed imports from the declaration tree."""
     needed: dict[str, set[str]] = {}
     has_class = False
     for decl in declarations:
-        if isinstance(decl, ClassDef):
+        if isinstance(decl, EnumDef):
+            _scan_enum_imports(decl, needed)
+        elif isinstance(decl, ClassDef):
             has_class = True
-            if decl.style == ClassStyle.PYDANTIC_FROZEN:
-                needed.setdefault("pydantic", set()).add("ConfigDict")
-            for f in decl.fields:
-                _scan_annotation(f.annotation, needed)
-                if f.default and "Field(" in f.default:
-                    needed.setdefault("pydantic", set()).add("Field")
+            _scan_class_imports(decl, needed)
         elif isinstance(decl, TypeAliasDef):
             _scan_annotation(decl.annotation, needed)
     if has_class:

@@ -2,7 +2,11 @@
 
 #### Mapping rules
 
-- `components/schemas` entries are converted to Pydantic v2 `BaseModel` classes via `PydanticTransformer`.
+- `components/schemas` entries are converted to Pydantic v2 `BaseModel` classes via `PydanticTransformer`,
+  so `x-pydantic-*` extension keywords (including `x-pydantic-enum`) are honored there too.
+  Inline schemas elsewhere (route parameters, request/response bodies not `$ref`-ing a
+  component) go through this module's own, simpler mapping instead, which still emits
+  `Literal[…]` for `enum` regardless of `x-pydantic-enum`.
 - Each path × HTTP-method pair becomes an `async def` route function decorated with `@app.<method>("<path>")`.
 - Path parameters are annotated with `Annotated[T, Path()]`.
 - Query parameters use `Annotated[T, Query()]`; optional ones add `= None`.
@@ -22,6 +26,7 @@ from schema_to.ast.python import (
     ClassDef,
     ClassStyle,
     Decorator,
+    EnumDef,
     FromImport,
     FunctionDef,
     PythonDocString,
@@ -201,8 +206,15 @@ def _scan_function_decl(decl: FunctionDef, needed: dict[str, set[str]]) -> None:
         _scan_annotation(decl.return_annotation, needed)
 
 
+def _scan_enum_decl(decl: EnumDef, needed: dict[str, set[str]]) -> None:
+    if decl.base_module:
+        needed.setdefault(decl.base_module, set()).add(decl.base)
+    if any(m.value == "auto()" for m in decl.members):
+        needed.setdefault("enum", set()).add("auto")
+
+
 def _build_imports(
-    declarations: list[TypeAliasDef | ClassDef | FunctionDef | VarDef],
+    declarations: list[TypeAliasDef | ClassDef | FunctionDef | VarDef | EnumDef],
     extra: Sequence[PyImport] = (),
 ) -> list[PyImport]:
     needed: dict[str, set[str]] = {"fastapi": {"FastAPI"}}
@@ -213,6 +225,8 @@ def _build_imports(
             _scan_function_decl(decl, needed)
         elif isinstance(decl, TypeAliasDef):
             _scan_annotation(decl.annotation, needed)
+        elif isinstance(decl, EnumDef):
+            _scan_enum_decl(decl, needed)
     simple: list[SimpleImport] = []
     for imp in extra:
         if isinstance(imp, FromImport):
@@ -280,7 +294,7 @@ class _GenCtx:
         self.warnings.extend(security.warnings)
         route_fns = self._generate_routes()
 
-        declarations: list[TypeAliasDef | ClassDef | FunctionDef | VarDef] = [
+        declarations: list[TypeAliasDef | ClassDef | FunctionDef | VarDef | EnumDef] = [
             *model_decls,
             app_var,
             *security.declarations,
@@ -301,8 +315,8 @@ class _GenCtx:
 
     # -- Pydantic models from components/schemas --------------------------------
 
-    def _generate_models(self) -> list[TypeAliasDef | ClassDef | FunctionDef | VarDef]:
-        decls: list[TypeAliasDef | ClassDef | FunctionDef | VarDef] = []
+    def _generate_models(self) -> list[TypeAliasDef | ClassDef | FunctionDef | VarDef | EnumDef]:
+        decls: list[TypeAliasDef | ClassDef | FunctionDef | VarDef | EnumDef] = []
         for name, schema in self.doc.components.schemas.items():
             if self.roots is not None and name not in self.roots:
                 continue

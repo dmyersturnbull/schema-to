@@ -16,6 +16,7 @@ from typing import override
 from schema_to.ast.python import (
     ClassDef,
     ClassStyle,
+    EnumDef,
     FieldDef,
     FromImport,
     FunctionDef,
@@ -99,13 +100,17 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     # Top-level declarations
     # ------------------------------------------------------------------
 
-    def _emit_decl(self, decl: TypeAliasDef | ClassDef | FunctionDef | VarDef) -> list[str]:
+    def _emit_decl(
+        self, decl: TypeAliasDef | ClassDef | FunctionDef | VarDef | EnumDef
+    ) -> list[str]:
         if isinstance(decl, TypeAliasDef):
             return self._emit_type_alias(decl)
         if isinstance(decl, FunctionDef):
             return self._emit_function(decl)
         if isinstance(decl, VarDef):
             return self._emit_var(decl)
+        if isinstance(decl, EnumDef):
+            return self._emit_enum(decl)
         return self._emit_class(decl)
 
     def _emit_function(self, decl: FunctionDef) -> list[str]:
@@ -197,6 +202,20 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
         elif decl.style == ClassStyle.FROZEN_DATACLASS:
             pass
         return style_bases + list(decl.bases)
+
+    def _emit_enum(self, decl: EnumDef) -> list[str]:
+        lines = [f"class {decl.name}({decl.base}):"]
+        body: list[str] = []
+        if decl.doc:
+            body += self._emit_docstring(decl.doc, indent=_INDENT)
+        for m in decl.members:
+            body.append(f"{_INDENT}{m.name} = {m.value}")
+            if m.doc:
+                body.append(f'{_INDENT}"""{m.doc}"""')
+        if not body:
+            body.append(f"{_INDENT}pass")
+        lines += body
+        return lines
 
     # ------------------------------------------------------------------
     # Fields
