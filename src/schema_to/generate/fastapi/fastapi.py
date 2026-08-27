@@ -4,9 +4,10 @@
 
 - `components/schemas` entries are converted to Pydantic v2 `BaseModel` classes via `PydanticTransformer`,
   so `x-pydantic-*` extension keywords (including `x-pydantic-enum`) are honored there too.
-  Inline schemas elsewhere (route parameters, request/response bodies not `$ref`-ing a
-  component) go through this module's own, simpler mapping instead, which still emits
-  `Literal[…]` for `enum` regardless of `x-pydantic-enum`.
+  Inline schemas elsewhere
+  (route parameters, request/response bodies not `$ref`-ing a component)
+  go through this module's own, simpler mapping instead,
+  which still emits `Literal[…]` for `enum` regardless of `x-pydantic-enum`.
 - Each path × HTTP-method pair becomes an `async def` route function decorated with `@app.<method>("<path>")`.
 - Path parameters are annotated with `Annotated[T, Path()]`.
 - Query parameters use `Annotated[T, Query()]`; optional ones add `= None`.
@@ -57,7 +58,15 @@ from schema_to.cst.openapi import (
 )
 from schema_to.cst.openapi import Parameter as OasParameter
 from schema_to.errors import SourceLocation, TranspilationWarning
-from schema_to.generate._python_utils import safe_python_class_name, safe_python_field_name
+from schema_to.generate._python_utils import (
+    ANY,
+    NONE,
+    PRIMITIVE_MAP,
+    STR,
+    nullable_of,
+    safe_python_class_name,
+    safe_python_field_name,
+)
 from schema_to.generate.fastapi.endpoint_body import (
     EndpointBody,
     EndpointBodyBackend,
@@ -82,25 +91,6 @@ __all__ = ["FastApiTransformer"]
 # ---------------------------------------------------------------------------
 # Type annotation helpers
 # ---------------------------------------------------------------------------
-
-_ANY = PythonTypeAnnotation("Any", module="typing")
-_NONE = PythonTypeAnnotation("None")
-_STR = PythonTypeAnnotation("str")
-_INT = PythonTypeAnnotation("int")
-_FLOAT = PythonTypeAnnotation("float")
-_BOOL = PythonTypeAnnotation("bool")
-
-_PRIMITIVE_MAP: dict[JsonSchemaType, PythonTypeAnnotation] = {
-    JsonSchemaType.STRING: _STR,
-    JsonSchemaType.INTEGER: _INT,
-    JsonSchemaType.NUMBER: _FLOAT,
-    JsonSchemaType.BOOLEAN: _BOOL,
-    JsonSchemaType.NULL: _NONE,
-}
-
-
-def _nullable(ann: PythonTypeAnnotation) -> PythonTypeAnnotation:
-    return PythonTypeAnnotation(ann.name, args=ann.args, module=ann.module, nullable=True)
 
 
 def _ref_to_class_name(ref: str) -> str:
@@ -128,9 +118,9 @@ def _annotation_str(ann: PythonTypeAnnotation) -> str:
 def _schema_to_annotation(schema: JsonSchema | None) -> PythonTypeAnnotation:
     """Map a JSON Schema to a Python type annotation for a route signature."""
     if schema is None:
-        return _ANY
+        return ANY
     if isinstance(schema, BooleanSchema):
-        return _ANY
+        return ANY
     if schema.ref:
         return PythonTypeAnnotation(_ref_to_class_name(schema.ref))
     if schema.enum is not None:
@@ -149,31 +139,31 @@ def _union_annotation(branches: list[JsonSchema]) -> PythonTypeAnnotation:
     has_null = len(non_null) < len(branches)
     if len(non_null) == 1:
         base = _schema_to_annotation(non_null[0])
-        return _nullable(base) if has_null else base
-    return _nullable(_ANY) if has_null else _ANY
+        return nullable_of(base) if has_null else base
+    return nullable_of(ANY) if has_null else ANY
 
 
 def _map_object_schema(schema: ObjectSchema) -> PythonTypeAnnotation:
     t = schema.type
     if t is None:
-        return _ANY
+        return ANY
     if isinstance(t, Set):
         non_null = t - {JsonSchemaType.NULL}
         has_null = JsonSchemaType.NULL in t
         if not non_null:
-            return _NONE
-        base = _map_single_type(next(iter(non_null)), schema) if len(non_null) == 1 else _ANY
-        return _nullable(base) if has_null else base
+            return NONE
+        base = _map_single_type(next(iter(non_null)), schema) if len(non_null) == 1 else ANY
+        return nullable_of(base) if has_null else base
     return _map_single_type(t, schema)
 
 
 def _map_single_type(t: JsonSchemaType, schema: ObjectSchema) -> PythonTypeAnnotation:
     if t == JsonSchemaType.ARRAY:
-        item_ann = _schema_to_annotation(schema.items) if schema.items is not None else _ANY
+        item_ann = _schema_to_annotation(schema.items) if schema.items is not None else ANY
         return PythonTypeAnnotation("list", args=[item_ann])
     if t == JsonSchemaType.OBJECT:
-        return PythonTypeAnnotation("dict", args=[_STR, _ANY])
-    return _PRIMITIVE_MAP.get(t, _ANY)
+        return PythonTypeAnnotation("dict", args=[STR, ANY])
+    return PRIMITIVE_MAP.get(t, ANY)
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +198,8 @@ def _scan_function_decl(decl: FunctionDef, needed: dict[str, set[str]]) -> None:
 
 
 def _scan_enum_decl(decl: EnumDef, needed: dict[str, set[str]]) -> None:
-    if decl.base_module:
+    # TODO: I may have broken this.
+    if decl.base:
         needed.setdefault(decl.base_module, set()).add(decl.base)
     if any(m.value == "auto()" for m in decl.members):
         needed.setdefault("enum", set()).add("auto")
@@ -480,7 +471,7 @@ class _GenCtx:
     ) -> PyParameter:
         if p.required:
             return PyParameter(name=py_name, annotation=_annotated(base_ann, "Query()"))
-        nullable = _nullable(base_ann) if not base_ann.nullable else base_ann
+        nullable = nullable_of(base_ann) if not base_ann.nullable else base_ann
         schema_default = _schema_default(p.schema)
         default = schema_default if schema_default is not None else "None"
         return PyParameter(
@@ -502,7 +493,7 @@ class _GenCtx:
                 continue
             code = int(code_str)
             if code == 204:
-                return code, _NONE
+                return code, NONE
             schema = _json_schema_from_content(response.content)
             return code, _schema_to_annotation(schema) if schema is not None else None
         return None, None
@@ -517,7 +508,7 @@ class _GenCtx:
         args = [f'"{path}"']
         if status_code is not None and status_code != 200:
             args.append(f"status_code={status_code}")
-        if response_ann is not None and response_ann not in {_ANY, _NONE}:
+        if response_ann is not None and response_ann not in {ANY, NONE}:
             args.append(f"response_model={_annotation_str(response_ann)}")
         return Decorator(name=f"app.{method}({', '.join(args)})")
 

@@ -1,23 +1,17 @@
 """Reading of the `x-pydantic-*` extension keywords that drive Pydantic generation.
 
-These keywords supply info necessary for Pydantic-specific choices that plain
-JSON Schema carries no equivalent for.
-
 | Keyword | Goes on | Value | Effect |
 |---|---|---|---|
-| `x-pydantic-frozen` | schema | `true` | Emit an immutable model (`ConfigDict(frozen=True)`). |
+| `x-pydantic-frozen` | schema | `true` | Apply `ConfigDict(frozen=True)`. |
 | `x-pydantic-skip` | property | `true` | Do not emit a field for this property. |
 | `x-pydantic-class` | schema | a name | Use this class/alias name instead of the `$defs` key. |
 | `x-pydantic-enum` | schema with `enum` | `true` / a name / `{name?, base?}` | Emit an `Enum` class instead of `Literal[...]`. |
-
-`x-pydantic-class` on a `$defs` entry also renames every `$ref` pointing at it,
-so the two stay consistent: name the entry once, and its declaration, any
-Read/Write split, and every reference to it all use the new name.
 
 Example using these:
 
 ```yaml
 Point:
+  x-pydantic-class: XyPoint
   x-pydantic-frozen: true
   type: object
   properties:
@@ -28,32 +22,31 @@ Point:
     internal-cache:
       type: string
       x-pydantic-skip: true
-CustomerId:
-  x-pydantic-class: CustomerIdentifier
-  type: string
 ```
 
 ## `x-pydantic-enum`
 
-Placed on any schema carrying `enum`, this generates a real `enum.Enum` subclass instead of the default `Literal[...]`.
+Placed on any schema carrying `enum`, generates a Python enum instead of a `Literal`.
 It accepts three shapes:
 
-- `true`: derive both the class name and the base from context.
-- a string: use it as the class name; derive the base from context.
-- an object `{"name": ..., "base": ...}`: either key may be given alone, falling back to the derived value for the other.
+- boolean (`true`; `false` has no effect)
+- string (the class name)
+- object `{name?, base?}`
 
-The base (`Enum`, `StrEnum`, or `IntEnum`) is auto-detected from the enum's value types when not given explicitly:
-all-`string` values get `StrEnum`, all-`integer` values get `IntEnum` (JSON `true`/`false` do not count as integers here), and anything else that is still a JSON scalar (a mix of types, or `number`/`boolean`/`null` values) gets a plain `Enum`.
-A `list`- or `dict`-valued enum entry cannot be expressed as an `Enum` member and falls back to `Literal[...]` with a warning, even when `x-pydantic-enum` is set.
+If `name` is not provided, it is inferred:
 
-`base` may also name a custom class (e.g. `"DashReplacingEnum"`) instead of one of the three stdlib names.
-No import is generated for it, since the generator does not yet know how to import a user-supplied base class, so the generated module is expected to already have it in scope.
+- If defined in `properties`, uses `{ToPascalCase(enclosing_class_name)}{ToPascalCase(property_name)}`
+- If defined outside with name `def_name`, uses `ToPascalCase(def_name)`.
 
-Where the class name is *derived* rather than given explicitly, a property-level `enum` uses the enclosing class's name plus the property name (e.g. a `status` property on `Order` becomes `OrderStatus`), avoiding collisions between same-named properties on unrelated schemas.
-A top-level (`$defs` entry or root schema) `enum` keeps its existing name resolution (`x-pydantic-class`, then `title`, etc.), since letting `x-pydantic-enum`'s own `name` rename a `$defs` entry would silently diverge from what `$ref`s targeting it resolve to.
+If `base` is not provided, it is inferred:
 
-Each member's name is derived from its value (e.g. `"active"` becomes `ACTIVE`).
-`auto()` is used in place of an explicit value where it would produce the same result: for `StrEnum`, when the value equals the member name lower-cased; for `IntEnum`, when every value in the enum forms the sequence `1, 2, 3, ...` in declaration order.
+- If all members are strings, uses `StrEnum`.
+- If all members are integers, uses `IntEnum`.
+- If otherwise all members are primitives (including mixtures like integer ∪ boolean ∪ null), uses `Enum`.
+- Else (meaning 1 or more members are compound types), warns and falls back to `Literal`.
+
+Each member name is `TO_SCREAMING_SNAKE_CASE(to_string(to_value))`.
+`auto()` is used in place of an explicit value where it would produce the same result.
 
 Example:
 ```yaml
@@ -62,7 +55,9 @@ Order:
   properties:
     status:
       type: string
-      enum: ["active", "inactive"]
+      enum:
+        - active
+        - inactive
       x-pydantic-enum: true
 ```
 

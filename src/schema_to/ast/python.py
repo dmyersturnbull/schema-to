@@ -321,17 +321,21 @@ class EnumDef(AstNode):
     Attributes:
         name: The class name.
         base: The base class name: `"Enum"`, `"StrEnum"`, `"IntEnum"`, or a custom name.
-        base_module: Module providing `base`; `"enum"` for the three stdlib bases, `None` for a
-            custom base whose import the caller is expected to supply separately.
+        base_module: Module qualname providing `base` (e.g. `enum`);
+            `None` if unspecified (and not known to be `enum`).
         members: Member declarations, in declaration order.
         doc: Class-level docstring.
     """
 
     name: str
     base: str
-    base_module: str | None = "enum"
+    base_module: str | None
     members: Sequence[EnumMemberDef] = field(default_factory=list)
     doc: PythonDocString | None = None
+
+    @property
+    def is_custom_base(self) -> bool:
+        return self.base_module != "enum"
 
 
 type PyDeclaration = TypeAliasDef | ClassDef | FunctionDef | VarDef | EnumDef
