@@ -198,8 +198,7 @@ def _scan_function_decl(decl: FunctionDef, needed: dict[str, set[str]]) -> None:
 
 
 def _scan_enum_decl(decl: EnumDef, needed: dict[str, set[str]]) -> None:
-    # TODO: I may have broken this.
-    if decl.base:
+    if decl.base_module:
         needed.setdefault(decl.base_module, set()).add(decl.base)
     if any(m.value == "auto()" for m in decl.members):
         needed.setdefault("enum", set()).add("auto")

@@ -28,7 +28,7 @@ adjust generation beyond what JSON Schema itself expresses. See
 import re
 from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal, assert_never
+from typing import TYPE_CHECKING, Literal, assert_never, get_args
 
 from schema_to.ast.python import (
     ClassDef,
@@ -91,6 +91,8 @@ type _Variant = Literal["read", "write"] | None
 
 _NON_IDENT = re.compile(r"\W")
 SUPPORTED_ENUM_BASE = Literal["Enum", "StrEnum", "IntEnum"]
+_SUPPORTED_ENUM_BASE_NAMES = frozenset(get_args(SUPPORTED_ENUM_BASE))
+"""Runtime membership set for `SUPPORTED_ENUM_BASE`; `in` on a `Literal[...]` itself is always `False`."""
 
 
 def _classify_enum_base(values: Sequence[JsonValue]) -> SUPPORTED_ENUM_BASE:
@@ -131,9 +133,9 @@ def _enum_member_name(value: JsonPrimitive) -> str:
 def _build_enum_def(
     name: str, values: Sequence[JsonPrimitive], enum_kw: EnumKeyword, doc: PythonDocString | None
 ) -> EnumDef:
-    """Build an `EnumDef` for *values*, or `None` if a value can't become a member."""
+    """Build an `EnumDef` for *values*."""
     base = enum_kw.base or _classify_enum_base(values)
-    base_module = "enum" if base in SUPPORTED_ENUM_BASE else None
+    base_module = "enum" if base in _SUPPORTED_ENUM_BASE_NAMES else None
     is_int_auto = base == "IntEnum" and list(values) == list(range(1, len(values) + 1))
     members: list[EnumMemberDef] = []
     for v in values:
