@@ -331,3 +331,23 @@ def test_conflicting_descriptions_do_not_warn() -> None:
         "allOf": [{"type": "object", "description": "The hashable content."}],
     }
     assert "conflicting-keyword" not in _warnings(data)
+
+
+def test_identical_schema_valued_keyword_across_branches_does_not_warn() -> None:
+    """`items`/`propertyNames`/etc. carry a `source_ref`.
+
+    So two branches spelling out the same constraint must compare by content,
+    not by where each was written.
+    """
+    pattern = {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"}
+    data = {"propertyNames": pattern, "allOf": [{"type": "object", "propertyNames": dict(pattern)}]}
+    assert "conflicting-keyword" not in _warnings(data)
+
+
+def test_differing_schema_valued_keyword_across_branches_warns() -> None:
+    """A real difference in a schema-valued keyword still has to warn."""
+    data = {
+        "propertyNames": {"type": "string", "pattern": "^a"},
+        "allOf": [{"type": "object", "propertyNames": {"type": "string", "pattern": "^b"}}],
+    }
+    assert "conflicting-keyword" in _warnings(data)
