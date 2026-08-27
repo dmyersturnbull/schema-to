@@ -2,17 +2,30 @@
 
 import keyword
 import re
+from collections.abc import Mapping
 from typing import Literal
 
 from caseutil import to_pascal, to_snake
 
 __all__ = [
+    "ANY",
+    "BOOL",
+    "FLOAT",
+    "INT",
+    "NONE",
+    "PRIMITIVE_MAP",
+    "STR",
+    "literal_of",
+    "nullable_of",
     "safe_python_class_name",
     "safe_python_field_name",
     "split_class_name",
     "to_pascal",
     "to_snake",
 ]
+
+from schema_to.ast.python import PythonTypeAnnotation
+from schema_to.cst.json_schema import JsonSchemaType
 
 _NON_IDENT = re.compile(r"\W")
 
@@ -59,3 +72,28 @@ def safe_python_field_name(name: str) -> str:
         # Safe because no Python reserved words have `_` suffixes.
         snake += "_"
     return snake
+
+
+ANY = PythonTypeAnnotation("Any", module="typing")
+NONE = PythonTypeAnnotation("None")
+STR = PythonTypeAnnotation("str")
+INT = PythonTypeAnnotation("int")
+FLOAT = PythonTypeAnnotation("float")
+BOOL = PythonTypeAnnotation("bool")
+
+PRIMITIVE_MAP: Mapping[JsonSchemaType, PythonTypeAnnotation] = {
+    JsonSchemaType.STRING: STR,
+    JsonSchemaType.INTEGER: INT,
+    JsonSchemaType.NUMBER: FLOAT,
+    JsonSchemaType.BOOLEAN: BOOL,
+    JsonSchemaType.NULL: NONE,
+}
+
+
+def nullable_of(ann: PythonTypeAnnotation) -> PythonTypeAnnotation:
+    return PythonTypeAnnotation(ann.name, args=ann.args, module=ann.module, nullable=True)
+
+
+def literal_of(*values: object) -> PythonTypeAnnotation:
+    args = [PythonTypeAnnotation(repr(v)) for v in values]
+    return PythonTypeAnnotation("Literal", args=args, module="typing")

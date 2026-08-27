@@ -23,9 +23,9 @@ from schema_to.generate.fastapi.fastapi import (
     FastApiTransformer,
     _annotation_str,
     _esc,
-    _nullable,
     _op_fn_name,
     _ref_to_class_name,
+    nullable_of,
 )
 
 _PARSER = OpenApiParser()
@@ -156,7 +156,7 @@ def test_annotation_str_dict_two_args() -> None:
 
 
 def test_nullable_sets_flag() -> None:
-    result = _nullable(PythonTypeAnnotation("str"))
+    result = nullable_of(PythonTypeAnnotation("str"))
     assert result.nullable is True
     assert result.name == "str"
 
@@ -164,21 +164,21 @@ def test_nullable_sets_flag() -> None:
 def test_nullable_preserves_args() -> None:
     inner = PythonTypeAnnotation("str")
     ann = PythonTypeAnnotation("list", args=[inner])
-    result = _nullable(ann)
+    result = nullable_of(ann)
     assert result.nullable is True
     assert list(result.args) == [inner]
 
 
 def test_nullable_preserves_module() -> None:
     ann = PythonTypeAnnotation("Any", module="typing")
-    result = _nullable(ann)
+    result = nullable_of(ann)
     assert result.module == "typing"
     assert result.nullable is True
 
 
 def test_nullable_already_nullable_stays_nullable() -> None:
     ann = PythonTypeAnnotation("str", nullable=True)
-    assert _nullable(ann).nullable is True
+    assert nullable_of(ann).nullable is True
 
 
 # ---------------------------------------------------------------------------

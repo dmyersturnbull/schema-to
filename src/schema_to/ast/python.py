@@ -17,6 +17,8 @@ __all__ = [
     "ClassDef",
     "ClassStyle",
     "Decorator",
+    "EnumDef",
+    "EnumMemberDef",
     "FieldDef",
     "FromImport",
     "FunctionDef",
@@ -297,7 +299,46 @@ class ClassDef(AstNode):
     decorators: Sequence[Decorator] = field(default_factory=list)
 
 
-type PyDeclaration = TypeAliasDef | ClassDef | FunctionDef | VarDef
+@dataclass(frozen=True, slots=True)
+class EnumMemberDef(AstNode):
+    """A member of an `EnumDef`.
+
+    Attributes:
+        name: The member's identifier, e.g. `"ACTIVE"`.
+        value: The member's value expression, e.g. `"'active'"`, `"1"`, or `"auto()"`.
+        doc: Inline documentation for this member.
+    """
+
+    name: str
+    value: str
+    doc: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EnumDef(AstNode):
+    """An `enum.Enum`-family class declaration.
+
+    Attributes:
+        name: The class name.
+        base: The base class name: `"Enum"`, `"StrEnum"`, `"IntEnum"`, or a custom name.
+        base_module: Module qualname providing `base` (e.g. `enum`);
+            `None` if unspecified (and not known to be `enum`).
+        members: Member declarations, in declaration order.
+        doc: Class-level docstring.
+    """
+
+    name: str
+    base: str
+    base_module: str | None
+    members: Sequence[EnumMemberDef] = field(default_factory=list)
+    doc: PythonDocString | None = None
+
+    @property
+    def is_custom_base(self) -> bool:
+        return self.base_module != "enum"
+
+
+type PyDeclaration = TypeAliasDef | ClassDef | FunctionDef | VarDef | EnumDef
 
 
 # ---------------------------------------------------------------------------
