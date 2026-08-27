@@ -43,7 +43,7 @@ from schema_to.ast.python import (
     PythonTypeAnnotation,
     TypeAliasDef,
 )
-from schema_to.core import JsonArray, JsonPrimitive, JsonValue, is_json_primitive_sequence
+from schema_to.core import JsonPrimitive, JsonValue, is_json_primitive_sequence
 from schema_to.cst.json_schema import (
     BooleanSchema,
     JsonSchema,
@@ -344,7 +344,12 @@ class _GenCtx:
         return [TypeAliasDef(name=safe_python_class_name(name), annotation=ann, doc=doc)]
 
     def _top_level_enum(
-        self, schema: ObjectSchema, values: JsonArray, *, name: str, doc: PythonDocString | None
+        self,
+        schema: ObjectSchema,
+        values: Sequence[JsonValue],
+        *,
+        name: str,
+        doc: PythonDocString | None,
     ) -> EnumDef | None:
         """Build the `EnumDef` for a `$defs` entry or root schema, if `x-pydantic-enum` asks for one.
 

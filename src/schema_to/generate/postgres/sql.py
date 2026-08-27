@@ -444,7 +444,7 @@ class _GenCtx:
     def _get_as_object_schema(self, input: JsonSchemaDocument) -> ObjectSchema:
         """Return the root as a flattened object schema, or fail with what it is instead."""
         root = self._flatten(input.root, base_uri=input.source_id)
-        if is_object_schema(root):
+        if isinstance(root, ObjectSchema) and is_object_schema(root):
             return root
         if isinstance(root, BooleanSchema):
             found = "a boolean schema"

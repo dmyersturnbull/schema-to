@@ -8,7 +8,7 @@ so that serializers and parsers can iterate `dataclasses.fields()` directly.
 from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
-from typing import Literal, TypeIs, assert_type
+from typing import Literal, TypeGuard, assert_type
 
 from schema_to.core import JsonValue
 from schema_to.cst.base import SYNTHETIC, CstNode, SourceRef
@@ -163,12 +163,19 @@ SINGULAR_KEYWORDS: Set[str] = frozenset(
 DOC_KEYWORDS: Set[str] = frozenset({"title", "description"})
 
 
-def is_object_schema(schema: JsonSchema) -> TypeIs[ObjectSchema]:
+def is_object_schema(schema: JsonSchema) -> TypeGuard[ObjectSchema]:
     """Return `True` if *schema* describes a JSON object (a table/model).
 
-    True when `object` is among the declared types,
-    or when no type is declared but `properties` are present
-    (a common shorthand for an object schema).
+    True if `schema` is an `ObjectSchema` and **either**:
+
+    - [ObjectSchema.get_types][] contains [JsonSchemaType.OBJECT][]
+      Meaning in JSON either `"type": "object"` or `"type": ["object", ...]`)
+    - [ObjectSchema.get_types][] is empty but [ObjectSchema.properties][] is not `None`
+      Meaning in JSON the key `properties` is present (even if it's empty)
+
+    Note:
+        This returns `TypeGuard` rather than `TypeIs` because the condition is more restrictive than just `isinstance(..., ObjectSchema)`.
+        `not is_object_schema(x)` does **not** imply `not instance(x, ObjectSchema)`.
     """
     if not isinstance(schema, ObjectSchema):
         return False
