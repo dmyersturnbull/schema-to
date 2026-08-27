@@ -151,7 +151,7 @@ class SchemaFlattener:
 
     def _inline_children(
         self, schema: ObjectSchema, *, base_uri: str, seen: Set[str], depth: int
-    ) -> dict[str, _SubSchemaValue]:
+    ) -> Mapping[str, _SubSchemaValue]:
         """Inline every keyword whose value holds sub-schemas.
 
         Driven by the same plans the parser and serializer run on,
@@ -179,7 +179,7 @@ class SchemaFlattener:
 
     def _parts(
         self, schema: ObjectSchema, *, base_uri: str, seen: Set[str], depth: int
-    ) -> list[tuple[ObjectSchema, bool]]:
+    ) -> Sequence[tuple[ObjectSchema, bool]]:
         """Return the flattened `$ref` target and `allOf` branches contributing to `schema`.
 
         Each is paired with whether it came from the `$ref`,
@@ -238,7 +238,7 @@ class SchemaFlattener:
 
     def _merge_singular(
         self, base: ObjectSchema, other: ObjectSchema, *, from_ref: bool
-    ) -> dict[str, _KeywordValue]:
+    ) -> Mapping[str, _KeywordValue]:
         """Take each singular keyword from the first schema that sets one.
 
         `allOf` means both assertions hold.

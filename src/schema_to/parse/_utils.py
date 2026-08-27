@@ -1,5 +1,6 @@
 """Shared utilities for document parsers."""
 
+from collections.abc import MutableSequence
 from typing import TYPE_CHECKING, cast
 
 from schema_to.errors import ParseError, SourceLocation, TranspilationError
@@ -63,8 +64,11 @@ def decode_raw_doc(doc: RawDoc, reader: JsonLikeReader) -> JsonValue:
         ) from e
 
 
-def extract[T](result: Result[T], errors: list[TranspilationError]) -> T | None:
-    """Unwrap `Ok` or accumulate `Err` errors, returning `None` on failure."""
+def extract[T](result: Result[T], errors: MutableSequence[TranspilationError]) -> T | None:
+    """Unwrap `Ok` or accumulate `Err` errors, returning `None` on failure.
+
+    Modifies the argument `errors`.
+    """
     if isinstance(result, Err):
         errors.extend(result.errors)
         return None

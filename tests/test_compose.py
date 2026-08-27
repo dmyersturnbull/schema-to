@@ -9,6 +9,8 @@ Covers:
 - Integration: an `allOf`-composed schema becomes a table with every branch's columns.
 """
 
+from collections.abc import Sequence
+
 import orjson
 
 from schema_to.cst.json_schema import (
@@ -214,7 +216,7 @@ def test_sibling_keyword_wins_over_ref_target() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _warnings(data: object, *, resolve: bool = False) -> list[str]:
+def _warnings(data: object, *, resolve: bool = False) -> Sequence[str]:
     schema = _parse(data)
     resolver = None
     if resolve:

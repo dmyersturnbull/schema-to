@@ -217,12 +217,12 @@ def concrete[N: CstNode](value: Reference | N) -> N | None:
     return None if isinstance(value, Reference) else value
 
 
-def concrete_list[N: CstNode](values: Iterable[Reference | N]) -> list[N]:
+def concrete_list[N: CstNode](values: Iterable[Reference | N]) -> Sequence[N]:
     """Drop the entries of `values` that are still unresolved references."""
     return [value for value in values if not isinstance(value, Reference)]
 
 
-def concrete_map[N: CstNode](values: Mapping[str, Reference | N]) -> dict[str, N]:
+def concrete_map[N: CstNode](values: Mapping[str, Reference | N]) -> Mapping[str, N]:
     """Drop the entries of `values` that are still unresolved references."""
     return {name: value for name, value in values.items() if not isinstance(value, Reference)}
 

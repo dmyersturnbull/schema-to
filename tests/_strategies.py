@@ -15,6 +15,8 @@ Additional strategies:
 
 from hypothesis import strategies as st
 
+from schema_to.core import JsonObject, JsonValue
+
 # ---------------------------------------------------------------------------
 # Primitive building blocks
 # ---------------------------------------------------------------------------
@@ -58,7 +60,7 @@ _media_type_str = st.builds(
 
 
 @st.composite
-def _numeric_kw_st(draw: st.DrawFn, d: dict) -> None:
+def _numeric_kw_st(draw: st.DrawFn, d: JsonObject) -> None:
     for kw in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"):
         if draw(st.booleans()):
             d[kw] = draw(
@@ -71,7 +73,7 @@ def _numeric_kw_st(draw: st.DrawFn, d: dict) -> None:
 
 
 @st.composite
-def _string_kw_st(draw: st.DrawFn, d: dict) -> None:
+def _string_kw_st(draw: st.DrawFn, d: JsonObject) -> None:
     if draw(st.booleans()):
         d["minLength"] = draw(st.integers(min_value=0, max_value=200))
     if draw(st.booleans()):
@@ -83,7 +85,7 @@ def _string_kw_st(draw: st.DrawFn, d: dict) -> None:
 
 
 @st.composite
-def _array_kw_st(draw: st.DrawFn, d: dict, depth: int) -> None:
+def _array_kw_st(draw: st.DrawFn, d: JsonObject, depth: int) -> None:
     if draw(st.booleans()):
         d["minItems"] = draw(st.integers(min_value=0, max_value=100))
     if draw(st.booleans()):
@@ -95,7 +97,7 @@ def _array_kw_st(draw: st.DrawFn, d: dict, depth: int) -> None:
 
 
 @st.composite
-def _object_kw_st(draw: st.DrawFn, d: dict, depth: int) -> None:
+def _object_kw_st(draw: st.DrawFn, d: JsonObject, depth: int) -> None:
     if depth < 2 and draw(st.booleans()):
         prop_names = draw(st.lists(_identifier, min_size=1, max_size=4, unique=True))
         d["properties"] = {name: draw(json_schema_st(depth=depth + 1)) for name in prop_names}
@@ -109,7 +111,7 @@ def _object_kw_st(draw: st.DrawFn, d: dict, depth: int) -> None:
 
 
 @st.composite
-def _applicator_kw_st(draw: st.DrawFn, d: dict, depth: int) -> None:
+def _applicator_kw_st(draw: st.DrawFn, d: JsonObject, depth: int) -> None:
     if depth < 2:
         for kw in ("allOf", "anyOf", "oneOf"):
             if draw(st.booleans()):
@@ -131,12 +133,12 @@ def _applicator_kw_st(draw: st.DrawFn, d: dict, depth: int) -> None:
 
 @st.composite
 # ruff:ignore[complex-structure, too-many-branches]  # Shared structure
-def json_schema_st(draw: st.DrawFn, depth: int = 0) -> object:
+def json_schema_st(draw: st.DrawFn, depth: int = 0) -> JsonValue:
     """Generate a valid JSON Schema 2020-12 value (bool or object dict)."""
     if depth > 0 and draw(st.booleans()):
         return draw(st.booleans())
 
-    d: dict[str, object] = {}
+    d: JsonObject = {}
 
     # Core vocabulary
     if draw(st.booleans()):
@@ -168,6 +170,7 @@ def json_schema_st(draw: st.DrawFn, depth: int = 0) -> object:
                 st.sampled_from(_SCHEMA_TYPES), min_size=n_types, max_size=n_types, unique=True
             )
         )
+        # ty: ignore[invalid-assignment]  # Hypothesis uses `list`, which is invariant.
         d["type"] = types[0] if len(types) == 1 else types
 
     # Validation — enum / const (mutually exclusive)
@@ -202,8 +205,8 @@ _STATUS_CODES = (
 
 
 @st.composite
-def _response_st(draw: st.DrawFn) -> dict:
-    d: dict = {"description": draw(_safe_text)}
+def _response_st(draw: st.DrawFn) -> JsonObject:
+    d: JsonObject = {"description": draw(_safe_text)}
     if draw(st.booleans()):
         media_types = draw(st.lists(_media_type_str, min_size=1, max_size=2, unique=True))
         d["content"] = {
@@ -218,14 +221,14 @@ def _response_st(draw: st.DrawFn) -> dict:
 
 
 @st.composite
-def _parameter_st(draw: st.DrawFn) -> dict:
+def _parameter_st(draw: st.DrawFn) -> JsonObject:
     return {"name": draw(_identifier), "in": draw(st.sampled_from(_PARAM_LOCATIONS))}
 
 
 @st.composite
-def _operation_st(draw: st.DrawFn) -> dict:
+def _operation_st(draw: st.DrawFn) -> JsonObject:
     status = draw(st.sampled_from(_STATUS_CODES))
-    d: dict = {"responses": {status: draw(_response_st())}}
+    d: JsonObject = {"responses": {status: draw(_response_st())}}
     if draw(st.booleans()):
         d["summary"] = draw(_safe_text)
     if draw(st.booleans()):
@@ -242,9 +245,9 @@ def _operation_st(draw: st.DrawFn) -> dict:
 
 
 @st.composite
-def _path_item_st(draw: st.DrawFn) -> dict:
+def _path_item_st(draw: st.DrawFn) -> JsonObject:
     method = draw(st.sampled_from(["get", "post", "put", "delete", "patch"]))
-    d: dict = {method: draw(_operation_st())}
+    d: JsonObject = {method: draw(_operation_st())}
     if draw(st.booleans()):
         d["summary"] = draw(_safe_text)
     if draw(st.booleans()):
@@ -255,9 +258,9 @@ def _path_item_st(draw: st.DrawFn) -> dict:
 
 
 @st.composite
-def openapi_doc_st(draw: st.DrawFn) -> dict:
+def openapi_doc_st(draw: st.DrawFn) -> JsonObject:
     """Generate a minimal but valid OpenAPI 3.1 document dict."""
-    d: dict = {
+    d: JsonObject = {
         "openapi": "3.1.0",
         "info": {"title": draw(_nonempty_text), "version": draw(_nonempty_text)},
     }
@@ -290,7 +293,7 @@ _PRIMITIVE_TYPES = ["string", "integer", "number", "boolean"]
 
 
 @st.composite
-def json_schema_with_defs_st(draw: st.DrawFn) -> dict:
+def json_schema_with_defs_st(draw: st.DrawFn) -> JsonObject:
     """Generate a JSON Schema 2020-12 object dict that includes `$defs` and internal `$ref` pointers.
 
     Guarantees that every `$ref` is resolvable.
@@ -299,11 +302,11 @@ def json_schema_with_defs_st(draw: st.DrawFn) -> dict:
     """
     def_names = draw(st.lists(_identifier, min_size=1, max_size=4, unique=True))
 
-    defs: dict[str, object] = {}
+    defs: JsonObject = {}
     for name in def_names:
         defs[name] = {"type": draw(st.sampled_from(_PRIMITIVE_TYPES))}
 
-    d: dict[str, object] = {"type": "object", "$defs": defs}
+    d: JsonObject = {"type": "object", "$defs": defs}
 
     if draw(st.booleans()):
         d["title"] = draw(_nonempty_text)
@@ -313,7 +316,7 @@ def json_schema_with_defs_st(draw: st.DrawFn) -> dict:
     # Properties: mix of direct types and $ref to defined defs.
     prop_names = draw(st.lists(_identifier, min_size=0, max_size=5, unique=True))
     if prop_names:
-        props: dict[str, object] = {}
+        props: JsonObject = {}
         for prop in prop_names:
             if draw(st.booleans()) and def_names:
                 ref_target = draw(st.sampled_from(def_names))
@@ -339,23 +342,23 @@ _LEAF_TYPES = ["string", "integer", "number", "boolean"]
 
 
 @st.composite
-def _leaf_schema_st(draw: st.DrawFn) -> dict:
+def _leaf_schema_st(draw: st.DrawFn) -> JsonObject:
     t = draw(st.sampled_from(_LEAF_TYPES))
-    d: dict[str, object] = {"type": t}
+    d: JsonObject = {"type": t}
     if draw(st.booleans()):
         d["description"] = draw(_safe_text)
     return d
 
 
 @st.composite
-def object_schema_st(draw: st.DrawFn) -> dict:
+def object_schema_st(draw: st.DrawFn) -> JsonObject:
     """Generate an `object`-typed JSON Schema suitable for Pydantic generation.
 
     Properties use only leaf primitive types (no recursive nesting), making the
     generated classes simple and the test assertions tractable.  The schema
     always has `type: object` so the generator always produces a `ClassDef`.
     """
-    d: dict[str, object] = {"type": "object"}
+    d: JsonObject = {"type": "object"}
 
     if draw(st.booleans()):
         d["title"] = draw(_nonempty_text)
@@ -380,7 +383,7 @@ def object_schema_st(draw: st.DrawFn) -> dict:
 
 
 @st.composite
-def sql_object_schema_st(draw: st.DrawFn) -> dict:
+def sql_object_schema_st(draw: st.DrawFn) -> JsonObject:
     """Generate a JSON Schema 2020-12 object dict suitable for SQL generation tests.
 
     The root is always `type: object`.  `$defs` entries (if present) are also
@@ -390,17 +393,17 @@ def sql_object_schema_st(draw: st.DrawFn) -> dict:
     """
     def_names = draw(st.lists(_identifier, min_size=0, max_size=3, unique=True))
 
-    defs: dict[str, object] = {}
+    defs: JsonObject = {}
     for name in def_names:
         prop_names = draw(st.lists(_identifier, min_size=0, max_size=4, unique=True))
-        def_schema: dict[str, object] = {"type": "object"}
+        def_schema: JsonObject = {"type": "object"}
         if prop_names:
             def_schema["properties"] = {
                 p: {"type": draw(st.sampled_from(_LEAF_TYPES))} for p in prop_names
             }
         defs[name] = def_schema
 
-    d: dict[str, object] = {"type": "object"}
+    d: JsonObject = {"type": "object"}
     if defs:
         d["$defs"] = defs
 

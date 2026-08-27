@@ -23,7 +23,7 @@ async def get_db() -> AsyncIterator[AsyncConnection]:
     yield  # pragma: no cover - makes this an async generator
 
 
-def to_dict(body: Any) -> dict[str, Any]:
+def to_dict(body: Any) -> Mapping[str, Any]:
     """Coerce a request body (Pydantic model or mapping) to a plain dict."""
     dump = getattr(body, "model_dump", None)
     if callable(dump):

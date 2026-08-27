@@ -3,7 +3,7 @@
 Invoked as `schema-to <command> [options]` or `python -m schema_to`.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Annotated, Final
 
@@ -104,7 +104,7 @@ def transpile(
             raise Exit(1)
 
 
-def _sources(paths: list[Path], *, recursive: bool, schema_map: bool) -> Sequence[DataSource]:
+def _sources(paths: Sequence[Path], *, recursive: bool, schema_map: bool) -> Sequence[DataSource]:
     """Build the data sources for the given paths.
 
     A schema map cannot be told from a single schema by file name,
@@ -115,7 +115,7 @@ def _sources(paths: list[Path], *, recursive: bool, schema_map: bool) -> Sequenc
     return [SchemaMapDirectorySource(path, recursive=recursive) for path in paths]
 
 
-def _load_templates(specs: list[str]) -> dict[str, str]:
+def _load_templates(specs: Sequence[str]) -> Mapping[str, str]:
     """Parse `NAME=PATH` template specs into a `{name: source}` mapping."""
     templates: dict[str, str] = {}
     for spec in specs:

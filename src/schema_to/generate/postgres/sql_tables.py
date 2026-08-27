@@ -142,7 +142,7 @@ class _GenCtx:
     # Selection
     # ------------------------------------------------------------------
 
-    def _collect(self, doc: JsonSchemaMapDocument) -> list[TableSpec]:
+    def _collect(self, doc: JsonSchemaMapDocument) -> Sequence[TableSpec]:
         """Return a spec for every schema marked with `x-pg-table`, in document order."""
         specs: list[TableSpec] = []
         for name, schema in doc.schemas.items():
@@ -196,7 +196,7 @@ class _GenCtx:
             self._flat_prop_cache[key] = flat
         return flat
 
-    def _referenced_tables(self, spec: TableSpec) -> list[str]:
+    def _referenced_tables(self, spec: TableSpec) -> Sequence[str]:
         """Return the tables this table's foreign keys point at.
 
         Covers both an explicit `x-pg-refs` and a `$ref` to an `x-pg-pk-for` schema.
@@ -351,7 +351,7 @@ class _GenCtx:
             deferred=deferred,
         )
 
-    def _build_indexes(self, spec: TableSpec) -> list[CreateIndexStmt]:
+    def _build_indexes(self, spec: TableSpec) -> Sequence[CreateIndexStmt]:
         """Return the index statements for a table, from both keyword forms."""
         requests: list[IndexRequest] = []
         for prop_name, prop_schema in (spec.schema.properties or {}).items():

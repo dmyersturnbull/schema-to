@@ -1,5 +1,7 @@
 """Shared utilities for Postgres tests."""
 
+from collections.abc import Sequence
+
 import orjson
 from tests._targets import transpiler_for
 
@@ -27,7 +29,7 @@ def get_sql(*docs: SchemaMapRawDoc) -> str:
     return result.value[0].content.decode()
 
 
-def get_warnings(*docs: SchemaMapRawDoc) -> list[str]:
+def get_warnings(*docs: SchemaMapRawDoc) -> Sequence[str]:
     """Runs a Postgres transpiler, asserts that the result is an [Ok][], and returns warnings."""
     transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
     result = transpiler.transpile_all(docs)
@@ -36,7 +38,7 @@ def get_warnings(*docs: SchemaMapRawDoc) -> list[str]:
     return [w.code for w in result.warnings if w.code]
 
 
-def get_errors(*docs: SchemaMapRawDoc) -> list[str]:
+def get_errors(*docs: SchemaMapRawDoc) -> Sequence[str]:
     """Runs a Postgres transpiler, asserts that the result is an [Err][], and returns messages."""
     transpiler = transpiler_for("postgres", selects=SchemaMapRawDoc, schema_map=True)
     result = transpiler.transpile_all(docs)

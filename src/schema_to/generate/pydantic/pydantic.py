@@ -300,7 +300,7 @@ class _GenCtx:
 
     def build_declarations(
         self, input: JsonSchemaDocument, *, roots: Set[str] | None
-    ) -> list[PyDeclaration]:
+    ) -> Sequence[PyDeclaration]:
         """Convert every `$defs` entry (subject to *roots*) and the root schema."""
         declarations: list[PyDeclaration] = []
         if isinstance(input.root, ObjectSchema) and input.root.defs:
@@ -313,7 +313,7 @@ class _GenCtx:
         declarations.extend(self.schema_to_declarations(input.root, name=root_name))
         return declarations
 
-    def schema_to_declarations(self, schema: JsonSchema, name: str) -> list[PyDeclaration]:
+    def schema_to_declarations(self, schema: JsonSchema, name: str) -> Sequence[PyDeclaration]:
         """Convert a top-level schema to one or two declaration nodes.
 
         Returns two `ClassDef`s (Read/Write) when *schema* has any
@@ -472,7 +472,7 @@ class _GenCtx:
             return repr(prop_schema.default.value)
         return None
 
-    def _build_field_kwargs(self, prop_schema: JsonSchema, *, alias: str) -> list[str]:
+    def _build_field_kwargs(self, prop_schema: JsonSchema, *, alias: str) -> Sequence[str]:
         field_kw: list[str] = []
         if alias:
             field_kw.append(alias)
@@ -710,7 +710,7 @@ def _scan_class_imports(decl: ClassDef, needed: dict[str, set[str]]) -> None:
             needed.setdefault("pydantic", set()).add("Field")
 
 
-def _build_imports(declarations: list[PyDeclaration]) -> list[FromImport]:
+def _build_imports(declarations: list[PyDeclaration]) -> Sequence[FromImport]:
     """Collect all needed imports from the declaration tree."""
     needed: dict[str, set[str]] = {}
     has_class = False

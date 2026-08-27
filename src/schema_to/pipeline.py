@@ -515,7 +515,7 @@ class Pipeline[I: RawDoc, O: Artifact]:
             )
         )
 
-    def _route(self, helper: _PipelineHelper) -> list[tuple[int, list[I]]]:
+    def _route(self, helper: _PipelineHelper) -> Sequence[tuple[int, list[I]]]:
         """Group every source document under the first transpiler that accepts it.
 
         Batches are keyed by position rather than by the transpiler itself,

@@ -397,7 +397,7 @@ def _str_tuple(raw: Mapping[str, JsonValue], key: str, *, where: str) -> tuple[s
     return tuple(v for v in entries if isinstance(v, str))
 
 
-def _as_str_map(raw: Mapping[str, JsonValue], keyword: str, where: str) -> dict[str, str]:
+def _as_str_map(raw: Mapping[str, JsonValue], keyword: str, where: str) -> Mapping[str, str]:
     out: dict[str, str] = {}
     for key, value in raw.items():
         if not isinstance(value, str):

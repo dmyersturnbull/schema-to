@@ -8,6 +8,7 @@ wires up the declared imports and the injected connection parameter, and parses 
 """
 
 import ast
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -20,7 +21,7 @@ _EXAMPLE_DIR = Path(__file__).resolve().parents[2] / "examples" / "postgres"
 _EXAMPLE = _EXAMPLE_DIR / "things.openapi.yaml"
 
 
-def _named_templates() -> dict[str, str]:
+def _named_templates() -> Mapping[str, str]:
     return {
         path.name.removesuffix(".py.jinja"): path.read_text(encoding="utf-8")
         for path in (_EXAMPLE_DIR / "templates").glob("*.py.jinja")

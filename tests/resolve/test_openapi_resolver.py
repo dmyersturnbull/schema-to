@@ -5,6 +5,7 @@ from collections.abc import Mapping
 
 import pytest
 
+from schema_to.core import JsonObject, JsonValue
 from schema_to.cst.json_schema import ObjectSchema
 from schema_to.cst.openapi import (
     Example,
@@ -14,6 +15,7 @@ from schema_to.cst.openapi import (
     Operation,
     Parameter,
     PathItem,
+    Reference,
     RequestBody,
     Response,
     SecurityScheme,
@@ -28,18 +30,18 @@ from schema_to.result import Err, Ok
 _RESOLVER_INPUT = "3.1.0"
 
 
-def _document(doc: dict, doc_id: str = "d") -> OpenApiDocument:
+def _document(doc: JsonObject, doc_id: str = "d") -> OpenApiDocument:
     raw = OpenApiRawDoc(doc_id=doc_id, content=json.dumps(doc).encode(), media_type=MediaTypes.json)
     parsed = OpenApiParser().apply(raw)
     assert isinstance(parsed, Ok), [e.message for e in getattr(parsed, "errors", ())]
     return parsed.value
 
 
-def _resolve(doc: dict, doc_id: str = "d") -> Ok[OpenApiDocument] | Err:
+def _resolve(doc: JsonObject, doc_id: str = "d") -> Ok[OpenApiDocument] | Err:
     return OpenApiRefResolver().apply(_document(doc, doc_id))
 
 
-def _minimal(**extra: object) -> dict:
+def _minimal(**extra: JsonValue) -> JsonObject:
     return {"openapi": _RESOLVER_INPUT, "info": {"title": "T", "version": "1"}, **extra}
 
 
@@ -81,7 +83,7 @@ def test_a_referenced_parameter_is_replaced_by_its_target() -> None:
     ],
 )
 def test_every_component_section_resolves(
-    section: str, name: str, target: dict, expected: type
+    section: str, name: str, target: JsonObject, expected: type
 ) -> None:
     """A reference from the components map into itself resolves for every section."""
     result = _resolve(
@@ -360,7 +362,7 @@ _CALLBACKS = _minimal(
 )
 
 
-def _callbacks(doc: OpenApiDocument) -> dict:
+def _callbacks(doc: OpenApiDocument) -> Mapping[str, Reference | Mapping[str, PathItem]]:
     operation = doc.paths["/x"].post
     assert operation is not None
     return dict(operation.callbacks)
@@ -379,10 +381,13 @@ def test_resolution_reaches_inside_a_callback() -> None:
     """Everything under a callback used to be a blind spot for the walk."""
     result = _resolve(_CALLBACKS)
     assert isinstance(result, Ok), [e.message for e in getattr(result, "errors", ())]
-    inline = _callbacks(result.value)["inline"]["{$request.body#/url}"]
-    assert isinstance(inline, PathItem)
-    assert inline.post is not None
-    parameter = inline.post.parameters[0]
+    cb = _callbacks(result.value)
+    inline = cb["inline"]
+    assert isinstance(inline, Mapping)
+    inline_url = inline["{$request.body#/url}"]
+    assert isinstance(inline_url, PathItem)
+    assert inline_url.post is not None
+    parameter = inline_url.post.parameters[0]
     assert isinstance(parameter, Parameter)
     assert parameter.name == "id"
 

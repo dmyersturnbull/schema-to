@@ -296,7 +296,7 @@ def _build_int(
 
 def _build_list(
     item: FieldSpec, data: JsonValue, at: Cursor, *, spec: FieldSpec
-) -> list[ParsedValue] | Failed:
+) -> Sequence[ParsedValue] | Failed:
     array = as_array(data)
     if array is None:
         return _reject(spec, at)
@@ -310,7 +310,7 @@ def _build_list(
 
 def _build_map(
     value_spec: FieldSpec, data: JsonValue, at: Cursor, *, spec: FieldSpec
-) -> dict[str, ParsedValue] | Failed:
+) -> Mapping[str, ParsedValue] | Failed:
     obj = as_object(data)
     if obj is None:
         return _reject(spec, at)

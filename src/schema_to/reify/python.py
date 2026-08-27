@@ -102,7 +102,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
 
     def _emit_decl(
         self, decl: TypeAliasDef | ClassDef | FunctionDef | VarDef | EnumDef
-    ) -> list[str]:
+    ) -> Sequence[str]:
         if isinstance(decl, TypeAliasDef):
             return self._emit_type_alias(decl)
         if isinstance(decl, FunctionDef):
@@ -113,7 +113,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
             return self._emit_enum(decl)
         return self._emit_class(decl)
 
-    def _emit_function(self, decl: FunctionDef) -> list[str]:
+    def _emit_function(self, decl: FunctionDef) -> Sequence[str]:
         lines: list[str] = []
         for dec in decl.decorators:
             mod = f"{dec.module}." if dec.module else ""
@@ -149,11 +149,11 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
             parts.append(part)
         return ", ".join(parts)
 
-    def _emit_var(self, decl: VarDef) -> list[str]:
+    def _emit_var(self, decl: VarDef) -> Sequence[str]:
         ann = f": {self._emit_annotation(decl.annotation)}" if decl.annotation else ""
         return [f"{decl.name}{ann} = {decl.value}"]
 
-    def _emit_type_alias(self, decl: TypeAliasDef) -> list[str]:
+    def _emit_type_alias(self, decl: TypeAliasDef) -> Sequence[str]:
         ann = self._emit_annotation(decl.annotation)
         lines: list[str] = []
         if decl.doc:
@@ -161,7 +161,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
         lines.append(f"type {decl.name} = {ann}")
         return lines
 
-    def _emit_class(self, decl: ClassDef) -> list[str]:
+    def _emit_class(self, decl: ClassDef) -> Sequence[str]:
         lines: list[str] = []
 
         # Decorators
@@ -193,7 +193,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
         lines += body
         return lines
 
-    def _class_bases(self, decl: ClassDef) -> list[str]:
+    def _class_bases(self, decl: ClassDef) -> Sequence[str]:
         style_bases: list[str] = []
         if decl.style in {ClassStyle.PYDANTIC, ClassStyle.PYDANTIC_FROZEN}:
             style_bases = ["BaseModel"]
@@ -203,7 +203,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
             pass
         return style_bases + list(decl.bases)
 
-    def _emit_enum(self, decl: EnumDef) -> list[str]:
+    def _emit_enum(self, decl: EnumDef) -> Sequence[str]:
         lines = [f"class {decl.name}({decl.base}):"]
         body: list[str] = []
         if decl.doc:
@@ -221,7 +221,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     # Fields
     # ------------------------------------------------------------------
 
-    def _emit_field(self, f: FieldDef) -> list[str]:
+    def _emit_field(self, f: FieldDef) -> Sequence[str]:
         ann = self._emit_annotation(f.annotation)
         line = f"{_INDENT}{f.name}: {ann}"
         if f.default is not None:
@@ -248,7 +248,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     # Docstrings
     # ------------------------------------------------------------------
 
-    def _emit_docstring(self, doc: PythonDocString, indent: str) -> list[str]:
+    def _emit_docstring(self, doc: PythonDocString, indent: str) -> Sequence[str]:
         lines: list[str] = []
         text = doc.summary
         if doc.description:
@@ -268,7 +268,7 @@ class PythonReifier(Reifier[PythonModule, PythonArtifact]):
     # ------------------------------------------------------------------
 
     # ruff:ignore[unused-method-argument]  # Defined for overriding.
-    def _emit_method_stub(self, m: FunctionDef) -> list[str]:
+    def _emit_method_stub(self, m: FunctionDef) -> Sequence[str]:
         return ["pass"]
 
 

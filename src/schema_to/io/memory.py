@@ -1,5 +1,6 @@
 """In-memory `DataSource` and `DataSink` implementations."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -43,5 +44,5 @@ class InMemoryDataSink[T: Artifact](DataSink[T]):
         self._artifacts.append(artifact)
 
     @property
-    def artifacts(self) -> list[T]:
+    def artifacts(self) -> Sequence[T]:
         return list(self._artifacts)

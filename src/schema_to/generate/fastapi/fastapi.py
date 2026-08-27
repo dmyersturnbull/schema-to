@@ -206,7 +206,7 @@ def _scan_enum_decl(decl: EnumDef, needed: dict[str, set[str]]) -> None:
 
 def _build_imports(
     declarations: list[PyDeclaration], extra: Sequence[PyImport] = ()
-) -> list[PyImport]:
+) -> Sequence[PyImport]:
     needed: dict[str, set[str]] = {"fastapi": {"FastAPI"}}
     for decl in declarations:
         if isinstance(decl, ClassDef):
@@ -305,7 +305,7 @@ class _GenCtx:
 
     # -- Pydantic models from components/schemas --------------------------------
 
-    def _generate_models(self) -> list[PyDeclaration]:
+    def _generate_models(self) -> Sequence[PyDeclaration]:
         decls: list[PyDeclaration] = []
         for name, schema in self.doc.components.schemas.items():
             if self.roots is not None and name not in self.roots:
@@ -335,7 +335,7 @@ class _GenCtx:
 
     # -- Routes -----------------------------------------------------------------
 
-    def _generate_routes(self) -> list[FunctionDef]:
+    def _generate_routes(self) -> Sequence[FunctionDef]:
         return [
             self._make_route_fn(path, path_item, method, operation)
             for path, path_item in self.doc.paths.items()
@@ -363,7 +363,7 @@ class _GenCtx:
             body=tuple(body.lines),
         )
 
-    def _security_params(self, op: Operation) -> list[PyParameter]:
+    def _security_params(self, op: Operation) -> Sequence[PyParameter]:
         """Build `Security`/`Depends` parameters for the operation's requirements."""
         params, imports, warnings = route_security_params(
             self._effective_security(op), concrete_map(self.doc.components.security_schemes)
@@ -395,7 +395,7 @@ class _GenCtx:
         self.warnings.extend(body.warnings)
         return body
 
-    def _route_params(self, merged: Sequence[OasParameter], op: Operation) -> list[RouteParam]:
+    def _route_params(self, merged: Sequence[OasParameter], op: Operation) -> Sequence[RouteParam]:
         """Resolve the route's parameters for the body template's context."""
         out = [
             RouteParam(name=p.name, py_name=safe_python_field_name(p.name), location=p.in_)
@@ -442,7 +442,7 @@ class _GenCtx:
             description=op.description if op.summary else None,
         )
 
-    def _build_params(self, merged: Sequence[OasParameter], op: Operation) -> list[PyParameter]:
+    def _build_params(self, merged: Sequence[OasParameter], op: Operation) -> Sequence[PyParameter]:
         params = [self._oas_param_to_py(p) for p in merged]
         body_param = self._body_param(op)
         if body_param is not None:
@@ -533,7 +533,7 @@ def _opt_default(p: OasParameter) -> str | None:
     return "None" if not p.required else None
 
 
-def _order_params(params: list[PyParameter]) -> list[PyParameter]:
+def _order_params(params: list[PyParameter]) -> Sequence[PyParameter]:
     """Make a positional parameter list valid Python.
 
     Drops duplicate names, keeping the first.
@@ -550,7 +550,7 @@ def _order_params(params: list[PyParameter]) -> list[PyParameter]:
     return [p for p in unique if p.default is None] + [p for p in unique if p.default is not None]
 
 
-def _merged_parameters(path_item: PathItem, op: Operation) -> list[OasParameter]:
+def _merged_parameters(path_item: PathItem, op: Operation) -> Sequence[OasParameter]:
     """Merge path-item parameters with operation parameters.
 
     Per the OpenAPI spec, parameters declared on a `PathItem` apply to all of its operations;

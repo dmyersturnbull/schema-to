@@ -186,7 +186,7 @@ def route_security_params(
     return params, imports, warnings
 
 
-def _collect_scopes(requirements: Sequence[SecurityRequirement]) -> dict[str, set[str]]:
+def _collect_scopes(requirements: Sequence[SecurityRequirement]) -> Mapping[str, set[str]]:
     """Union the scopes requested for each scheme across all requirements."""
     scopes_by_scheme: dict[str, set[str]] = {}
     for requirement in requirements:
