@@ -275,7 +275,16 @@ class SchemaFlattener:
         """Report whether losing `theirs` to `mine` costs anything important."""
         if from_ref or name in DOC_KEYWORDS:
             return False
-        return theirs is not None and theirs is not False and mine != theirs
+        if theirs is None or theirs is False:
+            return False
+        # A schema-valued keyword (`items`, `propertyNames`, ...) carries its own
+        # `source_ref`, so two branches spelling out the identical constraint compare
+        # unequal by identity/provenance alone. Compare what they say, not where they're from.
+        if isinstance(mine, ObjectSchema | BooleanSchema) and isinstance(
+            theirs, ObjectSchema | BooleanSchema
+        ):
+            return not _same_schema(mine, theirs)
+        return mine != theirs
 
     def _merge_properties(
         self, base: ObjectSchema, other: ObjectSchema
