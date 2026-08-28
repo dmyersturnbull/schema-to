@@ -153,7 +153,6 @@ log_format = "%(asctime)s %(levelname)-7s %(name)s %(filename)s:%(lineno)s | %(m
 log_date_format = "%Y-%m-%d %H:%M:%S"
 markers = [
   "slow: tests that need a long time to run",
-  "e2e: tests that need external services",
 ]
 addopts = [
   "--import-mode=importlib",
