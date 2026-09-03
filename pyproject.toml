@@ -24,11 +24,13 @@ schema-to = "schema_to.__main__:cli"
 
 [dependency-groups]
 dev = [
-  "hypothesis>=6.165",
+  "coverage[toml]>=7.16",
+  "hypothesis>=6.167",
   "psycopg[binary]>=3.3", # Only to test the generated runtime module; not a runtime dep
   "pytest>=9.1",
-  "ruff>=0.16.3",
-  "ty>=0.0.71",
+  "pytest-cov>=7.1",
+  "ruff>=0.16.5",
+  "ty>=0.0.78",
 ]
 
 [tool.ty.src]
@@ -156,7 +158,31 @@ markers = [
 ]
 addopts = [
   "--import-mode=importlib",
+  "--cov-report=term",
   "--strict",
   "--tb=short",
   "--quiet",
 ]
+
+[tool.coverage.paths]
+source = ["src/"]
+
+[tool.coverage.run]
+branch = true
+concurrency = []
+data_file = ".coverage.json"
+exclude_also = [
+  "raise (AssertionError|NotImplementedError)",
+  "if __name__ == \"__main__\":",
+  "if TYPE_CHECKING:",
+]
+omit = ["**/__main__.py"]
+relative_files = true
+
+[tool.coverage.json]
+output = ".coverage.json"
+
+[tool.coverage.report]
+format = "markdown"
+skip_empty = true
+
