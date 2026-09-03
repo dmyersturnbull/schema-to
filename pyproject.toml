@@ -158,6 +158,7 @@ markers = [
 ]
 addopts = [
   "--import-mode=importlib",
+  "--cov=schema_to",
   "--cov-report=term",
   "--strict",
   "--tb=short",
@@ -170,12 +171,6 @@ source = ["src/"]
 [tool.coverage.run]
 branch = true
 concurrency = []
-data_file = ".coverage.json"
-exclude_also = [
-  "raise (AssertionError|NotImplementedError)",
-  "if __name__ == \"__main__\":",
-  "if TYPE_CHECKING:",
-]
 omit = ["**/__main__.py"]
 relative_files = true
 
@@ -183,6 +178,11 @@ relative_files = true
 output = ".coverage.json"
 
 [tool.coverage.report]
+exclude_also = [
+  "raise (AssertionError|NotImplementedError)",
+  "if __name__ == \"__main__\":",
+  "if TYPE_CHECKING:",
+]
 format = "markdown"
 skip_empty = true
 
