@@ -2,10 +2,9 @@
 
 from typing import Any
 
-import orjson
 import pytest
+from tests.support.docs import json_schema_doc
 
-from schema_to import JsonSchemaRawDoc, MediaTypes
 from schema_to.cst.json_schema import BooleanSchema, ObjectSchema, is_object_schema
 from schema_to.generate.fastapi.resource import json_properties, property_names
 from schema_to.parse.json_schema import JsonSchemaParser
@@ -13,9 +12,7 @@ from schema_to.result import Ok
 
 
 def _object_schema(data: dict[str, Any]) -> ObjectSchema:
-    doc = JsonSchemaRawDoc(
-        doc_id="t://s", content=orjson.dumps(data), media_type=MediaTypes.json, display_name="s"
-    )
+    doc = json_schema_doc(data, "t://s", display_name="s")
     result = JsonSchemaParser().apply(doc)
     assert isinstance(result, Ok)
     root = result.value.root

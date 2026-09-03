@@ -15,15 +15,17 @@ Covers:
 - Integration: full schema exercising all supported features.
 """
 
-import orjson
+from dataclasses import replace
+
 from hypothesis import HealthCheck, given, settings
-from tests._strategies import object_schema_st, sql_object_schema_st
-from tests._targets import transpiler_for
+from tests.strategies.restricted import object_schema_st, sql_object_schema_st
+from tests.support.docs import DEFAULT_SCHEMA_ID, json_schema_doc
+from tests.support.drive import POSTGRES
+from tests.support.types import JsonLike
 
 from schema_to import (
     Err,
     JsonSchemaParser,
-    JsonSchemaRawDoc,
     MediaTypes,
     Ok,
     OpenApiRawDoc,
@@ -34,23 +36,9 @@ from schema_to import (
 _PARSER = JsonSchemaParser()
 
 
-def _doc(data: object, source_id: str = "test://schema") -> JsonSchemaRawDoc:
-    return JsonSchemaRawDoc(
-        doc_id=source_id,
-        content=orjson.dumps(data),
-        media_type=MediaTypes.json,
-        display_name="Test",
-    )
-
-
-def _transpile(data: object, source_id: str = "test://schema") -> str:
+def _transpile(data: JsonLike, doc_id: str = DEFAULT_SCHEMA_ID) -> str:
     """Run the full SQL pipeline and return the emitted SQL source."""
-    transpiler = transpiler_for("postgres")
-    result = transpiler.transpile(_doc(data, source_id))
-    assert isinstance(result, Ok), (
-        f"Transpile failed: {[getattr(e, 'message', str(e)) for e in result.errors]}"
-    )
-    return result.value[0].content.decode()
+    return POSTGRES.text(json_schema_doc(data, doc_id))
 
 
 # ---------------------------------------------------------------------------
@@ -563,15 +551,8 @@ def test_table_name_from_title() -> None:
 
 def test_table_name_from_source_id() -> None:
     """When there is no title, source_id determines the table name."""
-    doc = JsonSchemaRawDoc(
-        doc_id="https://example.com/product.json",
-        content=orjson.dumps({"type": "object"}),
-        media_type=MediaTypes.json,
-    )
-    result = transpiler_for("postgres").transpile(doc)
-    assert isinstance(result, Ok)
-    src = result.value[0].content.decode()
-    assert "CREATE TABLE IF NOT EXISTS https_example_com_product_json" in src
+    doc = json_schema_doc({"type": "object"}, "https://example.com/product.json")
+    assert "CREATE TABLE IF NOT EXISTS https_example_com_product_json" in POSTGRES.text(doc)
 
 
 def test_defs_object_gets_own_table() -> None:
@@ -605,10 +586,7 @@ def test_roots_keeps_only_named_defs() -> None:
         "title": "Root",
         "$defs": {"Kept": {"type": "object"}, "Dropped": {"type": "object"}},
     }
-    transpiler = transpiler_for("postgres", roots=frozenset({"Kept"}))
-    result = transpiler.transpile(_doc(schema))
-    assert isinstance(result, Ok)
-    src = result.value[0].content.decode()
+    src = replace(POSTGRES, roots=frozenset({"Kept"})).text(json_schema_doc(schema))
     assert "CREATE TABLE IF NOT EXISTS kept" in src
     assert "CREATE TABLE IF NOT EXISTS dropped" not in src
     assert "CREATE TABLE IF NOT EXISTS root" in src
@@ -672,17 +650,17 @@ def test_column_title_fallback_comment() -> None:
 
 
 def test_accepts_json_schema_document() -> None:
-    assert transpiler_for("postgres").accepts(_doc({}))
+    assert POSTGRES.transpiler().accepts(json_schema_doc({}))
 
 
 def test_rejects_openapi_document() -> None:
     doc = OpenApiRawDoc(doc_id="test://s", content=b"{}", media_type=MediaTypes.json)
-    assert not transpiler_for("postgres").accepts(doc)
+    assert not POSTGRES.transpiler().accepts(doc)
 
 
 def test_rejects_raw_document() -> None:
     doc = RawDoc(doc_id="test://s", content=b"{}", media_type=MediaTypes.json)
-    assert not transpiler_for("postgres").accepts(doc)
+    assert not POSTGRES.transpiler().accepts(doc)
 
 
 # ---------------------------------------------------------------------------
@@ -691,7 +669,7 @@ def test_rejects_raw_document() -> None:
 
 
 def test_boolean_true_root_fails() -> None:
-    cst_r = _PARSER.apply(_doc(data=True))
+    cst_r = _PARSER.apply(json_schema_doc(data=True))
     assert isinstance(cst_r, Ok)
     result = PostgresTransformer().apply(cst_r.value)
     assert isinstance(result, Err)
@@ -699,13 +677,13 @@ def test_boolean_true_root_fails() -> None:
 
 
 def test_boolean_false_root_fails() -> None:
-    cst_r = _PARSER.apply(_doc(data=False))
+    cst_r = _PARSER.apply(json_schema_doc(data=False))
     assert isinstance(cst_r, Ok)
     assert isinstance(PostgresTransformer().apply(cst_r.value), Err)
 
 
 def test_string_root_fails() -> None:
-    cst_r = _PARSER.apply(_doc({"type": "string"}))
+    cst_r = _PARSER.apply(json_schema_doc({"type": "string"}))
     assert isinstance(cst_r, Ok)
     result = PostgresTransformer().apply(cst_r.value)
     assert isinstance(result, Err)
@@ -713,7 +691,7 @@ def test_string_root_fails() -> None:
 
 
 def test_integer_root_fails() -> None:
-    cst_r = _PARSER.apply(_doc({"type": "integer"}))
+    cst_r = _PARSER.apply(json_schema_doc({"type": "integer"}))
     assert isinstance(cst_r, Ok)
     assert isinstance(PostgresTransformer().apply(cst_r.value), Err)
 

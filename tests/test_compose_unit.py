@@ -12,6 +12,8 @@ Covers:
 from collections.abc import Sequence
 
 import orjson
+from tests.support.docs import json_schema_doc
+from tests.support.types import JsonLike
 
 from schema_to.cst.json_schema import (
     JsonSchemaMapDocument,
@@ -21,7 +23,7 @@ from schema_to.cst.json_schema import (
 )
 from schema_to.generate.inlining import SchemaFlattener
 from schema_to.io.media_type import MediaTypes
-from schema_to.io.source import JsonSchemaRawDoc, SchemaMapRawDoc
+from schema_to.io.source import SchemaMapRawDoc
 from schema_to.parse.json_schema import JsonSchemaMapParser, JsonSchemaParser
 from schema_to.resolve.json_schema import JsonSchemaRefResolver
 from schema_to.result import Ok
@@ -30,8 +32,8 @@ _PARSER = JsonSchemaParser()
 _SOURCE_ID = "test://schema"
 
 
-def _parse(data: object, source_id: str = _SOURCE_ID) -> ObjectSchema:
-    doc = JsonSchemaRawDoc(doc_id=source_id, content=orjson.dumps(data), media_type=MediaTypes.json)
+def _parse(data: JsonLike, source_id: str = _SOURCE_ID) -> ObjectSchema:
+    doc = json_schema_doc(data, source_id)
     result = _PARSER.apply(doc)
     assert isinstance(result, Ok)
     root = result.value.root
@@ -39,14 +41,12 @@ def _parse(data: object, source_id: str = _SOURCE_ID) -> ObjectSchema:
     return root
 
 
-def _flatten(data: object, *, resolve: bool = False) -> ObjectSchema:
+def _flatten(data: JsonLike, *, resolve: bool = False) -> ObjectSchema:
     schema = _parse(data)
     resolver = None
     if resolve:
         resolver = JsonSchemaRefResolver()
-        doc = JsonSchemaRawDoc(
-            doc_id=_SOURCE_ID, content=orjson.dumps(data), media_type=MediaTypes.json
-        )
+        doc = json_schema_doc(data, _SOURCE_ID)
         parsed = _PARSER.apply(doc)
         assert isinstance(parsed, Ok)
         resolver.register(parsed.value)
@@ -55,7 +55,7 @@ def _flatten(data: object, *, resolve: bool = False) -> ObjectSchema:
     return flat
 
 
-def _parse_map(data: object, doc_id: str) -> JsonSchemaMapDocument:
+def _parse_map(data: JsonLike, doc_id: str) -> JsonSchemaMapDocument:
     doc = SchemaMapRawDoc(doc_id=doc_id, content=orjson.dumps(data), media_type=MediaTypes.json)
     result = JsonSchemaMapParser().apply(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
@@ -216,13 +216,11 @@ def test_sibling_keyword_wins_over_ref_target() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _warnings(data: object, *, resolve: bool = False) -> Sequence[str]:
+def _warnings(data: JsonLike, *, resolve: bool = False) -> Sequence[str]:
     schema = _parse(data)
     resolver = None
     if resolve:
-        doc = JsonSchemaRawDoc(
-            doc_id=_SOURCE_ID, content=orjson.dumps(data), media_type=MediaTypes.json
-        )
+        doc = json_schema_doc(data, _SOURCE_ID)
         parsed = _PARSER.apply(doc)
         assert isinstance(parsed, Ok)
         resolver = JsonSchemaRefResolver()
@@ -267,9 +265,7 @@ def test_recursive_ref_terminates() -> None:
     """A self-referential schema stops instead of recursing forever."""
     data = {"$defs": {"node": {"type": "object", "allOf": [{"$ref": "#/$defs/node"}]}}}
     schema = _parse(data)
-    doc = JsonSchemaRawDoc(
-        doc_id=_SOURCE_ID, content=orjson.dumps(data), media_type=MediaTypes.json
-    )
+    doc = json_schema_doc(data, _SOURCE_ID)
     parsed = _PARSER.apply(doc)
     assert isinstance(parsed, Ok)
     resolver = JsonSchemaRefResolver()

@@ -11,12 +11,13 @@ Covers:
 
 from pathlib import Path
 
-import orjson
 import pytest
+from tests.support.docs import schema_map_doc
+from tests.support.trees import write
+from tests.support.types import JsonLike
 
 from schema_to.cst.json_schema import JsonSchemaMapDocument, JsonSchemaType, ObjectSchema
 from schema_to.io.file import SchemaMapDirectorySource
-from schema_to.io.media_type import MediaTypes
 from schema_to.io.os_errors import TypedNotADirectoryError
 from schema_to.io.source import SchemaMapRawDoc
 from schema_to.parse.json_schema import JsonSchemaMapParser
@@ -26,17 +27,8 @@ from schema_to.result import Err, Ok
 _PARSER = JsonSchemaMapParser()
 
 
-def _doc(data: object, doc_id: str = "test://catalog") -> SchemaMapRawDoc:
-    return SchemaMapRawDoc(
-        doc_id=doc_id,
-        content=orjson.dumps(data),
-        media_type=MediaTypes.json,
-        display_name="catalog",
-    )
-
-
-def _parse(data: object, doc_id: str = "test://catalog") -> JsonSchemaMapDocument:
-    result = _PARSER.apply(_doc(data, doc_id))
+def _parse(data: JsonLike, name: str = "catalog") -> JsonSchemaMapDocument:
+    result = _PARSER.apply(schema_map_doc(data, name))
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     return result.value
 
@@ -69,18 +61,18 @@ def test_get_schema_returns_none_for_unknown_name() -> None:
 
 
 def test_non_object_root_is_an_error() -> None:
-    result = _PARSER.apply(_doc([{"type": "object"}]))
+    result = _PARSER.apply(schema_map_doc([{"type": "object"}]))
     assert isinstance(result, Err)
     assert "object mapping names to schemas" in result.errors[0].message
 
 
 def test_malformed_entry_is_an_error() -> None:
-    result = _PARSER.apply(_doc({"thing": "not a schema"}))
+    result = _PARSER.apply(schema_map_doc({"thing": "not a schema"}))
     assert isinstance(result, Err)
 
 
 def test_errors_accumulate_across_entries() -> None:
-    result = _PARSER.apply(_doc({"a": "bad", "b": "also bad"}))
+    result = _PARSER.apply(schema_map_doc({"a": "bad", "b": "also bad"}))
     assert isinstance(result, Err)
     assert len(result.errors) == 2
 
@@ -94,7 +86,7 @@ def test_resolver_indexes_entries_by_pointer() -> None:
     doc = _parse({"thing": {"type": "object"}})
     resolver = JsonSchemaRefResolver()
     resolver.register_map(doc)
-    found = resolver.lookup("#/thing", base_uri="test://catalog")
+    found = resolver.lookup("#/thing", base_uri="file:///catalog.yaml")
     assert isinstance(found, ObjectSchema)
     assert found.get_types() == frozenset({JsonSchemaType.OBJECT})
 
@@ -102,7 +94,7 @@ def test_resolver_indexes_entries_by_pointer() -> None:
 def test_registered_source_ids_includes_map_documents() -> None:
     resolver = JsonSchemaRefResolver()
     resolver.register_map(_parse({"thing": {"type": "object"}}))
-    assert resolver.registered_source_ids() == frozenset({"test://catalog"})
+    assert resolver.registered_source_ids() == frozenset({"file:///catalog.yaml"})
 
 
 def test_apply_map_accepts_resolvable_refs() -> None:
@@ -120,8 +112,8 @@ def test_apply_map_reports_unresolvable_refs() -> None:
 
 
 def test_ref_resolves_across_two_map_documents() -> None:
-    base = _parse({"timestamp": {"type": "string", "pattern": "^2"}}, "file:///base.yaml")
-    main = _parse({"thing": {"$ref": "./base.yaml#/timestamp"}}, "file:///main.yaml")
+    base = _parse({"timestamp": {"type": "string", "pattern": "^2"}}, "base")
+    main = _parse({"thing": {"$ref": "./base.yaml#/timestamp"}}, "main")
     resolver = JsonSchemaRefResolver()
     resolver.register_map(base)
     resolver.register_map(main)
@@ -136,42 +128,35 @@ def test_ref_resolves_across_two_map_documents() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _write(root: Path, rel: str, text: str) -> Path:
-    path = root / rel
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text)
-    return path
-
-
 def test_directory_source_yields_one_doc_per_file(tmp_path: Path) -> None:
-    _write(tmp_path, "a.yaml", "thing:\n  type: object\n")
-    _write(tmp_path, "nested/b.yaml", "other:\n  type: string\n")
+    write(tmp_path, "a.yaml", "thing:\n  type: object\n")
+    write(tmp_path, "nested/b.yaml", "other:\n  type: string\n")
     docs = list(SchemaMapDirectorySource(tmp_path).documents())
     assert [d.display_name for d in docs] == ["a", "b"]
     assert all(isinstance(d, SchemaMapRawDoc) for d in docs)
 
 
 def test_directory_source_skips_unrecognised_suffixes(tmp_path: Path) -> None:
-    _write(tmp_path, "a.yaml", "thing:\n  type: object\n")
-    _write(tmp_path, "README.md", "not a schema")
+    write(tmp_path, "a.yaml", "thing:\n  type: object\n")
+    write(tmp_path, "README.md", "not a schema")
     assert len(list(SchemaMapDirectorySource(tmp_path).documents())) == 1
 
 
 def test_directory_source_honours_exclude(tmp_path: Path) -> None:
-    _write(tmp_path, "a.yaml", "thing:\n  type: object\n")
-    _write(tmp_path, "skip.yaml", "other:\n  type: string\n")
+    write(tmp_path, "a.yaml", "thing:\n  type: object\n")
+    write(tmp_path, "skip.yaml", "other:\n  type: string\n")
     source = SchemaMapDirectorySource(tmp_path, exclude=frozenset({"skip.yaml"}))
     assert [d.display_name for d in source.documents()] == ["a"]
 
 
 def test_directory_source_can_stay_shallow(tmp_path: Path) -> None:
-    _write(tmp_path, "a.yaml", "thing:\n  type: object\n")
-    _write(tmp_path, "nested/b.yaml", "other:\n  type: string\n")
+    write(tmp_path, "a.yaml", "thing:\n  type: object\n")
+    write(tmp_path, "nested/b.yaml", "other:\n  type: string\n")
     source = SchemaMapDirectorySource(tmp_path, recursive=False)
     assert [d.display_name for d in source.documents()] == ["a"]
 
 
 def test_directory_source_rejects_a_non_directory(tmp_path: Path) -> None:
-    path = _write(tmp_path, "a.yaml", "thing:\n  type: object\n")
+    path = write(tmp_path, "a.yaml", "thing:\n  type: object\n")
     with pytest.raises(TypedNotADirectoryError):
         SchemaMapDirectorySource(path)

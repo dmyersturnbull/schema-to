@@ -7,6 +7,8 @@ This walks a real tree on disk end-to-end.
 
 from pathlib import Path
 
+from tests.support.trees import write
+
 from schema_to.cst.json_schema import JsonSchemaType, ObjectSchema
 from schema_to.generate.inlining import SchemaFlattener
 from schema_to.io.file import SchemaMapDirectorySource
@@ -17,21 +19,14 @@ from schema_to.result import Ok
 _PARSER = JsonSchemaMapParser()
 
 
-def _write(root: Path, rel: str, text: str) -> Path:
-    path = root / rel
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text)
-    return path
-
-
 def test_directory_tree_resolves_relative_refs_and_flattens(tmp_path: Path) -> None:
     """The Goldberry layout: a `base/` file of primitives, a realm file composing them."""
-    _write(
+    write(
         tmp_path,
         "base/time.yaml",
         "timestamp:\n  type: string\n  pattern: '^2'\n  description: A timestamp.\n",
     )
-    _write(
+    write(
         tmp_path,
         "main/catalog.yaml",
         "thing-content:\n"

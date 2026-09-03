@@ -1,9 +1,7 @@
 """Tests for the `pg-jsonschema` target (JSON Schema → PostgreSQL with validation)."""
 
-import orjson
-
-from schema_to import JsonSchemaRawDoc, MediaTypes, Ok
-from schema_to.transpile.factory import TranspilerRouter
+from tests.support.docs import json_schema_doc
+from tests.support.drive import PG_JSONSCHEMA, POSTGRES, Route
 
 _SCHEMA = {
     "type": "object",
@@ -21,36 +19,30 @@ _SCHEMA = {
 }
 
 
-def _transpile(target: str) -> str:
-    doc = JsonSchemaRawDoc(
-        doc_id="t://s", content=orjson.dumps(_SCHEMA), media_type=MediaTypes.json, display_name="s"
-    )
-    [transpiler] = TranspilerRouter().route(target, output_media_type=MediaTypes.json)
-    result = transpiler.transpile(doc)
-    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    return result.value[0].content.decode()
+def _transpile(route: Route) -> str:
+    return route.text(json_schema_doc(_SCHEMA))
 
 
 def test_pg_jsonschema_emits_extension_preamble() -> None:
-    sql = _transpile("pg-jsonschema")
+    sql = _transpile(PG_JSONSCHEMA)
     assert sql.startswith("CREATE EXTENSION IF NOT EXISTS pg_jsonschema;")
 
 
 def test_pg_jsonschema_validates_json_column() -> None:
-    sql = _transpile("pg-jsonschema")
+    sql = _transpile(PG_JSONSCHEMA)
     assert "jsonb_matches_schema(" in sql
     assert '"theme"' in sql  # the embedded sub-schema
     assert ", meta)" in sql  # validates the meta column
 
 
 def test_pg_jsonschema_leaves_scalar_columns_unvalidated() -> None:
-    sql = _transpile("pg-jsonschema")
+    sql = _transpile(PG_JSONSCHEMA)
     # the scalar `name` column gets no jsonb_matches_schema check
     name_line = next(line for line in sql.splitlines() if line.strip().startswith("name "))
     assert "jsonb_matches_schema" not in name_line
 
 
 def test_plain_postgres_target_has_no_validation() -> None:
-    sql = _transpile("postgres")
+    sql = _transpile(POSTGRES)
     assert "jsonb_matches_schema" not in sql
     assert "CREATE EXTENSION" not in sql

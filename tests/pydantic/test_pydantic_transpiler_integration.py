@@ -11,62 +11,24 @@ Covers:
 
 import ast
 import re
+from dataclasses import replace
 
-import orjson
 import pytest
 from hypothesis import HealthCheck, given, settings
-from tests._strategies import json_schema_with_defs_st, object_schema_st
-from tests._targets import transpiler_for
+from tests.strategies.restricted import json_schema_with_defs_st, object_schema_st
+from tests.support.docs import DEFAULT_SCHEMA_ID, json_schema_doc, openapi_doc
+from tests.support.drive import PYDANTIC
+from tests.support.stages import pydantic_source
+from tests.support.types import JsonLike
 
-from schema_to import (
-    Err,
-    JsonSchemaParser,
-    JsonSchemaRawDoc,
-    JsonSchemaRefResolver,
-    MediaTypes,
-    Ok,
-    OpenApiRawDoc,
-    PydanticTransformer,
-    PythonReifier,
-)
+from schema_to import Err, JsonSchemaParser, JsonSchemaRefResolver, Ok, PydanticTransformer
 
 _PARSER = JsonSchemaParser()
 
 
-def _doc(data: object, source_id: str = "test://schema") -> JsonSchemaRawDoc:
-    return JsonSchemaRawDoc(
-        doc_id=source_id,
-        content=orjson.dumps(data),
-        media_type=MediaTypes.json,
-        display_name="Test",
-    )
-
-
-def _transpile(data: object, source_id: str = "test://schema") -> str:
+def _transpile(data: JsonLike, doc_id: str = DEFAULT_SCHEMA_ID) -> str:
     """Run the full pipeline and return the emitted Python source."""
-    transpiler = transpiler_for("pydantic")
-    result = transpiler.transpile(_doc(data, source_id))
-    assert isinstance(result, Ok), (
-        f"Transpile failed: {[getattr(e, 'message', str(e)) for e in result.errors]}"
-    )
-    return result.value[0].content.decode()
-
-
-def _parse_and_generate(data: object) -> str:
-    """Parse → resolve → generate → reify and return Python source."""
-    cst_r = _PARSER.apply(_doc(data))
-    assert isinstance(cst_r, Ok)
-    resolver = JsonSchemaRefResolver()
-    res_r = resolver.apply(cst_r.value)
-    assert isinstance(res_r, Ok)
-    gen = PydanticTransformer(resolver=resolver)
-    ast_r = gen.apply(res_r.value)
-    assert isinstance(ast_r, Ok), (
-        f"Generation failed: {[getattr(e, 'message', str(e)) for e in ast_r.errors]}"
-    )
-    reify_r = PythonReifier().apply(ast_r.value)
-    assert isinstance(reify_r, Ok)
-    return reify_r.value[0].content.decode()
+    return PYDANTIC.text(json_schema_doc(data, doc_id))
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +40,7 @@ def _parse_and_generate(data: object) -> str:
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_object_schema_generates_valid_python(schema: dict) -> None:
     """Any object-typed schema must produce syntactically valid Python."""
-    src = _parse_and_generate(schema)
+    src = pydantic_source(schema)
     try:
         ast.parse(src)
     except SyntaxError as exc:
@@ -105,14 +67,14 @@ def test_schema_with_defs_generates_valid_python(schema: dict) -> None:
 @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
 def test_generation_is_stable(schema: dict) -> None:
     """Generating from the same CST twice yields identical source."""
-    cst_r = _PARSER.apply(_doc(schema))
+    cst_r = _PARSER.apply(json_schema_doc(schema))
     assert isinstance(cst_r, Ok)
     resolver = JsonSchemaRefResolver()
     res_r = resolver.apply(cst_r.value)
     assert isinstance(res_r, Ok)
 
-    src1 = _parse_and_generate(schema)
-    src2 = _parse_and_generate(schema)
+    src1 = pydantic_source(schema)
+    src2 = pydantic_source(schema)
     assert src1 == src2, "Generation is not stable across two calls"
 
 
@@ -243,10 +205,8 @@ def test_roots_keeps_only_named_defs() -> None:
             "Dropped": {"type": "object", "properties": {"b": {"type": "string"}}},
         },
     }
-    transpiler = transpiler_for("pydantic", roots=frozenset({"Kept"}))
-    result = transpiler.transpile(_doc(schema))
-    assert isinstance(result, Ok)
-    src = result.value[0].content.decode()
+    route = replace(PYDANTIC, roots=frozenset({"Kept"}))
+    src = route.text(json_schema_doc(schema))
     assert "class Kept(BaseModel):" in src
     assert "class Dropped(BaseModel):" not in src
     assert "class Root(BaseModel):" in src
@@ -255,10 +215,8 @@ def test_roots_keeps_only_named_defs() -> None:
 def test_roots_none_keeps_every_def() -> None:
     """Omitting `roots` keeps today's behaviour of emitting every `$defs` entry."""
     schema = {"type": "object", "title": "Root", "$defs": {"A": {"type": "object"}}}
-    transpiler = transpiler_for("pydantic", roots=None)
-    result = transpiler.transpile(_doc(schema))
-    assert isinstance(result, Ok)
-    assert "class A(BaseModel):" in result.value[0].content.decode()
+    src = replace(PYDANTIC, roots=None).text(json_schema_doc(schema))
+    assert "class A(BaseModel):" in src
 
 
 # ---------------------------------------------------------------------------
@@ -543,17 +501,8 @@ def test_title_becomes_class_name() -> None:
 
 def test_display_name_fallback() -> None:
     """When there is no title, display_name is used as a fallback."""
-    doc = JsonSchemaRawDoc(
-        doc_id="test://schema",
-        content=orjson.dumps({"type": "object"}),
-        media_type=MediaTypes.json,
-        display_name="user_profile",
-    )
-    transpiler = transpiler_for("pydantic")
-    result = transpiler.transpile(doc)
-    assert isinstance(result, Ok)
-    src = result.value[0].content.decode()
-    assert "class UserProfile(BaseModel):" in src
+    doc = json_schema_doc({"type": "object"}, "test://schema", display_name="user_profile")
+    assert "class UserProfile(BaseModel):" in PYDANTIC.text(doc)
 
 
 # ---------------------------------------------------------------------------
@@ -596,9 +545,7 @@ def test_without_x_pydantic_frozen_no_config_dict() -> None:
 
 def test_x_pydantic_frozen_bad_value_fails() -> None:
     schema = {"type": "object", "title": "Point", "x-pydantic-frozen": "yes"}
-    transpiler = transpiler_for("pydantic")
-    result = transpiler.transpile(_doc(schema))
-    assert isinstance(result, Err)
+    assert PYDANTIC.errors(json_schema_doc(schema))
 
 
 def test_x_pydantic_skip_omits_field() -> None:
@@ -622,9 +569,7 @@ def test_x_pydantic_skip_bad_value_fails() -> None:
         "title": "Foo",
         "properties": {"name": {"type": "string", "x-pydantic-skip": "yes"}},
     }
-    transpiler = transpiler_for("pydantic")
-    result = transpiler.transpile(_doc(schema))
-    assert isinstance(result, Err)
+    assert PYDANTIC.errors(json_schema_doc(schema))
 
 
 # ---------------------------------------------------------------------------
@@ -695,9 +640,7 @@ def test_x_pydantic_class_with_readonly_writeonly_split() -> None:
 
 def test_x_pydantic_class_bad_value_fails() -> None:
     schema = {"type": "object", "title": "Foo", "x-pydantic-class": ""}
-    transpiler = transpiler_for("pydantic")
-    result = transpiler.transpile(_doc(schema))
-    assert isinstance(result, Err)
+    assert PYDANTIC.errors(json_schema_doc(schema))
 
 
 # ---------------------------------------------------------------------------
@@ -887,12 +830,9 @@ def test_x_pydantic_enum_list_values_falls_back_to_literal_with_warning() -> Non
         "properties": {"tags": {"enum": [["a"], ["b"]], "x-pydantic-enum": True}},
         "required": ["tags"],
     }
-    transpiler = transpiler_for("pydantic")
-    result = transpiler.transpile(_doc(schema))
-    assert isinstance(result, Ok)
-    src = result.value[0].content.decode()
-    assert "Literal[" in src
-    assert any(w.code == "enum-value-unsupported" for w in result.warnings)
+    doc = json_schema_doc(schema)
+    assert "Literal[" in PYDANTIC.text(doc)
+    assert "enum-value-unsupported" in PYDANTIC.warnings(doc)
 
 
 def test_x_pydantic_enum_false_uses_literal() -> None:
@@ -913,9 +853,7 @@ def test_x_pydantic_enum_bad_value_fails() -> None:
         "title": "Order",
         "properties": {"status": {"type": "string", "enum": ["a"], "x-pydantic-enum": 123}},
     }
-    transpiler = transpiler_for("pydantic")
-    result = transpiler.transpile(_doc(schema))
-    assert isinstance(result, Err)
+    assert PYDANTIC.errors(json_schema_doc(schema))
 
 
 def test_x_pydantic_enum_empty_string_fails() -> None:
@@ -924,9 +862,7 @@ def test_x_pydantic_enum_empty_string_fails() -> None:
         "title": "Order",
         "properties": {"status": {"type": "string", "enum": ["a"], "x-pydantic-enum": ""}},
     }
-    transpiler = transpiler_for("pydantic")
-    result = transpiler.transpile(_doc(schema))
-    assert isinstance(result, Err)
+    assert PYDANTIC.errors(json_schema_doc(schema))
 
 
 def test_x_pydantic_enum_object_unknown_key_fails() -> None:
@@ -941,9 +877,7 @@ def test_x_pydantic_enum_object_unknown_key_fails() -> None:
             }
         },
     }
-    transpiler = transpiler_for("pydantic")
-    result = transpiler.transpile(_doc(schema))
-    assert isinstance(result, Err)
+    assert PYDANTIC.errors(json_schema_doc(schema))
 
 
 def test_x_pydantic_enum_object_empty_fails() -> None:
@@ -952,9 +886,7 @@ def test_x_pydantic_enum_object_empty_fails() -> None:
         "title": "Order",
         "properties": {"status": {"type": "string", "enum": ["a"], "x-pydantic-enum": {}}},
     }
-    transpiler = transpiler_for("pydantic")
-    result = transpiler.transpile(_doc(schema))
-    assert isinstance(result, Err)
+    assert PYDANTIC.errors(json_schema_doc(schema))
 
 
 # ---------------------------------------------------------------------------
@@ -964,7 +896,7 @@ def test_x_pydantic_enum_object_empty_fails() -> None:
 
 def test_boolean_true_schema_fails() -> None:
     """`true` as the root schema cannot produce a Pydantic model."""
-    cst_r = _PARSER.apply(_doc(data=True))
+    cst_r = _PARSER.apply(json_schema_doc(data=True))
     assert isinstance(cst_r, Ok)
     gen = PydanticTransformer()
     result = gen.apply(cst_r.value)
@@ -973,7 +905,7 @@ def test_boolean_true_schema_fails() -> None:
 
 def test_boolean_false_schema_fails() -> None:
     """`false` as the root schema cannot produce a Pydantic model."""
-    cst_r = _PARSER.apply(_doc(data=False))
+    cst_r = _PARSER.apply(json_schema_doc(data=False))
     assert isinstance(cst_r, Ok)
     gen = PydanticTransformer()
     result = gen.apply(cst_r.value)
@@ -987,11 +919,7 @@ def test_boolean_false_schema_fails() -> None:
 
 def test_transpiler_rejects_openapi() -> None:
     openapi = {"openapi": "3.1.0", "info": {"title": "T", "version": "1"}}
-    transpiler = transpiler_for("pydantic")
-    doc = OpenApiRawDoc(
-        doc_id="test://schema", content=orjson.dumps(openapi), media_type=MediaTypes.json
-    )
-    assert not transpiler.accepts(doc)
+    assert not PYDANTIC.transpiler().accepts(openapi_doc(openapi, "test://schema"))
 
 
 # ---------------------------------------------------------------------------
@@ -1069,27 +997,18 @@ def test_integration_full_pipeline() -> None:
 
 def test_all_of_composed_schema_becomes_a_model() -> None:
     """Composition used to fall back to `Any`, losing every field."""
-    doc = JsonSchemaRawDoc(
-        doc_id="test://schema",
-        content=orjson.dumps(
-            {
-                "title": "battery",
-                "description": "A battery.",
-                "allOf": [
-                    {
-                        "type": "object",
-                        "required": ["id"],
-                        "properties": {"id": {"type": "string"}},
-                    },
-                    {"type": "object", "properties": {"count": {"type": "integer"}}},
-                ],
-            }
-        ),
-        media_type=MediaTypes.json,
+    doc = json_schema_doc(
+        {
+            "title": "battery",
+            "description": "A battery.",
+            "allOf": [
+                {"type": "object", "required": ["id"], "properties": {"id": {"type": "string"}}},
+                {"type": "object", "properties": {"count": {"type": "integer"}}},
+            ],
+        },
+        "test://schema",
     )
-    result = transpiler_for("pydantic").transpile(doc)
-    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    src = result.value[0].content.decode()
+    src = PYDANTIC.text(doc)
     assert "class Battery(BaseModel):" in src
     assert "id: str" in src
     assert "count: int | None = None" in src
@@ -1098,20 +1017,15 @@ def test_all_of_composed_schema_becomes_a_model() -> None:
 
 def test_composition_does_not_inline_referenced_models() -> None:
     """The branches merge, but a property pointing at a named schema stays a reference."""
-    doc = JsonSchemaRawDoc(
-        doc_id="test://schema",
-        content=orjson.dumps(
-            {
-                "title": "thing",
-                "$defs": {"stamp": {"type": "string", "pattern": "^2"}},
-                "allOf": [{"type": "object", "properties": {"at": {"$ref": "#/$defs/stamp"}}}],
-            }
-        ),
-        media_type=MediaTypes.json,
+    doc = json_schema_doc(
+        {
+            "title": "thing",
+            "$defs": {"stamp": {"type": "string", "pattern": "^2"}},
+            "allOf": [{"type": "object", "properties": {"at": {"$ref": "#/$defs/stamp"}}}],
+        },
+        "test://schema",
     )
-    result = transpiler_for("pydantic").transpile(doc)
-    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    src = result.value[0].content.decode()
+    src = PYDANTIC.text(doc)
     # The shared definition keeps its own declaration, and the field names it.
     assert "type Stamp = str" in src
     assert "at: Stamp | None = None" in src
@@ -1119,19 +1033,14 @@ def test_composition_does_not_inline_referenced_models() -> None:
 
 def test_a_bare_ref_declaration_stays_an_alias() -> None:
     """Flattening one of these would replace the alias with a copy of its target."""
-    doc = JsonSchemaRawDoc(
-        doc_id="test://schema",
-        content=orjson.dumps(
-            {
-                "title": "alias",
-                "$defs": {"named": {"type": "object", "properties": {"a": {"type": "string"}}}},
-                "$ref": "#/$defs/named",
-            }
-        ),
-        media_type=MediaTypes.json,
+    doc = json_schema_doc(
+        {
+            "title": "alias",
+            "$defs": {"named": {"type": "object", "properties": {"a": {"type": "string"}}}},
+            "$ref": "#/$defs/named",
+        },
+        "test://schema",
     )
-    result = transpiler_for("pydantic").transpile(doc)
-    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    src = result.value[0].content.decode()
+    src = PYDANTIC.text(doc)
     assert "class Named(BaseModel):" in src
     assert "type Alias = Named" in src

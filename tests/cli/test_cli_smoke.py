@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-_PG_EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "postgres"
+_PG_EXAMPLE = Path(__file__).resolve().parents[2] / "examples" / "postgres"
 
 
 def _run(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:

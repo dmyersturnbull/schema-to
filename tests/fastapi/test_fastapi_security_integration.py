@@ -2,10 +2,8 @@
 
 import ast
 
-import orjson
-from tests._targets import transpiler_for
-
-from schema_to import MediaTypes, Ok, OpenApiRawDoc
+from tests.support.docs import openapi_doc
+from tests.support.drive import FASTAPI
 
 _SPEC = {
     "openapi": "3.1.0",
@@ -42,15 +40,8 @@ _SPEC = {
 
 
 def _src() -> str:
-    doc = OpenApiRawDoc(
-        doc_id="t://api",
-        content=orjson.dumps(_SPEC),
-        media_type=MediaTypes.json,
-        display_name="api",
-    )
-    result = transpiler_for("fastapi", selects=OpenApiRawDoc).transpile(doc)
-    assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
-    return result.value[0].content.decode()
+    doc = openapi_doc(_SPEC, "t://api", display_name="api")
+    return FASTAPI.text(doc)
 
 
 def test_schemes_become_module_variables() -> None:

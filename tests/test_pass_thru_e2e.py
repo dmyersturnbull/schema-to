@@ -3,42 +3,21 @@
 Verifies invertibility: `transpile(transpile(doc)) == transpile(doc)`.
 """
 
-import orjson
+from dataclasses import replace
+from functools import partial
+
 from hypothesis import HealthCheck, given, settings
-from tests._strategies import json_schema_st, openapi_doc_st
-from tests._targets import transpiler_for
+from tests.strategies.json_schema import json_schema_st
+from tests.strategies.openapi import openapi_doc_st
+from tests.support.docs import json_schema_doc, openapi_doc
+from tests.support.drive import PASS_THRU_JSON_SCHEMA, PASS_THRU_OPENAPI
+from tests.support.types import JsonLike
 
-from schema_to import JsonSchemaRawDoc, MediaType, MediaTypes, Ok, OpenApiRawDoc
+from schema_to import JsonSchemaRawDoc, MediaTypes, Ok, OpenApiRawDoc
 from schema_to.io.sink import JsonSchemaYamlArtifact, OpenApiYamlArtifact
-from schema_to.pipeline import Transpiler
 
-
-def _json_schema_pass_thru(output_media_type: MediaType = MediaTypes.json) -> Transpiler:
-    return transpiler_for(
-        "pass-thru", selects=JsonSchemaRawDoc, output_media_type=output_media_type
-    )
-
-
-def _openapi_pass_thru(output_media_type: MediaType = MediaTypes.json) -> Transpiler:
-    return transpiler_for("pass-thru", selects=OpenApiRawDoc, output_media_type=output_media_type)
-
-
-def _make_json_schema_doc(data: object, source_id: str = "test://doc") -> JsonSchemaRawDoc:
-    return JsonSchemaRawDoc(
-        doc_id=source_id,
-        content=orjson.dumps(data),
-        media_type=MediaTypes.json_schema,
-        display_name="test",
-    )
-
-
-def _make_openapi_doc(data: object, source_id: str = "test://doc") -> OpenApiRawDoc:
-    return OpenApiRawDoc(
-        doc_id=source_id,
-        content=orjson.dumps(data),
-        media_type=MediaTypes.openapi,
-        display_name="test",
-    )
+_make_json_schema_doc = partial(json_schema_doc, media_type=MediaTypes.json_schema)
+_make_openapi_doc = partial(openapi_doc, media_type=MediaTypes.openapi)
 
 
 # ---------------------------------------------------------------------------
@@ -48,10 +27,10 @@ def _make_openapi_doc(data: object, source_id: str = "test://doc") -> OpenApiRaw
 
 @given(schema=json_schema_st())
 @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-def test_json_schema_pass_thru_invertible(schema: object) -> None:
+def test_json_schema_pass_thru_invertible(schema: JsonLike) -> None:
     """transpile(doc) and transpile(transpile(doc)) must produce identical output."""
     doc = _make_json_schema_doc(schema)
-    transpiler = _json_schema_pass_thru()
+    transpiler = PASS_THRU_JSON_SCHEMA.transpiler()
 
     r1 = transpiler.transpile(doc)
     assert isinstance(r1, Ok), f"First transpile failed: {r1}"
@@ -76,10 +55,10 @@ def test_json_schema_pass_thru_invertible(schema: object) -> None:
 
 @given(openapi=openapi_doc_st())
 @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
-def test_openapi_pass_thru_invertible(openapi: dict) -> None:
+def test_openapi_pass_thru_invertible(openapi: JsonLike) -> None:
     """transpile(doc) and transpile(transpile(doc)) must produce identical output."""
     doc = _make_openapi_doc(openapi)
-    transpiler = _openapi_pass_thru()
+    transpiler = PASS_THRU_OPENAPI.transpiler()
 
     r1 = transpiler.transpile(doc)
     assert isinstance(r1, Ok), f"First transpile failed: {r1}"
@@ -109,20 +88,20 @@ def test_openapi_pass_thru_invertible(openapi: dict) -> None:
 
 @given(schema=json_schema_st())
 @settings(max_examples=50)
-def test_json_schema_not_accepted_as_openapi(schema: object) -> None:
+def test_json_schema_not_accepted_as_openapi(schema: JsonLike) -> None:
     """A `JsonSchemaRawDoc` must not be claimed by the OpenAPI transpiler."""
     doc = _make_json_schema_doc(schema)
-    assert not _openapi_pass_thru().accepts(doc)
-    assert _json_schema_pass_thru().accepts(doc)
+    assert not PASS_THRU_OPENAPI.transpiler().accepts(doc)
+    assert PASS_THRU_JSON_SCHEMA.transpiler().accepts(doc)
 
 
 @given(openapi=openapi_doc_st())
 @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
-def test_openapi_not_accepted_as_json_schema(openapi: dict) -> None:
+def test_openapi_not_accepted_as_json_schema(openapi: JsonLike) -> None:
     """An `OpenApiRawDoc` must not be claimed by the JSON Schema transpiler."""
     doc = _make_openapi_doc(openapi)
-    assert _openapi_pass_thru().accepts(doc)
-    assert not _json_schema_pass_thru().accepts(doc)
+    assert PASS_THRU_OPENAPI.transpiler().accepts(doc)
+    assert not PASS_THRU_JSON_SCHEMA.transpiler().accepts(doc)
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +112,7 @@ def test_openapi_not_accepted_as_json_schema(openapi: dict) -> None:
 def test_json_schema_yaml_output() -> None:
     schema = {"type": "object", "properties": {"id": {"type": "integer"}}}
     doc = _make_json_schema_doc(schema)
-    transpiler = _json_schema_pass_thru(MediaTypes.yaml)
+    transpiler = replace(PASS_THRU_JSON_SCHEMA, output_media_type=MediaTypes.yaml).transpiler()
     result = transpiler.transpile(doc)
     assert isinstance(result, Ok)
     artifact = result.value[0]
@@ -146,7 +125,7 @@ def test_json_schema_yaml_output() -> None:
 def test_openapi_yaml_output() -> None:
     openapi = {"openapi": "3.1.0", "info": {"title": "Test", "version": "1.0"}}
     doc = _make_openapi_doc(openapi)
-    transpiler = _openapi_pass_thru(MediaTypes.yaml)
+    transpiler = replace(PASS_THRU_OPENAPI, output_media_type=MediaTypes.yaml).transpiler()
     result = transpiler.transpile(doc)
     assert isinstance(result, Ok)
     artifact = result.value[0]

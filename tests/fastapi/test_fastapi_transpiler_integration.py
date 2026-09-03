@@ -10,14 +10,16 @@ Covers:
 
 import ast
 
-import orjson
 import pytest
 from hypothesis import HealthCheck, given, settings
-from tests._strategies import openapi_doc_st
-from tests._targets import transpiler_for
+from tests.strategies.openapi import openapi_doc_st
+from tests.support.docs import openapi_doc
+from tests.support.drive import FASTAPI
+from tests.support.stages import fastapi_module
+from tests.support.types import JsonLike
 
-from schema_to import MediaTypes, Ok, OpenApiParser, OpenApiRawDoc, PythonReifier
-from schema_to.ast.python import FunctionDef, PythonModule, PythonTypeAnnotation, VarDef
+from schema_to import Ok, OpenApiParser, PythonReifier
+from schema_to.ast.python import FunctionDef, PythonTypeAnnotation, VarDef
 from schema_to.cst.openapi import HttpMethod
 from schema_to.generate.fastapi.fastapi import (
     FastApiTransformer,
@@ -37,33 +39,9 @@ _HTTP_METHODS = frozenset(["get", "post", "put", "delete", "patch", "options", "
 # ---------------------------------------------------------------------------
 
 
-def _doc(data: object, source_id: str = "test://api") -> OpenApiRawDoc:
-    return OpenApiRawDoc(
-        doc_id=source_id,
-        content=orjson.dumps(data),
-        media_type=MediaTypes.json,
-        display_name="test",
-    )
-
-
-def _generate(data: object) -> PythonModule:
-    """Parse → generate; assert Ok and return the PythonModule."""
-    r1 = _PARSER.apply(_doc(data))
-    assert isinstance(r1, Ok)
-    transformer = FastApiTransformer()
-    result = transformer.apply(r1.value)
-    assert isinstance(result, Ok)
-    return result.value
-
-
-def _transpile(data: object) -> str:
+def _transpile(data: JsonLike) -> str:
     """Run the full pipeline and return the emitted Python source."""
-    transpiler = transpiler_for("fastapi", selects=OpenApiRawDoc)
-    result = transpiler.transpile(_doc(data))
-    assert isinstance(result, Ok), (
-        f"Transpile failed: {[getattr(e, 'message', str(e)) for e in result.errors]}"
-    )
-    return result.value[0].content.decode()
+    return FASTAPI.text(openapi_doc(data))
 
 
 def _count_operations(doc: dict) -> int:
@@ -242,7 +220,7 @@ def test_any_openapi_doc_generates_valid_python(doc: dict) -> None:
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_transformer_always_returns_ok(doc: dict) -> None:
     """FastApiTransformer.apply always succeeds (warnings are non-fatal)."""
-    r1 = _PARSER.apply(_doc(doc))
+    r1 = _PARSER.apply(openapi_doc(doc))
     assert isinstance(r1, Ok)
     transformer = FastApiTransformer()
     result = transformer.apply(r1.value)
@@ -253,7 +231,7 @@ def test_transformer_always_returns_ok(doc: dict) -> None:
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_app_var_always_present(doc: dict) -> None:
     """The module always contains exactly one VarDef named 'app'."""
-    module = _generate(doc)
+    module = fastapi_module(doc)
     app_vars = [d for d in module.declarations if isinstance(d, VarDef) and d.name == "app"]
     assert len(app_vars) == 1
 
@@ -262,7 +240,7 @@ def test_app_var_always_present(doc: dict) -> None:
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_route_count_matches_operations(doc: dict) -> None:
     """One FunctionDef is generated per path × method operation."""
-    module = _generate(doc)
+    module = fastapi_module(doc)
     fn_count = sum(1 for d in module.declarations if isinstance(d, FunctionDef))
     assert fn_count == _count_operations(doc)
 
@@ -431,7 +409,7 @@ def test_integration_petstore() -> None:
 def test_roots_keeps_only_named_component_schemas() -> None:
     """`roots` narrows generated component-schema models; routes are unaffected."""
     transformer = FastApiTransformer(roots=frozenset({"Pet"}))
-    r1 = _PARSER.apply(_doc(_PETSTORE))
+    r1 = _PARSER.apply(openapi_doc(_PETSTORE))
     assert isinstance(r1, Ok)
     result = transformer.apply(r1.value)
     assert isinstance(result, Ok)
@@ -545,10 +523,9 @@ def test_a_reference_into_a_sibling_document_resolves_through_the_pipeline() -> 
     document is registered before any of them is resolved; this exercises the
     two-pass registration that makes cross-document `$ref`s work.
     """
-    main = _doc(_MULTI_MAIN, source_id="main.yaml")
-    shared = _doc(_MULTI_SHARED, source_id="shared.yaml")
-    transpiler = transpiler_for("fastapi", selects=OpenApiRawDoc)
-    result = transpiler.transpile_all([main, shared])
+    main = openapi_doc(_MULTI_MAIN, "main.yaml")
+    shared = openapi_doc(_MULTI_SHARED, "shared.yaml")
+    result = FASTAPI.run(main, shared)
     assert isinstance(result, Ok), (
         f"Transpile failed: {[getattr(e, 'message', str(e)) for e in result.errors]}"
     )

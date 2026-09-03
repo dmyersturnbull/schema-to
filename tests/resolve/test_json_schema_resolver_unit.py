@@ -9,14 +9,16 @@ Covers:
 - Edge cases: circular (self-recursive) schemas, multiple bad refs accumulate.
 """
 
-import orjson
+from collections.abc import Mapping
+
 from hypothesis import HealthCheck, given, settings
-from tests._strategies import json_schema_st, json_schema_with_defs_st
+from tests.strategies.json_schema import json_schema_st
+from tests.strategies.restricted import json_schema_with_defs_st
+from tests.support.docs import json_schema_doc
+from tests.support.types import JsonLike
 
 from schema_to.cst.json_schema import JsonSchemaDocument, JsonSchemaType, ObjectSchema
 from schema_to.errors import ResolutionError
-from schema_to.io.media_type import MediaTypes
-from schema_to.io.source import JsonSchemaRawDoc
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.pipeline import Err, Ok
 from schema_to.resolve.json_schema import JsonSchemaRefResolver
@@ -24,14 +26,8 @@ from schema_to.resolve.json_schema import JsonSchemaRefResolver
 _PARSER = JsonSchemaParser()
 
 
-def _doc(data: object, source_id: str = "test://doc") -> JsonSchemaRawDoc:
-    return JsonSchemaRawDoc(
-        doc_id=source_id, content=orjson.dumps(data), media_type=MediaTypes.json
-    )
-
-
-def _parse(data: object, source_id: str = "test://doc") -> JsonSchemaDocument:
-    r = _PARSER.apply(_doc(data, source_id))
+def _parse(data: JsonLike, source_id: str = "test://doc") -> JsonSchemaDocument:
+    r = _PARSER.apply(json_schema_doc(data, source_id))
     assert isinstance(r, Ok), f"Parse failed: {r}"
     return r.value
 
@@ -43,12 +39,12 @@ def _parse(data: object, source_id: str = "test://doc") -> JsonSchemaDocument:
 
 @given(schema=json_schema_st())
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
-def test_no_refs_always_resolve(schema: object) -> None:
+def test_no_refs_always_resolve(schema: JsonLike) -> None:
     """Any schema that contains no $ref / $dynamicRef passes the resolver."""
 
     # Strip $ref / $dynamicRef from the generated schema so we guarantee none.
-    def _strip_refs(obj: object) -> object:
-        if isinstance(obj, dict):
+    def _strip_refs(obj: JsonLike) -> JsonLike:
+        if isinstance(obj, Mapping):
             return {k: _strip_refs(v) for k, v in obj.items() if k not in {"$ref", "$dynamicRef"}}
         if isinstance(obj, list):
             return [_strip_refs(v) for v in obj]

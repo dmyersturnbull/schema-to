@@ -7,10 +7,11 @@ These tests exercise the parsers and serializers directly without going through 
 
 import orjson
 from hypothesis import HealthCheck, given, settings
-from tests._strategies import json_schema_st, openapi_doc_st
+from tests.strategies.json_schema import json_schema_st
+from tests.strategies.openapi import openapi_doc_st
+from tests.support.docs import json_schema_doc, openapi_doc
+from tests.support.types import JsonLike
 
-from schema_to.io.media_type import MediaTypes
-from schema_to.io.source import JsonSchemaRawDoc, OpenApiRawDoc
 from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.parse.openapi import OpenApiParser
 from schema_to.result import Ok
@@ -21,24 +22,6 @@ _JS_PARSER = JsonSchemaParser()
 _JS_SERIALIZER = JsonSchemaSerializer()
 _OA_PARSER = OpenApiParser()
 _OA_SERIALIZER = OpenApiSerializer()
-
-
-def _make_js_doc(data: object, source_id: str = "test://doc") -> JsonSchemaRawDoc:
-    return JsonSchemaRawDoc(
-        doc_id=source_id,
-        content=orjson.dumps(data),
-        media_type=MediaTypes.json,
-        display_name="test",
-    )
-
-
-def _make_oa_doc(data: object, source_id: str = "test://doc") -> OpenApiRawDoc:
-    return OpenApiRawDoc(
-        doc_id=source_id,
-        content=orjson.dumps(data),
-        media_type=MediaTypes.json,
-        display_name="test",
-    )
 
 
 def _stable_json(obj: object) -> bytes:
@@ -52,15 +35,15 @@ def _stable_json(obj: object) -> bytes:
 
 @given(schema=json_schema_st())
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
-def test_json_schema_round_trip(schema: object) -> None:
+def test_json_schema_round_trip(schema: JsonLike) -> None:
     """Parse → serialize → re-parse → re-serialize must be idempotent."""
-    doc = _make_js_doc(schema)
+    doc = json_schema_doc(schema)
 
     r1 = _JS_PARSER.apply(doc)
     assert isinstance(r1, Ok), f"First parse failed: {[e.message for e in r1.errors]}"
     serialized1 = _JS_SERIALIZER.serialize_document(r1.value)
 
-    r2 = _JS_PARSER.apply(_make_js_doc(serialized1))
+    r2 = _JS_PARSER.apply(json_schema_doc(serialized1))
     assert isinstance(r2, Ok), f"Second parse failed: {[e.message for e in r2.errors]}"
     serialized2 = _JS_SERIALIZER.serialize_document(r2.value)
 
@@ -80,13 +63,13 @@ def test_json_schema_round_trip(schema: object) -> None:
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_openapi_round_trip(openapi: dict) -> None:
     """Parse → serialize → re-parse → re-serialize must be idempotent."""
-    doc = _make_oa_doc(openapi)
+    doc = openapi_doc(openapi)
 
     r1 = _OA_PARSER.apply(doc)
     assert isinstance(r1, Ok), f"First parse failed: {[e.message for e in r1.errors]}"
     serialized1 = _OA_SERIALIZER.serialize(r1.value)
 
-    r2 = _OA_PARSER.apply(_make_oa_doc(serialized1))
+    r2 = _OA_PARSER.apply(openapi_doc(serialized1))
     assert isinstance(r2, Ok), f"Second parse failed: {[e.message for e in r2.errors]}"
     serialized2 = _OA_SERIALIZER.serialize(r2.value)
 

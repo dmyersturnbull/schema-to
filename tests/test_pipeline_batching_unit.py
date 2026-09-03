@@ -9,11 +9,12 @@ Covers:
 """
 
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import override
 
 import orjson
-from tests._targets import transpiler_for
+from tests.support.docs import json_schema_doc
+from tests.support.drive import PYDANTIC, Route
 
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.memory import InMemoryDataSink
@@ -22,6 +23,8 @@ from schema_to.io.source import DataSource, JsonSchemaRawDoc, RawDoc, SchemaMapR
 from schema_to.pipeline import Each, Flatten, Pipeline, Stage, Transpiler
 from schema_to.result import Ok, Result
 from schema_to.transpile.schema_map import SchemaMapExpander
+
+_PYDANTIC_MAP = Route("pydantic", SchemaMapRawDoc, schema_map=True)
 
 
 @dataclass
@@ -65,12 +68,7 @@ def _per_doc() -> Transpiler[JsonSchemaRawDoc, JsonSchemaJsonArtifact]:
 
 
 def _schema_doc(name: str) -> JsonSchemaRawDoc:
-    return JsonSchemaRawDoc(
-        doc_id=f"test://{name}",
-        content=orjson.dumps({"type": "object"}),
-        media_type=MediaTypes.json,
-        display_name=name,
-    )
+    return json_schema_doc({"type": "object"}, f"test://{name}", display_name=name)
 
 
 def _run(docs: list[RawDoc], transpilers: list[Transpiler]) -> InMemoryDataSink:
@@ -153,8 +151,7 @@ def test_sibling_refs_resolve_after_expansion() -> None:
         media_type=MediaTypes.json,
         display_name="catalog",
     )
-    transpiler = transpiler_for("pydantic", selects=SchemaMapRawDoc, schema_map=True)
-    result = transpiler.transpile_all([doc])
+    result = _PYDANTIC_MAP.run(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     assert {a.artifact_id for a in result.value} == {"stamp.py", "thing.py"}
 
@@ -172,10 +169,7 @@ def test_roots_expands_only_named_schemas_but_siblings_still_resolve() -> None:
         media_type=MediaTypes.json,
         display_name="catalog",
     )
-    transpiler = transpiler_for(
-        "pydantic", selects=SchemaMapRawDoc, schema_map=True, roots=frozenset({"thing"})
-    )
-    result = transpiler.transpile_all([doc])
+    result = replace(_PYDANTIC_MAP, roots=frozenset({"thing"})).run(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     # `stamp` was filtered out, so only `thing` becomes a virtual document — and so
     # only its module is written, even though `stamp` still resolved.
@@ -193,13 +187,8 @@ def test_expansion_without_a_resolver_seeds_nothing() -> None:
 
 
 def test_a_module_is_named_after_its_document() -> None:
-    doc = JsonSchemaRawDoc(
-        doc_id="test://a",
-        content=orjson.dumps({"type": "object"}),
-        media_type=MediaTypes.json,
-        display_name="thing",
-    )
-    result = transpiler_for("pydantic").transpile_all([doc])
+    doc = json_schema_doc({"type": "object"}, "test://a", display_name="thing")
+    result = PYDANTIC.run(doc)
     assert isinstance(result, Ok)
     assert [a.artifact_id for a in result.value] == ["thing.py"]
 
@@ -207,14 +196,9 @@ def test_a_module_is_named_after_its_document() -> None:
 def test_several_documents_are_named_apart() -> None:
     """They would otherwise overwrite one another in the sink."""
     docs = [
-        JsonSchemaRawDoc(
-            doc_id=f"test://{n}",
-            content=orjson.dumps({"type": "object"}),
-            media_type=MediaTypes.json,
-            display_name=n,
-        )
+        json_schema_doc({"type": "object"}, f"test://{n}", display_name=n)
         for n in ("thing-one", "thing-two")
     ]
-    result = transpiler_for("pydantic").transpile_all(docs)
+    result = PYDANTIC.run(*docs)
     assert isinstance(result, Ok)
     assert [a.artifact_id for a in result.value] == ["thing_one.py", "thing_two.py"]

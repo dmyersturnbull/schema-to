@@ -1,9 +1,9 @@
 """Tests for the OpenAPI Reference Object resolver."""
 
-import json
 from collections.abc import Mapping
 
 import pytest
+from tests.support.stages import openapi_cst
 
 from schema_to.core import JsonObject, JsonValue
 from schema_to.cst.json_schema import ObjectSchema
@@ -21,24 +21,14 @@ from schema_to.cst.openapi import (
     SecurityScheme,
 )
 from schema_to.errors import ResolutionError
-from schema_to.io.media_type import MediaTypes
-from schema_to.io.source import OpenApiRawDoc
-from schema_to.parse.openapi import OpenApiParser
 from schema_to.resolve.openapi import OpenApiRefResolver
 from schema_to.result import Err, Ok
 
 _RESOLVER_INPUT = "3.1.0"
 
 
-def _document(doc: JsonObject, doc_id: str = "d") -> OpenApiDocument:
-    raw = OpenApiRawDoc(doc_id=doc_id, content=json.dumps(doc).encode(), media_type=MediaTypes.json)
-    parsed = OpenApiParser().apply(raw)
-    assert isinstance(parsed, Ok), [e.message for e in getattr(parsed, "errors", ())]
-    return parsed.value
-
-
 def _resolve(doc: JsonObject, doc_id: str = "d") -> Ok[OpenApiDocument] | Err:
-    return OpenApiRefResolver().apply(_document(doc, doc_id))
+    return OpenApiRefResolver().apply(openapi_cst(doc, doc_id))
 
 
 def _minimal(**extra: JsonValue) -> JsonObject:
@@ -164,7 +154,7 @@ def test_a_schema_ref_is_left_for_the_json_schema_resolver() -> None:
 
 
 def test_a_document_without_references_is_returned_unchanged() -> None:
-    document = _document(
+    document = openapi_cst(
         _minimal(paths={"/x": {"get": {"responses": {"200": {"description": "k"}}}}})
     )
     result = OpenApiRefResolver().apply(document)
@@ -295,11 +285,11 @@ def test_a_reference_cycle_is_reported_rather_than_recursed() -> None:
 
 
 def test_a_reference_into_a_registered_document_resolves() -> None:
-    shared = _document(
+    shared = openapi_cst(
         _minimal(components={"parameters": {"Id": {"name": "id", "in": "path"}}}),
         doc_id="shared.yaml",
     )
-    main = _document(
+    main = openapi_cst(
         _minimal(
             paths={
                 "/x": {"get": {"parameters": [{"$ref": "shared.yaml#/components/parameters/Id"}]}}
