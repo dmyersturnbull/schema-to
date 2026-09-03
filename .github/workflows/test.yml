@@ -20,4 +20,4 @@ jobs:
       - name: Check lock file and install dependencies
         run: uv sync --locked
       - name: Run pytest
-        run: uv run pytest -m "not e2e"
+        run: uv run pytest
