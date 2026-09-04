@@ -87,9 +87,11 @@ def test_typed_os_error_without_an_errno_has_no_message() -> None:
 
 
 def test_typed_io_errors_are_always_eio() -> None:
-    error = TypedIOError(filename=PurePath("/tmp/a"), filename2=PurePath("/tmp/b"))
+    """Both filenames are carried, converted to text the way the platform writes a path."""
+    first, second = PurePath("/tmp/a"), PurePath("/tmp/b")
+    error = TypedIOError(filename=first, filename2=second)
     assert error.errno == errno.EIO
-    assert (error.filename, error.filename2) == ("/tmp/a", "/tmp/b")
+    assert (error.filename, error.filename2) == (str(first), str(second))
 
 
 def test_two_typed_os_errors_with_the_same_arguments_are_equal() -> None:
