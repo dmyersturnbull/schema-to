@@ -17,7 +17,7 @@ from tests.support.stages import fastapi_module
 from tests.support.types import JsonLike
 
 from schema_to import Ok, OpenApiParser, PythonReifier
-from schema_to.ast.python import FunctionDef, VarDef
+from schema_to.ast.python import FunctionDef, PythonModule, VarDef
 from schema_to.generate.fastapi.fastapi import FastApiTransformer
 
 _PARSER = OpenApiParser()
@@ -27,6 +27,20 @@ _HTTP_METHODS = frozenset(["get", "post", "put", "delete", "patch", "options", "
 def _transpile(data: JsonLike) -> str:
     """Run the full pipeline and return the emitted Python source."""
     return FASTAPI.text(openapi_doc(data))
+
+
+def _route_count(module: PythonModule) -> int:
+    """Count the route functions, which are the ones carrying an `app.<method>` decorator.
+
+    A module may hold undecorated functions that are not routes:
+    a document with security schemes also gets a `require_scopes` stub.
+    """
+    return sum(
+        1
+        for d in module.declarations
+        if isinstance(d, FunctionDef)
+        and any(str(dec.name).startswith("app.") for dec in d.decorators)
+    )
 
 
 def _count_operations(doc: dict) -> int:
@@ -59,8 +73,7 @@ def test_any_openapi_document_generates_a_valid_module(doc: dict) -> None:
     app_vars = [d for d in module.declarations if isinstance(d, VarDef) and d.name == "app"]
     assert len(app_vars) == 1, "expected exactly one `app` variable"
 
-    routes = sum(1 for d in module.declarations if isinstance(d, FunctionDef))
-    assert routes == _count_operations(doc), "expected one route per path x method"
+    assert _route_count(module) == _count_operations(doc), "expected one route per path x method"
 
     [artifact] = ok(PythonReifier().apply(module))
     source = artifact.content.decode()
