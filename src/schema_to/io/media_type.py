@@ -17,7 +17,9 @@ class MediaType:
     type: str
     subtype: str
     params: tuple[MediaTypeParam, ...] = ()
-    _param_map: dict[str, list[str]] = field(init=False)
+    # Derived from `params`, so it takes no part in equality — and must not, since a
+    # `defaultdict` is unhashable and would make every `MediaType` unhashable with it.
+    _param_map: dict[str, list[str]] = field(init=False, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         mp: dict[str, list[str]] = defaultdict(list)
