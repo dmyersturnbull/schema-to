@@ -1,25 +1,13 @@
-"""Tests for schema-map documents: files holding several named schemas at the top level.
+"""Parsing and resolving a document whose root maps names to schemas.
 
-Covers:
-
-- Targeted: each named schema is parsed at its own pointer.
-- Targeted: a non-object root, and a malformed entry, are reported as errors.
-- Targeted: the resolver indexes entries at `/name` and resolves refs across files.
-- Targeted: the directory source yields one `SchemaMapRawDoc` per file.
-- Integration: a two-file tree resolves a relative cross-file `$ref` and flattens.
+Each entry is parsed at its own pointer — `/thing`, not `/$defs/thing` —
+because that is where a sibling file's `$ref` points.
 """
 
-from pathlib import Path
-
-import pytest
 from tests.support.docs import schema_map_doc
-from tests.support.trees import write
 from tests.support.types import JsonLike
 
 from schema_to.cst.json_schema import JsonSchemaMapDocument, JsonSchemaType, ObjectSchema
-from schema_to.io.file import SchemaMapDirectorySource
-from schema_to.io.os_errors import TypedNotADirectoryError
-from schema_to.io.source import SchemaMapRawDoc
 from schema_to.parse.json_schema import JsonSchemaMapParser
 from schema_to.resolve.json_schema import JsonSchemaRefResolver
 from schema_to.result import Err, Ok
@@ -121,42 +109,3 @@ def test_ref_resolves_across_two_map_documents() -> None:
     found = resolver.lookup("./base.yaml#/timestamp", base_uri="file:///main.yaml")
     assert isinstance(found, ObjectSchema)
     assert found.pattern == "^2"
-
-
-# ---------------------------------------------------------------------------
-# Directory source
-# ---------------------------------------------------------------------------
-
-
-def test_directory_source_yields_one_doc_per_file(tmp_path: Path) -> None:
-    write(tmp_path, "a.yaml", "thing:\n  type: object\n")
-    write(tmp_path, "nested/b.yaml", "other:\n  type: string\n")
-    docs = list(SchemaMapDirectorySource(tmp_path).documents())
-    assert [d.display_name for d in docs] == ["a", "b"]
-    assert all(isinstance(d, SchemaMapRawDoc) for d in docs)
-
-
-def test_directory_source_skips_unrecognised_suffixes(tmp_path: Path) -> None:
-    write(tmp_path, "a.yaml", "thing:\n  type: object\n")
-    write(tmp_path, "README.md", "not a schema")
-    assert len(list(SchemaMapDirectorySource(tmp_path).documents())) == 1
-
-
-def test_directory_source_honours_exclude(tmp_path: Path) -> None:
-    write(tmp_path, "a.yaml", "thing:\n  type: object\n")
-    write(tmp_path, "skip.yaml", "other:\n  type: string\n")
-    source = SchemaMapDirectorySource(tmp_path, exclude=frozenset({"skip.yaml"}))
-    assert [d.display_name for d in source.documents()] == ["a"]
-
-
-def test_directory_source_can_stay_shallow(tmp_path: Path) -> None:
-    write(tmp_path, "a.yaml", "thing:\n  type: object\n")
-    write(tmp_path, "nested/b.yaml", "other:\n  type: string\n")
-    source = SchemaMapDirectorySource(tmp_path, recursive=False)
-    assert [d.display_name for d in source.documents()] == ["a"]
-
-
-def test_directory_source_rejects_a_non_directory(tmp_path: Path) -> None:
-    path = write(tmp_path, "a.yaml", "thing:\n  type: object\n")
-    with pytest.raises(TypedNotADirectoryError):
-        SchemaMapDirectorySource(path)

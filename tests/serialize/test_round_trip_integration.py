@@ -6,6 +6,7 @@ These tests exercise the parsers and serializers directly without going through 
 """
 
 import orjson
+import pytest
 from hypothesis import HealthCheck, given, settings
 from tests.strategies.json_schema import json_schema_st
 from tests.strategies.openapi import openapi_doc_st
@@ -33,6 +34,7 @@ def _stable_json(obj: object) -> bytes:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 @given(schema=json_schema_st())
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_json_schema_round_trip(schema: JsonLike) -> None:
@@ -59,6 +61,7 @@ def test_json_schema_round_trip(schema: JsonLike) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 @given(openapi=openapi_doc_st())
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_openapi_round_trip(openapi: dict) -> None:

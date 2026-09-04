@@ -11,6 +11,7 @@ Covers:
 
 from collections.abc import Mapping
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from tests.strategies.json_schema import json_schema_st
 from tests.strategies.restricted import json_schema_with_defs_st
@@ -37,6 +38,7 @@ def _parse(data: JsonLike, source_id: str = "test://doc") -> JsonSchemaDocument:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 @given(schema=json_schema_st())
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_no_refs_always_resolve(schema: JsonLike) -> None:
@@ -64,6 +66,7 @@ def test_no_refs_always_resolve(schema: JsonLike) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 @given(schema=json_schema_with_defs_st())
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_valid_internal_refs_resolve(schema: dict) -> None:

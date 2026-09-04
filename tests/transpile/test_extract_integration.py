@@ -3,6 +3,7 @@
 from dataclasses import replace
 
 import orjson
+import pytest
 from hypothesis import HealthCheck, given, settings
 from tests.strategies.openapi import openapi_doc_st
 from tests.support.docs import json_schema_doc, openapi_doc
@@ -13,6 +14,7 @@ from schema_to import JsonSchemaParser, MediaTypes, Ok
 _JS_PARSER = JsonSchemaParser()
 
 
+@pytest.mark.slow
 @given(openapi=openapi_doc_st())
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_openapi_extract_schemas(openapi: dict) -> None:

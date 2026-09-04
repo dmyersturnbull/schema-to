@@ -6,6 +6,7 @@ Verifies invertibility: `transpile(transpile(doc)) == transpile(doc)`.
 from dataclasses import replace
 from functools import partial
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from tests.strategies.json_schema import json_schema_st
 from tests.strategies.openapi import openapi_doc_st
@@ -25,6 +26,7 @@ _make_openapi_doc = partial(openapi_doc, media_type=MediaTypes.openapi)
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 @given(schema=json_schema_st())
 @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
 def test_json_schema_pass_thru_invertible(schema: JsonLike) -> None:
@@ -53,6 +55,7 @@ def test_json_schema_pass_thru_invertible(schema: JsonLike) -> None:
     )
 
 
+@pytest.mark.slow
 @given(openapi=openapi_doc_st())
 @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
 def test_openapi_pass_thru_invertible(openapi: JsonLike) -> None:
@@ -86,6 +89,7 @@ def test_openapi_pass_thru_invertible(openapi: JsonLike) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 @given(schema=json_schema_st())
 @settings(max_examples=50)
 def test_json_schema_not_accepted_as_openapi(schema: JsonLike) -> None:
@@ -95,6 +99,7 @@ def test_json_schema_not_accepted_as_openapi(schema: JsonLike) -> None:
     assert PASS_THRU_JSON_SCHEMA.transpiler().accepts(doc)
 
 
+@pytest.mark.slow
 @given(openapi=openapi_doc_st())
 @settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
 def test_openapi_not_accepted_as_json_schema(openapi: JsonLike) -> None:

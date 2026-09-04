@@ -5,7 +5,6 @@ open every test, and they put the accumulated messages into the failure output,
 where an `isinstance` assertion would show only `False`.
 """
 
-import ast
 from collections.abc import Sequence
 
 from schema_to.errors import TranspilationError
@@ -32,26 +31,3 @@ def failure[T](result: Result[T]) -> Sequence[str]:
 def warning_codes[T](result: Result[T]) -> Sequence[str]:
     """Return the codes of every warning carried by `result`, in the order they were raised."""
     return [w.code for w in result.warnings if w.code]
-
-
-def python_module(source: str) -> ast.Module:
-    """Return `source` parsed as Python, failing with the source itself if it does not parse."""
-    try:
-        return ast.parse(source)
-    except SyntaxError as e:
-        pytest_msg = f"Generated source is not valid Python ({e}):\n{source}"
-        raise AssertionError(pytest_msg) from e
-
-
-def top_level_names(source: str) -> Sequence[str]:
-    """Return the names bound at the top level of `source`: classes, functions, and assignments."""
-    names: list[str] = []
-    for node in python_module(source).body:
-        match node:
-            case ast.ClassDef() | ast.FunctionDef() | ast.AsyncFunctionDef():
-                names.append(node.name)
-            case ast.Assign(targets=[ast.Name(id=name)]) | ast.AnnAssign(target=ast.Name(id=name)):
-                names.append(name)
-            case _:
-                pass
-    return names

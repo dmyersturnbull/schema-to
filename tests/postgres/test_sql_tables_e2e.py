@@ -4,8 +4,12 @@ Separate from `test_sql_tables_integration.py`, which exercises one keyword at a
 These assert on whole scripts built from several documents.
 """
 
+from dataclasses import replace
+
 from tests.support.docs import schema_map_doc
 from tests.support.drive import PG_JSONSCHEMA_TABLE_SET, POSTGRES_TABLE_SET
+
+_THING = {"type": "object", "x-pg-table": "thing", "properties": {"id": {"type": "string"}}}
 
 
 def test_two_file_set_with_cross_file_refs() -> None:
@@ -107,3 +111,12 @@ def test_one_schema_name_may_not_be_used_in_two_files() -> None:
     assert "thing" in message
     assert "first.yaml" in message
     assert "second.yaml" in message
+
+
+def test_roots_narrows_marked_schemas_considered_for_a_table() -> None:
+    """`roots` further restricts the `x-pg-table` selection to named schemas."""
+    other = {"type": "object", "x-pg-table": "other", "properties": {"id": {"type": "string"}}}
+    route = replace(POSTGRES_TABLE_SET, roots=frozenset({"thing-data"}))
+    sql = route.text(schema_map_doc({"thing-data": _THING, "other-data": other}))
+    assert "CREATE TABLE IF NOT EXISTS thing (" in sql
+    assert "CREATE TABLE IF NOT EXISTS other (" not in sql

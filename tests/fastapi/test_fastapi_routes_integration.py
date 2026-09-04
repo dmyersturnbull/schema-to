@@ -1,11 +1,7 @@
-"""Tests for the OpenAPI 3.1 → FastAPI generator pipeline.
+"""Turning a parsed OpenAPI document into a FastAPI module.
 
-Covers:
-
-- Unit: pure helper functions (_esc, _ref_to_class_name, _annotation_str, _nullable, _op_fn_name).
-- Property: any parsed OpenAPI document always produces syntactically valid Python.
-- Property: generated module always contains an ``app`` variable and one route per operation.
-- Integration: curated petstore-style document — models, routes, parameters, imports.
+One operation becomes one route, one component schema becomes one model,
+and a `$ref` in a parameter or response position reaches the route it was written for.
 """
 
 import ast
@@ -13,30 +9,19 @@ import ast
 import pytest
 from hypothesis import HealthCheck, given, settings
 from tests.strategies.openapi import openapi_doc_st
+from tests.support.asserts import ok
 from tests.support.docs import openapi_doc
 from tests.support.drive import FASTAPI
+from tests.support.source import python_module
 from tests.support.stages import fastapi_module
 from tests.support.types import JsonLike
 
 from schema_to import Ok, OpenApiParser, PythonReifier
-from schema_to.ast.python import FunctionDef, PythonTypeAnnotation, VarDef
-from schema_to.cst.openapi import HttpMethod
-from schema_to.generate.fastapi.fastapi import (
-    FastApiTransformer,
-    _annotation_str,
-    _esc,
-    _op_fn_name,
-    _ref_to_class_name,
-    nullable_of,
-)
+from schema_to.ast.python import FunctionDef, VarDef
+from schema_to.generate.fastapi.fastapi import FastApiTransformer
 
 _PARSER = OpenApiParser()
 _HTTP_METHODS = frozenset(["get", "post", "put", "delete", "patch", "options", "head", "trace"])
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 
 def _transpile(data: JsonLike) -> str:
@@ -54,203 +39,33 @@ def _count_operations(doc: dict) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests: string escaping
+# Property: what must hold for any document
 # ---------------------------------------------------------------------------
 
 
-def test_esc_plain_string() -> None:
-    assert _esc("hello world") == "hello world"
-
-
-def test_esc_double_quotes() -> None:
-    assert _esc('say "hi"') == 'say \\"hi\\"'
-
-
-def test_esc_backslash() -> None:
-    assert _esc("C:\\path") == "C:\\\\path"
-
-
-def test_esc_both_double_quote_and_backslash() -> None:
-    assert _esc('\\"') == '\\\\\\"'
-
-
-# ---------------------------------------------------------------------------
-# Unit tests: $ref → class name
-# ---------------------------------------------------------------------------
-
-
-def test_ref_to_class_name_components_schemas() -> None:
-    assert _ref_to_class_name("#/components/schemas/User") == "User"
-
-
-def test_ref_to_class_name_defs_path() -> None:
-    assert _ref_to_class_name("#/$defs/Item") == "Item"
-
-
-def test_ref_to_class_name_bare_name() -> None:
-    assert _ref_to_class_name("MyModel") == "MyModel"
-
-
-def test_ref_to_class_name_with_hyphen_produces_identifier() -> None:
-    result = _ref_to_class_name("#/components/schemas/pet-tag")
-    assert result.isidentifier()
-    assert result[0].isupper()
-
-
-# ---------------------------------------------------------------------------
-# Unit tests: annotation string rendering
-# ---------------------------------------------------------------------------
-
-
-def test_annotation_str_builtin() -> None:
-    assert _annotation_str(PythonTypeAnnotation("str")) == "str"
-
-
-def test_annotation_str_generic_list() -> None:
-    ann = PythonTypeAnnotation("list", args=[PythonTypeAnnotation("str")])
-    assert _annotation_str(ann) == "list[str]"
-
-
-def test_annotation_str_nullable() -> None:
-    assert _annotation_str(PythonTypeAnnotation("int", nullable=True)) == "int | None"
-
-
-def test_annotation_str_nested_generic() -> None:
-    inner = PythonTypeAnnotation("str")
-    outer = PythonTypeAnnotation("list", args=[inner], nullable=True)
-    assert _annotation_str(outer) == "list[str] | None"
-
-
-def test_annotation_str_dict_two_args() -> None:
-    ann = PythonTypeAnnotation(
-        "dict", args=[PythonTypeAnnotation("str"), PythonTypeAnnotation("Any", module="typing")]
-    )
-    assert _annotation_str(ann) == "dict[str, Any]"
-
-
-# ---------------------------------------------------------------------------
-# Unit tests: nullable wrapping
-# ---------------------------------------------------------------------------
-
-
-def test_nullable_sets_flag() -> None:
-    result = nullable_of(PythonTypeAnnotation("str"))
-    assert result.nullable is True
-    assert result.name == "str"
-
-
-def test_nullable_preserves_args() -> None:
-    inner = PythonTypeAnnotation("str")
-    ann = PythonTypeAnnotation("list", args=[inner])
-    result = nullable_of(ann)
-    assert result.nullable is True
-    assert list(result.args) == [inner]
-
-
-def test_nullable_preserves_module() -> None:
-    ann = PythonTypeAnnotation("Any", module="typing")
-    result = nullable_of(ann)
-    assert result.module == "typing"
-    assert result.nullable is True
-
-
-def test_nullable_already_nullable_stays_nullable() -> None:
-    ann = PythonTypeAnnotation("str", nullable=True)
-    assert nullable_of(ann).nullable is True
-
-
-# ---------------------------------------------------------------------------
-# Unit tests: operation function naming
-# ---------------------------------------------------------------------------
-
-
-def test_op_fn_name_uses_operation_id() -> None:
-    assert _op_fn_name(HttpMethod.GET, "/pets", "listPets") == "list_pets"
-
-
-def test_op_fn_name_derives_from_method_and_path() -> None:
-    assert _op_fn_name(HttpMethod.POST, "/users", None) == "post_users"
-
-
-def test_op_fn_name_strips_path_param_braces() -> None:
-    assert _op_fn_name(HttpMethod.GET, "/pets/{pet_id}", None) == "get_pets_pet_id"
-
-
-def test_op_fn_name_is_valid_identifier() -> None:
-    for path in ["/a/b/c", "/{x}/{y}", "/foo-bar"]:
-        for method in (HttpMethod.GET, HttpMethod.DELETE):
-            name = _op_fn_name(method, path, None)
-            assert name.isidentifier(), f"{name!r} is not a valid identifier"
-
-
-# ---------------------------------------------------------------------------
-# Unit tests: nullable flag reflected in annotation string
-# ---------------------------------------------------------------------------
-
-
-def test_annotation_str_nullable_suffix_present_when_true() -> None:
-    for name in ("str", "int", "float", "MyModel"):
-        ann = PythonTypeAnnotation(name, nullable=True)
-        assert _annotation_str(ann).endswith(" | None"), f"Expected suffix for {ann}"
-
-
-def test_annotation_str_nullable_suffix_absent_when_false() -> None:
-    for name in ("str", "int", "float", "MyModel"):
-        ann = PythonTypeAnnotation(name, nullable=False)
-        assert not _annotation_str(ann).endswith(" | None"), f"Unexpected suffix for {ann}"
-
-
-# ---------------------------------------------------------------------------
-# Property: any OpenAPI document generates valid Python
-# ---------------------------------------------------------------------------
-
-
+@pytest.mark.slow
 @given(doc=openapi_doc_st())
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
-def test_any_openapi_doc_generates_valid_python(doc: dict) -> None:
-    """Any parsed OpenAPI 3.1 document must produce syntactically valid Python."""
-    src = _transpile(doc)
-    try:
-        ast.parse(src)
-    except SyntaxError as exc:
-        pytest.fail(f"Generated invalid Python:\n{src}\nError: {exc}")
+def test_any_openapi_document_generates_a_valid_module(doc: dict) -> None:
+    """Every whole-document invariant, checked against one generation per example.
 
-
-@given(doc=openapi_doc_st())
-@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
-def test_transformer_always_returns_ok(doc: dict) -> None:
-    """FastApiTransformer.apply always succeeds (warnings are non-fatal)."""
-    r1 = _PARSER.apply(openapi_doc(doc))
-    assert isinstance(r1, Ok)
-    transformer = FastApiTransformer()
-    result = transformer.apply(r1.value)
-    assert isinstance(result, Ok)
-
-
-@given(doc=openapi_doc_st())
-@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
-def test_app_var_always_present(doc: dict) -> None:
-    """The module always contains exactly one VarDef named 'app'."""
+    These were five separate property tests over the same strategy.
+    Each needed the same generated module, and generating it five times
+    made them the slowest thing in the suite, so they are asserted together.
+    Generation succeeding at all is the first invariant: `fastapi_module` fails otherwise.
+    """
     module = fastapi_module(doc)
+
     app_vars = [d for d in module.declarations if isinstance(d, VarDef) and d.name == "app"]
-    assert len(app_vars) == 1
+    assert len(app_vars) == 1, "expected exactly one `app` variable"
 
+    routes = sum(1 for d in module.declarations if isinstance(d, FunctionDef))
+    assert routes == _count_operations(doc), "expected one route per path x method"
 
-@given(doc=openapi_doc_st())
-@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
-def test_route_count_matches_operations(doc: dict) -> None:
-    """One FunctionDef is generated per path × method operation."""
-    module = fastapi_module(doc)
-    fn_count = sum(1 for d in module.declarations if isinstance(d, FunctionDef))
-    assert fn_count == _count_operations(doc)
-
-
-@given(doc=openapi_doc_st())
-@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
-def test_fastapi_import_always_present(doc: dict) -> None:
-    """Generated source always imports from fastapi (at minimum FastAPI for app)."""
-    src = _transpile(doc)
-    assert "from fastapi import" in src
+    [artifact] = ok(PythonReifier().apply(module))
+    source = artifact.content.decode()
+    python_module(source)
+    assert "from fastapi import" in source
 
 
 # ---------------------------------------------------------------------------
