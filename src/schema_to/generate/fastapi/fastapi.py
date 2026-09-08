@@ -249,7 +249,7 @@ class FastApiTransformer(Transformer[OpenApiDocument, PythonModule]):
         roots: If given,
             only `components/schemas` entries named here become their own Pydantic model;
             the rest are still available for `$ref` resolution.
-            `None` emits every entry, as before.
+            `None` emits every entry.
             Routes are unaffected.
     """
 

@@ -3,7 +3,7 @@
 import orjson
 
 from schema_to import JsonSchemaRawDoc, MediaTypes, Ok
-from schema_to.transpile.factory import TranspilerRouter
+from schema_to.transpile.std_router import TranspilerRouter
 
 _SCHEMA = {
     "type": "object",

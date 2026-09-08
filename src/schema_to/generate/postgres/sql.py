@@ -400,9 +400,9 @@ class PostgresTransformer(Transformer[JsonSchemaDocument, SqlScript]):
         validate_json: When `True`, emit  `pg_jsonschema` `CHECK` constraints,
           which validate each JSON/JSONB column against its sub-schema,
           and a `CREATE EXTENSION IF NOT EXISTS pg_jsonschema;` preamble.
-        roots: If given, only `$defs` entries named here become their own table; the
-            rest are still available for `$ref` resolution. `None` emits every entry,
-            as before. The document root always becomes a table regardless.
+        roots: If given, only `$defs` entries named here become their own table;
+            the rest are still available for `$ref` resolution.
+            `None` emits every entry. The document root always becomes a table regardless.
     """
 
     resolver: JsonSchemaRefResolver | None = None

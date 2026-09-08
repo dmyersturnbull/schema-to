@@ -1,94 +1,89 @@
-"""CLI entry point for `schema-to`.
-
-Invoked as `schema-to <command> [options]` or `python -m schema_to`.
-"""
+"""CLI entry point for schema-to."""
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Annotated, Final
+from typing import Annotated, Final, NamedTuple, Self
 
-from typer import Argument, Exit, Option, Typer, echo
+from typer import Argument, BadParameter, Exit, Option, Typer, echo
 
 from schema_to.io.file import FileDataSink, FileDataSourceFactory, SchemaMapDirectorySource
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import DataSource
 from schema_to.pipeline import Pipeline
 from schema_to.result import Err, Ok
-from schema_to.transpile.factory import RoutingError, TranspilerRouter
+from schema_to.transpile.std_router import SupportedTarget, TranspilerRouter
+
+
+class NamedTemplate(NamedTuple):
+    name: str
+    path: Path
+
+    @classmethod
+    def parse(cls, spec: str) -> Self:
+        name, sep, path = spec.partition("=")
+        if not sep or not name:
+            msg = f"Invalid --template {spec}; expected NAME=PATH."
+            raise ValueError(msg)
+        return cls(name, Path(path))
+
+    def __str__(self) -> str:
+        return f"{self.name}={self.path}"
+
 
 CWD: Final = Path.cwd()
-app = Typer(
+cli = Typer(
     name="schema-to",
-    help="Transpile JSON Schema 2020-12 and OpenAPI 3.1 into code and SQL.",
+    help="Transpile JSON Schema 2020-12 and OpenAPI 3.1/3.2 into various code and documentation formats.",
     no_args_is_help=True,
+    rich_markup_mode=None,
+    pretty_exceptions_enable=False,
 )
+ROUTER = TranspilerRouter()
 
 
-@app.command()
+@cli.command()
 def transpile(
     paths: Annotated[list[Path], Argument(help="Input file and/or directory paths.")],
     *,
     recursive: Annotated[
-        bool, Option("-r", "--recursive", help="Search for input files in subdirectories")
+        bool, Option("-r", "--recursive", help="Search for input files in subdirectories.")
     ] = False,
     output: Annotated[Path, Option("-o", "--output", help="Output directory.")] = CWD,
     to: Annotated[
-        str,
-        Option(
-            "-t",
-            "--to",
-            help=f"Target format. Supported: {', '.join(sorted(TranspilerRouter.SUPPORTED_TARGETS))}.",
-        ),
-    ] = "pass-thru",
+        SupportedTarget, Option("-t", "--to", help="Target format.")
+    ] = SupportedTarget.PASS_THRU,
     template: Annotated[
-        list[str] | None,
+        list[NamedTemplate] | None,
         Option(
-            "--template",
-            help="Register an endpoint-body template as NAME=PATH (repeatable; "
-            "referenced by an operation's x-fastapi-template extension).",
+            parser=NamedTemplate.parse,
+            metavar="name=path",
+            help="Register a Jinja template to use with the extension keyword 'x-fastapi-template'.",
         ),
     ] = None,
     yaml: Annotated[bool, Option("--yaml/--json", help="Emit YAML instead of JSON.")] = False,
     schema_map: Annotated[
         bool,
         Option(
-            "--schema-map",
-            help="Treat each input file as a map of named schemas rather than as one "
-            "schema. Works with any target: a target whose unit is the whole set "
-            "(postgres) reads it directly, and a per-schema target sees each named "
-            "schema in turn.",
+            help="Assume each input file contains an JSON object mapping names to schemas. "
+            "This is a common pattern for OpenAPI components."
         ),
     ] = False,
     roots: Annotated[
         list[str] | None,
         Option(
-            "--roots",
-            help="Restrict output to these named schema nodes (repeatable): a `$defs` "
-            "entry, a --schema-map schema name, or an OpenAPI components/schemas name. "
-            "Every other schema in the input stays available for $ref resolution; only "
-            "which ones become their own artifact changes. Omit to generate every "
-            "named schema, as before.",
+            help="Only produce output artifacts for these named schema nodes."
+            "Can be a `$defs` entry, a --schema-map schema name, or an OpenAPI component name."
         ),
     ] = None,
 ) -> None:
     """Transpile one or more schema sources into the requested target formats."""
     output_media_type = MediaTypes.yaml if yaml else MediaTypes.json
     root_set = frozenset(roots) if roots else None
-    router = TranspilerRouter()
-    try:
-        templates = _load_templates(template or [])
-        transpilers = router.route(
-            to, output_media_type, templates=templates, roots=root_set, schema_map=schema_map
-        )
-    except (RoutingError, ValueError, OSError) as exc:
-        echo(f"error: {exc}", err=True)
-        raise Exit(1) from exc
-
-    try:
-        sources = _sources(paths, recursive=recursive, schema_map=schema_map)
-    except (ValueError, OSError) as exc:
-        echo(f"error: {exc}", err=True)
-        raise Exit(1) from exc
+    templates = _load_templates(template or [])
+    transpilers = ROUTER.route(
+        to, output_media_type, templates=templates, roots=root_set, schema_map=schema_map
+    )
+    sources = _sources(paths, recursive=recursive, schema_map=schema_map)
     pipeline = Pipeline(sources=sources, transpilers=transpilers, sink=FileDataSink(output))
     match pipeline.process():
         case Ok(summary):
@@ -115,21 +110,18 @@ def _sources(paths: Sequence[Path], *, recursive: bool, schema_map: bool) -> Seq
     return [SchemaMapDirectorySource(path, recursive=recursive) for path in paths]
 
 
-def _load_templates(specs: Sequence[str]) -> Mapping[str, str]:
-    """Parse `NAME=PATH` template specs into a `{name: source}` mapping."""
-    templates: dict[str, str] = {}
-    for spec in specs:
-        name, sep, path = spec.partition("=")
-        if not sep or not name:
-            msg = f"Invalid --template {spec!r}; expected NAME=PATH."
-            raise ValueError(msg)
-        templates[name] = Path(path).read_text(encoding="utf-8")
-    return templates
-
-
-def cli() -> None:
-    """Package entry point called by the `schema-to` script."""
-    app()
+def _load_templates(templates: Sequence[NamedTemplate]) -> Mapping[str, str]:
+    by_name = {name: set() for name, _ in templates}
+    for t in templates:
+        by_name[t.name].add(str(t))
+    clashes = []
+    for ts in by_name.values():
+        if len(ts) > 1:
+            clashes += ts
+    if clashes:
+        msg = f"Some templates share names: {', '.join(clashes)}"
+        raise BadParameter(msg)
+    return {name: Path(path).read_text(encoding="utf-8") for name, path in templates}
 
 
 if __name__ == "__main__":
