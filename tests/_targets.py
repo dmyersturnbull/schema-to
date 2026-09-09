@@ -9,7 +9,7 @@ from collections.abc import Mapping, Set
 from schema_to.io.media_type import MediaType, MediaTypes
 from schema_to.io.source import JsonSchemaRawDoc, RawDoc
 from schema_to.pipeline import Transpiler
-from schema_to.transpile.factory import TranspilerRouter
+from schema_to.transpile.std_router import TranspilerRouter
 
 
 def transpiler_for(

@@ -90,12 +90,12 @@ class PostgresTableSetTransformer(Transformer[JsonSchemaMapDocument, SqlScript])
     `#/other` in a file means that file's `other`, wherever the schema ends up.
 
     Attributes:
-        resolver: Resolves `$ref` across the document set.  Register every document
-            with it before generating, or references between files will not resolve.
+        resolver: Resolves `$ref` across the document set.
+        Register every document with it before generating, or references between files will not resolve.
         validate_json: Emit `pg_jsonschema` `CHECK` constraints for JSON columns.
-        roots: If given, only schemas named here are considered for a table, even if
-            marked `x-pg-table`; unnamed ones are still available for `$ref`
-            resolution. `None` considers every schema, as before.
+        roots: If given, only schemas named here are considered for a table,
+            even if marked `x-pg-table`; unnamed ones are still available for `$ref` resolution.
+            `None` considers every schema.
     """
 
     resolver: JsonSchemaRefResolver | None = None

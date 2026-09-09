@@ -36,7 +36,7 @@ match pipeline.process():
 | `schema_to.reify.python` | `PythonReifier`, `PythonPackageReifier` |
 | `schema_to.reify.sql` | `SqlReifier` |
 | `schema_to.reify.json_schema` | `JsonSchemaReifier`, `OpenApiReifier` |
-| `schema_to.transpile.factory` | `TranspilerRouter` — builds a `Transpiler` per target |
+| `schema_to.transpile.std_router` | `TranspilerRouter` — builds a `Transpiler` per target |
 | `schema_to.transpile.schema_map` | `SchemaMapExpander`, `SchemaMapMerger` |
 | `schema_to.transpile.extract` | `OpenApiComponentExtractor` |
 | `schema_to.pipeline` | `Stage`, `Expander`, `Reducer`, `Each`, `Transpiler`, `Pipeline` |
@@ -110,8 +110,9 @@ from schema_to.result import Err, Ok, Result
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 from schema_to.serialize.openapi import OpenApiSerializer
 from schema_to.transpile.extract import OpenApiComponentExtractor
-from schema_to.transpile.factory import RoutingError, TranspilerRouter
+from schema_to.transpile.factory import RoutingError
 from schema_to.transpile.schema_map import SchemaMapExpander, SchemaMapMerger
+from schema_to.transpile.std_router import TranspilerRouter
 
 __all__ = [
     "Append",

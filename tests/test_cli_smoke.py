@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from schema_to.transpile.std_router import SupportedTarget
+
 _PG_EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "postgres"
 
 
@@ -25,8 +27,13 @@ def test_cli_help() -> None:
     """The CLI exits 0 and prints usage information for --help."""
     result = _run("--help")
     assert result.returncode == 0
-    assert "schema-to" in result.stdout
-    assert "pass-thru" in result.stdout
+    out, err = result.stdout, result.stderr
+    assert not err, f"Should not have warning or error output with --help. STDERR: {err}"
+    assert "--roots" in out
+    assert "--yaml" in out
+    assert "--json" in out
+    for t in SupportedTarget:
+        assert t.value in result.stdout
 
 
 def test_cli_pass_thru_json_schema(tmp_path: Path) -> None:
@@ -73,10 +80,9 @@ def test_cli_unsupported_target_exits_nonzero(tmp_path: Path) -> None:
     schema = {"type": "object"}
     input_file = tmp_path / "schema.json"
     input_file.write_text(json.dumps(schema))
-
     result = _run(str(input_file), "--to", "typescript")
     assert result.returncode != 0
-    assert "not supported" in result.stderr
+    assert "Invalid value for '-t' / '--to':" in result.stderr
 
 
 @pytest.mark.parametrize("flag", ["--help"])
@@ -142,10 +148,9 @@ def test_cli_unknown_template_spec_exits_nonzero(tmp_path: Path) -> None:
     schema = {"openapi": "3.1.0", "info": {"title": "x", "version": "1"}, "paths": {}}
     input_file = tmp_path / "api.json"
     input_file.write_text(json.dumps(schema))
-
     result = _run(str(input_file), "--to", "fastapi", "--template", "noequals")
     assert result.returncode != 0
-    assert "NAME=PATH" in result.stderr
+    assert "Invalid value for '--template'" in result.stderr
 
 
 def test_cli_json_schema_extracts_openapi_components(tmp_path: Path) -> None:
