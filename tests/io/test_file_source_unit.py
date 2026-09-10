@@ -1,7 +1,7 @@
 """Reading documents off disk: one file, a directory tree, and the factory that picks between them.
 
-A file's compound extension — `.schema.json`, `.openapi.yaml` — says which `RawDoc`
-subclass it becomes and which media type it carries.
+A file's compound extension (e.g. `.schema.json`, `.openapi.yaml`)
+says which `RawDoc` subclass it becomes and which media type it carries.
 """
 
 from pathlib import Path

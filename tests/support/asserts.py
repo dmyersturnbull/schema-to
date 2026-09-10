@@ -1,7 +1,7 @@
 """Unwrapping a `Result`, and reporting usefully when it holds the other variant.
 
-`ok` and `failure` replace the `assert isinstance(result, Ok)` line that would otherwise
-open every test, and they put the accumulated messages into the failure output,
+[ok][] and [failure][] replace the `assert isinstance(result, Ok)` line that would otherwise open every test.
+They put the accumulated messages into the failure output,
 where an `isinstance` assertion would show only `False`.
 """
 

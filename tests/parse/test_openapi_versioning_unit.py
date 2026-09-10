@@ -13,10 +13,6 @@ from schema_to.parse._plan import SpecVersion
 from schema_to.result import Err, Ok
 from schema_to.serialize.openapi import OpenApiSerializer
 
-# ---------------------------------------------------------------------------
-# Version gating
-# ---------------------------------------------------------------------------
-
 
 @pytest.mark.parametrize(
     ("text", "parts"), [("3.1.0", (3, 1, 0)), ("3.2", (3, 2)), ("3.2.0-rc1", (3, 2, 0))]

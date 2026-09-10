@@ -1,7 +1,7 @@
 """Builders for the raw documents that a pipeline test starts from.
 
 One builder per `RawDoc` subclass.
-Each serializes `data` as JSON, since the parsers accept JSON and YAML alike
+Each serializes `data` as JSON, since the parsers accept JSON and YAML alike,
 and JSON keeps the builders free of formatting concerns.
 """
 

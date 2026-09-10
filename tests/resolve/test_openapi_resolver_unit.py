@@ -42,11 +42,6 @@ def _operation(doc: OpenApiDocument, path: str = "/x") -> Operation:
     return operation
 
 
-# ---------------------------------------------------------------------------
-# Resolution
-# ---------------------------------------------------------------------------
-
-
 def test_a_referenced_parameter_is_replaced_by_its_target() -> None:
     result = _resolve(
         _minimal(
@@ -217,11 +212,6 @@ def test_an_override_the_target_cannot_hold_warns_rather_than_failing() -> None:
     assert "summary" in result.warnings[0].message
 
 
-# ---------------------------------------------------------------------------
-# Failures
-# ---------------------------------------------------------------------------
-
-
 def test_an_unresolvable_reference_is_an_error() -> None:
     result = _resolve(
         _minimal(paths={"/x": {"get": {"parameters": [{"$ref": "#/components/parameters/Nope"}]}}})
@@ -279,11 +269,6 @@ def test_a_reference_cycle_is_reported_rather_than_recursed() -> None:
     assert any("cycle" in e.message for e in result.errors)
 
 
-# ---------------------------------------------------------------------------
-# Cross-document
-# ---------------------------------------------------------------------------
-
-
 def test_a_reference_into_a_registered_document_resolves() -> None:
     shared = openapi_cst(
         _minimal(components={"parameters": {"Id": {"name": "id", "in": "path"}}}),
@@ -319,11 +304,6 @@ def test_a_reference_into_an_unregistered_document_is_an_error() -> None:
     )
     assert isinstance(result, Err)
     assert "elsewhere.yaml" in result.errors[0].message
-
-
-# ---------------------------------------------------------------------------
-# Callbacks
-# ---------------------------------------------------------------------------
 
 
 _CALLBACKS = _minimal(

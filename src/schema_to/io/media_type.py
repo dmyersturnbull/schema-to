@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, NamedTuple, overload
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-__all__ = ["MediaType", "MediaTypes"]
+__all__ = ["MediaType", "MediaTypeParam", "MediaTypes"]
 
 
 @dataclass(frozen=True, slots=True)

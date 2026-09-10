@@ -26,4 +26,4 @@ def _class_body(source: str, name: str) -> str:
         rf"^class {re.escape(name)}\b.*?(?=^class |\Z)", source, re.DOTALL | re.MULTILINE
     )
     assert match is not None, f"No class {name} in:\n{source}"
-    return match.group(0)
+    return match.group()

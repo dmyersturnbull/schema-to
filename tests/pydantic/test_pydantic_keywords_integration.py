@@ -8,10 +8,6 @@ from tests.support.drive import PYDANTIC
 from tests.support.source import read_write_slices
 from tests.support.stages import pydantic_source
 
-# ---------------------------------------------------------------------------
-# Smoke: `x-pydantic-frozen` and `x-pydantic-skip` extension keywords
-# ---------------------------------------------------------------------------
-
 
 def test_x_pydantic_frozen_emits_config_dict() -> None:
     schema = {

@@ -39,8 +39,10 @@ def _walk(value: JsonLike) -> Iterator[str]:
 def declared_keys(module: ModuleType, *, version: str = "3.1") -> Mapping[str, Set[str]]:
     """Return the JSON keys each CST node in `module` reads, keyed by node name.
 
-    Fields introduced after `version`, and fields the parser synthesizes rather than
-    reading, are left out: no document carries them.
+    Fields introduced after `version`,
+    and fields the parser synthesizes rather than reading,
+    are left out;
+    no document carries them.
     """
     found: dict[str, Set[str]] = {}
     for name, cls in vars(module).items():

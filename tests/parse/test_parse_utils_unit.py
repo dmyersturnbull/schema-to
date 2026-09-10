@@ -1,7 +1,7 @@
 """The typed accessors and pointer helpers the parsers share.
 
-A document's shape is unknown until the parser looks, so every read of a field
-goes through one of these rather than an unchecked subscript.
+A document's shape is unknown until the parser looks,
+so every read of a field goes through one of these rather than an unchecked subscript.
 """
 
 import pytest

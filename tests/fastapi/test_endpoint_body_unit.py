@@ -4,7 +4,7 @@ Covers
 the persistence-agnostic `schema_to.generate.rest` helpers,
 the `endpoint_context` assembly (extension merging),
 and both shipped backends:
-`NullBodyBackend` (empty) and `TemplateBodyBackend` (named + inline templates).
+[NullBodyBackend][] (empty) and [TemplateBodyBackend][] (named + inline templates).
 """
 
 from typing import TYPE_CHECKING

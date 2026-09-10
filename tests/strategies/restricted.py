@@ -55,10 +55,6 @@ def json_schema_with_defs_st(draw: st.DrawFn) -> JsonObject:
     return d
 
 
-# ---------------------------------------------------------------------------
-# Object schema strategy (for Pydantic generator tests)
-# ---------------------------------------------------------------------------
-
 # Leaf schema types that map cleanly to Python annotations.
 _LEAF_TYPES = ["string", "integer", "number", "boolean"]
 
@@ -99,19 +95,13 @@ def object_schema_st(draw: st.DrawFn) -> JsonObject:
     return d
 
 
-# ---------------------------------------------------------------------------
-# SQL object schema strategy (for PostgreSQL generator tests)
-# ---------------------------------------------------------------------------
-
-
 @st.composite
 def sql_object_schema_st(draw: st.DrawFn) -> JsonObject:
     """Generate a JSON Schema 2020-12 object dict suitable for SQL generation tests.
 
-    The root is always `type: object`.  `$defs` entries (if present) are also
-    `type: object` schemas so they each become a separate `CREATE TABLE`.
-    Properties use only leaf primitive types so column type assertions are
-    straightforward.
+    The root is always `type: object`.
+    `$defs` entries (if present) are also `type: object` schemas so they each become a separate `CREATE TABLE`.
+    Properties use only leaf primitive types so column type assertions are straightforward.
     """
     def_names = draw(st.lists(identifier, min_size=0, max_size=3, unique=True))
 

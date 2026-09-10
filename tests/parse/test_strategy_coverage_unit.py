@@ -1,14 +1,15 @@
 """The Hypothesis strategies' image against what the CST accepts.
 
-A strategy whose image is a proper subset of the supported documents silently stops
-covering whatever it leaves out.  These compare the keys each strategy actually emits
-against the keys the CST declares, so a keyword added to one and not the other fails
-here rather than going unnoticed.
+A strategy whose image is a proper subset of the supported documents silently stops covering whatever it leaves out.
+These compare the keys each strategy actually emits against the keys the CST declares,
+so a keyword added to one and not the other fails here rather than going unnoticed.
 
-`Reference` is excluded from the comparison: `$ref` appears in the generated documents,
-but a Reference Object's own `summary` and `description` overrides are a resolver
-concern, covered by `tests/resolve/test_openapi_resolver_unit.py`.
-3.2-only fields are excluded too, since the strategies pin the version at 3.1.
+`Reference` is excluded from the comparison:
+`$ref` appears in the generated documents,
+but a Reference Object's own `summary` and `description` overrides are a resolver concern,
+covered by [tests.resolve.test_openapi_resolver_unit][].
+
+TODO: The strategies pin the version at 3.1, so 3.2-only fields are excluded.
 """
 
 import pytest

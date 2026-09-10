@@ -4,10 +4,6 @@ from tests.support.docs import json_schema_doc
 from tests.support.drive import POSTGRES
 from tests.support.stages import postgres_source
 
-# ---------------------------------------------------------------------------
-# Table structure and naming
-# ---------------------------------------------------------------------------
-
 
 def test_empty_object() -> None:
     """Schema with title but no properties produces a skeleton table with comment."""

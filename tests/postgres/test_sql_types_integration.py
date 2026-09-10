@@ -1,7 +1,7 @@
 """Mapping a JSON Schema property to a PostgreSQL column type.
 
-Each case pins the whole column definition, so a change in either the type
-or the nullability shows up as a diff rather than a silently different table.
+Each case pins the whole column definition,
+so a change in either the type or the nullability shows up as a diff rather than a silently different table.
 """
 
 from tests.support.stages import postgres_source

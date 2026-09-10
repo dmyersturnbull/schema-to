@@ -13,10 +13,6 @@ from tests.support.docs import json_schema_doc
 from tests.support.drive import PYDANTIC
 from tests.support.stages import pydantic_source
 
-# ---------------------------------------------------------------------------
-# Smoke: simple object → BaseModel
-# ---------------------------------------------------------------------------
-
 
 def test_simple_object_produces_base_model() -> None:
     schema = {"type": "object", "title": "User"}
@@ -94,11 +90,6 @@ def test_number_field() -> None:
     assert "value: float" in src
 
 
-# ---------------------------------------------------------------------------
-# Smoke: $ref to $defs
-# ---------------------------------------------------------------------------
-
-
 def test_ref_to_defs_generates_class_name() -> None:
     schema = {
         "type": "object",
@@ -125,11 +116,6 @@ def test_defs_classes_generated_before_root() -> None:
     assert leaf_pos < root_pos, "Leaf should be defined before Root"
 
 
-# ---------------------------------------------------------------------------
-# Smoke: `roots` restricts which $defs get their own declaration
-# ---------------------------------------------------------------------------
-
-
 def test_roots_keeps_only_named_defs() -> None:
     """`roots` narrows generated `$defs` classes; the root class is unaffected."""
     schema = {
@@ -154,11 +140,6 @@ def test_roots_none_keeps_every_def() -> None:
     assert "class A(BaseModel):" in src
 
 
-# ---------------------------------------------------------------------------
-# Smoke: anyOf / oneOf nullable union
-# ---------------------------------------------------------------------------
-
-
 def test_anyof_nullable_produces_union_none() -> None:
     schema = {
         "type": "object",
@@ -179,11 +160,6 @@ def test_oneof_nullable_produces_union_none() -> None:
     }
     src = pydantic_source(schema)
     assert "int | None" in src
-
-
-# ---------------------------------------------------------------------------
-# Smoke: enum / const → Literal
-# ---------------------------------------------------------------------------
 
 
 def test_enum_produces_literal() -> None:
@@ -210,11 +186,6 @@ def test_const_produces_literal() -> None:
     assert "Literal[1]" in src
 
 
-# ---------------------------------------------------------------------------
-# Smoke: type array [X, null] → X | None
-# ---------------------------------------------------------------------------
-
-
 def test_type_array_with_null() -> None:
     schema = {
         "type": "object",
@@ -224,11 +195,6 @@ def test_type_array_with_null() -> None:
     }
     src = pydantic_source(schema)
     assert "str | None" in src
-
-
-# ---------------------------------------------------------------------------
-# Smoke: pydantic Field constraints
-# ---------------------------------------------------------------------------
 
 
 def test_field_with_string_constraints() -> None:
@@ -270,11 +236,6 @@ def test_field_with_numeric_constraints() -> None:
     assert "le=1000" in src
 
 
-# ---------------------------------------------------------------------------
-# Smoke: title used as class name
-# ---------------------------------------------------------------------------
-
-
 def test_title_becomes_class_name() -> None:
     schema = {"type": "object", "title": "MySpecialModel"}
     src = pydantic_source(schema)
@@ -285,11 +246,6 @@ def test_display_name_fallback() -> None:
     """When there is no title, display_name is used as a fallback."""
     doc = json_schema_doc({"type": "object"}, "test://schema", display_name="user_profile")
     assert "class UserProfile(BaseModel):" in PYDANTIC.text(doc)
-
-
-# ---------------------------------------------------------------------------
-# Smoke: no-property object
-# ---------------------------------------------------------------------------
 
 
 def test_empty_object_produces_valid_class() -> None:

@@ -6,10 +6,6 @@ so these also pin the cases where no `CHECK` is emitted at all.
 
 from tests.support.stages import postgres_source
 
-# ---------------------------------------------------------------------------
-# CHECK constraints — exact output
-# ---------------------------------------------------------------------------
-
 
 def test_check_minimum() -> None:
     schema = {

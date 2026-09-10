@@ -16,7 +16,7 @@ from schema_to.generate.fastapi.fastapi import (
 )
 
 # ---------------------------------------------------------------------------
-# Unit tests: string escaping
+# String escaping
 # ---------------------------------------------------------------------------
 
 
@@ -34,7 +34,7 @@ def test_esc_escapes_quotes_and_backslashes(text: str, expected: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests: $ref → class name
+# $ref → class name
 # ---------------------------------------------------------------------------
 
 
@@ -53,7 +53,7 @@ def test_ref_to_class_name_with_hyphen_produces_identifier() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests: annotation string rendering
+# Annotation string rendering
 # ---------------------------------------------------------------------------
 
 
@@ -84,7 +84,7 @@ def test_annotation_str_dict_two_args() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests: nullable wrapping
+# Nullable wrapping
 # ---------------------------------------------------------------------------
 
 
@@ -115,7 +115,7 @@ def test_nullable_already_nullable_stays_nullable() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests: operation function naming
+# Operation function naming
 # ---------------------------------------------------------------------------
 
 

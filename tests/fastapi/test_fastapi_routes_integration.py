@@ -33,7 +33,7 @@ def _route_count(module: PythonModule) -> int:
     """Count the route functions, which are the ones carrying an `app.<method>` decorator.
 
     A module may hold undecorated functions that are not routes:
-    a document with security schemes also gets a `require_scopes` stub.
+    A document with security schemes also gets a `require_scopes` stub.
     """
     return sum(
         1
@@ -61,20 +61,11 @@ def _count_operations(doc: dict) -> int:
 @given(doc=openapi_doc_st())
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_any_openapi_document_generates_a_valid_module(doc: dict) -> None:
-    """Every whole-document invariant, checked against one generation per example.
-
-    These were five separate property tests over the same strategy.
-    Each needed the same generated module, and generating it five times
-    made them the slowest thing in the suite, so they are asserted together.
-    Generation succeeding at all is the first invariant: `fastapi_module` fails otherwise.
-    """
+    """Every whole-document invariant, checked against one generation per example."""
     module = fastapi_module(doc)
-
     app_vars = [d for d in module.declarations if isinstance(d, VarDef) and d.name == "app"]
     assert len(app_vars) == 1, "expected exactly one `app` variable"
-
     assert _route_count(module) == _count_operations(doc), "expected one route per path x method"
-
     [artifact] = ok(PythonReifier().apply(module))
     source = artifact.content.decode()
     python_module(source)
@@ -82,7 +73,7 @@ def test_any_openapi_document_generates_a_valid_module(doc: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Integration: curated petstore document (doubles as usage example)
+# Curated petstore document (doubles as usage example)
 # ---------------------------------------------------------------------------
 
 _PETSTORE: dict = {
@@ -175,9 +166,10 @@ def test_integration_petstore() -> None:
     """Full pipeline with a petstore-style document.
 
     Demonstrates the expected output structure:
-    * Pydantic models for component schemas
-    * FastAPI app instance
-    * Async route functions with typed parameters and response models
+
+    - Pydantic models for component schemas
+    - FastAPI app instance
+    - Async route functions with typed parameters and response models
     """
     src = _transpile(_PETSTORE)
 
@@ -347,9 +339,8 @@ _MULTI_SHARED = {
 def test_a_reference_into_a_sibling_document_resolves_through_the_pipeline() -> None:
     """A `$ref` into another document in the same batch must resolve, not error.
 
-    The FastAPI pipeline resolves each document independently unless every
-    document is registered before any of them is resolved; this exercises the
-    two-pass registration that makes cross-document `$ref`s work.
+    The FastAPI pipeline resolves each document independently unless every document is registered before any of them is resolved;
+    this exercises the two-pass registration that makes cross-document `$ref`s work.
     """
     main = openapi_doc(_MULTI_MAIN, "main.yaml")
     shared = openapi_doc(_MULTI_SHARED, "shared.yaml")

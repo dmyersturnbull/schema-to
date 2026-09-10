@@ -1,7 +1,7 @@
 """Reading and writing JSON-like bytes, chosen by media type.
 
-The pipeline never picks a deserializer by file extension: a document carries a
-media type, and these decide what that means.
+The pipeline never picks a deserializer by file extension:
+A document carries a media type, and these decide what that means.
 """
 
 import pytest

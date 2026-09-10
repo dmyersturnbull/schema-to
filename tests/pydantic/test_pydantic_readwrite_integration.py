@@ -9,10 +9,6 @@ import ast
 from tests.support.source import read_write_slices
 from tests.support.stages import pydantic_source
 
-# ---------------------------------------------------------------------------
-# Smoke: readOnly / writeOnly split into Read/Write classes
-# ---------------------------------------------------------------------------
-
 
 def test_no_split_when_no_readonly_writeonly() -> None:
     schema = {"type": "object", "title": "Foo", "properties": {"name": {"type": "string"}}}

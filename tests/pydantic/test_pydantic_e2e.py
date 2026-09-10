@@ -1,6 +1,6 @@
 """Whole pydantic target runs: raw document in, Python module out.
 
-Covers what only the routed transpiler decides —
+Covers what only the routed transpiler decides:
 `roots` filtering, which documents it accepts, and the shape of a full multi-definition module.
 """
 

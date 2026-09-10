@@ -136,9 +136,9 @@ def minimal_openapi(**extra: JsonLike) -> JsonLike:
     return {"openapi": "3.1.0", "info": {"title": "T", "version": "1"}, **extra}
 
 
-def operation_at(document: OpenApiDocument, path: str = "/x", method: str = "get") -> Operation:
+def operation_at(doc: OpenApiDocument, path: str = "/x", method: str = "get") -> Operation:
     """Return the operation `document` declares at `path` for `method`."""
-    item = document.paths[path]
+    item = doc.paths[path]
     assert isinstance(item, PathItem), f"{path} holds a {type(item).__name__}"
     found = getattr(item, method)
     assert found is not None, f"No {method} operation at {path}"

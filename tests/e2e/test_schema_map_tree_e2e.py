@@ -1,4 +1,4 @@
-"""Integration: a directory tree of named-schema files resolving refs across files.
+"""End-to-end test on a directory tree of named-schema files resolving refs across files.
 
 Separate from `test_schema_map.py`,
 which exercises the parser, resolver, and directory source in isolation.

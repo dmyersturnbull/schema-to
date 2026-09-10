@@ -9,10 +9,6 @@ from schema_to.io.file import SchemaMapDirectorySource
 from schema_to.io.os_errors import TypedNotADirectoryError
 from schema_to.io.source import SchemaMapRawDoc
 
-# ---------------------------------------------------------------------------
-# Directory source
-# ---------------------------------------------------------------------------
-
 
 def test_directory_source_yields_one_doc_per_file(tmp_path: Path) -> None:
     write(tmp_path, "a.yaml", "thing:\n  type: object\n")

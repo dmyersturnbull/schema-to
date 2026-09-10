@@ -33,11 +33,6 @@ def _parse(data: JsonLike, source_id: str = "test://doc") -> JsonSchemaDocument:
     return r.value
 
 
-# ---------------------------------------------------------------------------
-# Property: schemas without $ref always resolve
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.slow
 @given(schema=json_schema_st())
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
@@ -61,11 +56,6 @@ def test_no_refs_always_resolve(schema: JsonLike) -> None:
     )
 
 
-# ---------------------------------------------------------------------------
-# Property: schemas with valid internal $defs/$ref always resolve
-# ---------------------------------------------------------------------------
-
-
 @pytest.mark.slow
 @given(schema=json_schema_with_defs_st())
 @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
@@ -80,11 +70,6 @@ def test_valid_internal_refs_resolve(schema: dict) -> None:
     )
 
 
-# ---------------------------------------------------------------------------
-# Property: apply is idempotent — calling it twice returns Ok both times
-# ---------------------------------------------------------------------------
-
-
 @given(schema=json_schema_with_defs_st())
 @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
 def test_apply_idempotent(schema: dict) -> None:
@@ -95,11 +80,6 @@ def test_apply_idempotent(schema: dict) -> None:
     r2 = resolver.apply(cst)
     assert type(r1) is type(r2)
     assert isinstance(r1, Ok)
-
-
-# ---------------------------------------------------------------------------
-# Smoke: pointer lookup
-# ---------------------------------------------------------------------------
 
 
 def test_lookup_pointer_to_def() -> None:
@@ -142,11 +122,6 @@ def test_lookup_nonexistent_returns_none() -> None:
     assert node is None
 
 
-# ---------------------------------------------------------------------------
-# Smoke: anchor resolution
-# ---------------------------------------------------------------------------
-
-
 def test_anchor_resolution() -> None:
     """$ref to an $anchor resolves correctly."""
     schema = {
@@ -176,11 +151,6 @@ def test_dynamic_anchor_resolution() -> None:
     assert isinstance(result, Ok), f"Dynamic anchor failed: {[e.message for e in result.errors]}"
 
 
-# ---------------------------------------------------------------------------
-# Smoke: cross-document resolution
-# ---------------------------------------------------------------------------
-
-
 def test_cross_document_ref_success() -> None:
     """A $ref to a separately-registered document resolves OK."""
     address_schema = {"type": "object", "properties": {"street": {"type": "string"}}}
@@ -203,11 +173,6 @@ def test_cross_document_ref_missing() -> None:
     result = resolver.apply(cst)
     assert isinstance(result, Err)
     assert any(isinstance(e, ResolutionError) for e in result.errors)
-
-
-# ---------------------------------------------------------------------------
-# Failure: unresolvable internal $ref
-# ---------------------------------------------------------------------------
 
 
 def test_missing_def_ref_fails() -> None:
@@ -251,11 +216,6 @@ def test_multiple_bad_refs_all_reported() -> None:
     assert "Missing2" in messages or "$ref" in messages
 
 
-# ---------------------------------------------------------------------------
-# Edge: self-recursive schema
-# ---------------------------------------------------------------------------
-
-
 def test_self_recursive_schema_validates() -> None:
     """A schema where a $defs entry references itself resolves without infinite recursion."""
     schema = {
@@ -294,11 +254,6 @@ def test_mutual_recursion_validates() -> None:
     assert isinstance(result, Ok)
 
 
-# ---------------------------------------------------------------------------
-# Edge: register does not double-index
-# ---------------------------------------------------------------------------
-
-
 def test_register_idempotent() -> None:
     """Calling register() twice for the same source_id does not raise."""
     cst = _parse({"type": "string"})
@@ -306,11 +261,6 @@ def test_register_idempotent() -> None:
     resolver.register(cst)
     resolver.register(cst)
     assert "test://doc" in resolver.registered_source_ids()
-
-
-# ---------------------------------------------------------------------------
-# Edge: $id within schema changes lookup base URI
-# ---------------------------------------------------------------------------
 
 
 def test_schema_with_id_registers_alias() -> None:

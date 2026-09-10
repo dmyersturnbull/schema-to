@@ -19,7 +19,7 @@ from schema_to.io.sink import Artifact
 from schema_to.io.source import JsonSchemaRawDoc, OpenApiRawDoc, RawDoc, SchemaMapRawDoc
 from schema_to.pipeline import Transpiler
 from schema_to.result import Result
-from schema_to.transpile.factory import TranspilerRouter
+from schema_to.transpile.std_router import TranspilerRouter
 
 
 @dataclass(frozen=True, slots=True)

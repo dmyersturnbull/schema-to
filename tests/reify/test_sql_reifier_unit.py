@@ -1,12 +1,11 @@
 """Serializing a `SqlScript` AST to DDL text.
 
 The generator decides what the tables are; this decides how they read.
-These build the AST by hand, so a clause reachable only from an unusual
-combination of AST fields is still pinned.
+These build the AST by hand, so a clause reachable only from an unusual combination of AST fields is still pinned.
 
 Identifiers appear bare here because `quote_sql_identifier` quotes only what
 PostgreSQL would otherwise reject; the quoting rule itself is covered by
-`tests/postgres/test_sql_tables_refs_integration.py`.
+[tests.postgres.test_sql_tables_refs_integration][].
 """
 
 import pytest

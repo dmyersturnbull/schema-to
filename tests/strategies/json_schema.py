@@ -1,27 +1,25 @@
 """Strategies for JSON Schema 2020-12 values.
 
-`json_schema_st` generates any value the JSON Schema CST can hold: a boolean schema,
-or an object carrying any mix of the keywords `schema_to.cst.json_schema.ObjectSchema`
-declares, including `x-*` extension keys.
+`json_schema_st` generates any value the JSON Schema CST can hold:
+a boolean schema, or an object carrying any mix of the keywords [schema_to.cst.json_schema.ObjectSchema][] declares,
+including `x-*` extension keys.
 
 The image is the whole supported keyword set.
-`tests/parse/test_plan_compiler_unit.py` pins the CST's fields against a golden snapshot,
+[tests/parse/test_plan_compiler_unit.py][] pins the CST's fields against a golden snapshot,
 so a keyword added to the CST and not to this module shows up there as a diff.
 
-A schema carries a bounded subset of the keywords rather than an independent coin flip
-per keyword: the keyword set is large enough that flipping each one generates documents
-too big for Hypothesis to explore, and every keyword is still reachable.
+A schema carries a bounded subset of the keywords rather than an independent coin flip per keyword:
+The keyword set is large enough that flipping each one generates documents too big for Hypothesis to explore,
+and every keyword is still reachable.
 
-Two things are deliberately narrowed, because widening them would generate documents
-that are no longer about the parser:
+Two things are deliberately narrowed because widening them would generate documents that are no longer about the parser:
 
 - A `$ref` is a well-formed pointer, but not necessarily one that resolves.
-  Parsing and serializing carry a `$ref` verbatim, so an unresolvable one is still a
-  faithful document; `tests.strategies.restricted` generates the resolvable kind for
-  the tests that resolve.
-- `pattern` and `patternProperties` keys are arbitrary text rather than valid regular
-  expressions. The parser stores the string without compiling it; a generator that
-  compiles one is covered by targeted tests instead.
+  Parsing and serializing carry a `$ref` verbatim, so an unresolvable one is still a faithful document;
+  [tests.strategies.restricted][] generates the resolvable kind for the tests that resolve.
+- `pattern` and `patternProperties` keys are arbitrary text rather than valid regular  expressions.
+  The parser stores the string without compiling it;
+  a generator that compiles one is covered by targeted tests instead.
 """
 
 from collections.abc import Mapping

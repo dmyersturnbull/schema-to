@@ -1,6 +1,6 @@
 """Parsing and resolving a document whose root maps names to schemas.
 
-Each entry is parsed at its own pointer — `/thing`, not `/$defs/thing` —
+Each entry is parsed at its own pointer (i.e. `/thing`, not `/$defs/thing`)
 because that is where a sibling file's `$ref` points.
 """
 

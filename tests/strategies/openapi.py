@@ -1,20 +1,20 @@
 """Strategies for OpenAPI 3.1 documents.
 
-`openapi_doc_st` generates any document `schema_to.cst.openapi.OpenApiDocument` can hold:
-every fixed field, every kind of component, references in the positions that accept one,
-and `x-*` extension keys.
+[openapi_doc_st][] generates any document [schema_to.cst.openapi.OpenApiDocument][] can hold:
+every fixed field, every kind of component, references in the positions that accept one, and `x-*` extension keys.
 
-As in `tests.strategies.json_schema`, a node carries a bounded subset of its optional
-fields rather than an independent coin flip per field, so that documents stay small
-enough for Hypothesis to explore while every field remains reachable.
+As in [tests.strategies.json_schema][],
+a node carries a bounded subset of its optional fields,
+rather than an independent coin flip per field,
+so that documents stay small enough for Hypothesis to explore while every field remains reachable.
 
 Deliberately narrowed, because widening would generate documents that are no longer
 about the parser:
 
-- A `$ref` is well-formed but does not necessarily resolve. Parsing and serializing
-  carry it verbatim; `tests/resolve/` builds the resolvable kind by hand.
-- 3.2-only fields are not generated. The version is pinned at 3.1.0, and
-  `tests/parse/test_openapi_versioning_unit.py` covers what each version admits.
+- A `$ref` is well-formed but does not necessarily resolve.
+  Parsing and serializing carry it verbatim; `tests/resolve/` builds the resolvable kind by hand.
+- 3.2-only fields are not generated.
+  The version is pinned at 3.1.0, and `tests/parse/test_openapi_versioning_unit.py` covers what each version admits.
 """
 
 from collections.abc import Mapping

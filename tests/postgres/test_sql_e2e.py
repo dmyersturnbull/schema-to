@@ -1,6 +1,6 @@
 """Whole postgres target runs: JSON Schema document in, DDL script out.
 
-Covers what only the routed transpiler decides —
+Covers what only the routed transpiler decides:
 which documents it accepts, `roots` filtering, and a script built from a full schema.
 """
 
@@ -19,11 +19,6 @@ from schema_to import MediaTypes, OpenApiRawDoc, RawDoc
 def _transpile(data: JsonLike, doc_id: str = DEFAULT_SCHEMA_ID) -> str:
     """Run the routed postgres target and return the emitted SQL."""
     return POSTGRES.text(json_schema_doc(data, doc_id))
-
-
-# ---------------------------------------------------------------------------
-# Properties
-# ---------------------------------------------------------------------------
 
 
 @given(schema=object_schema_st())
@@ -157,8 +152,3 @@ def test_roots_keeps_only_named_defs() -> None:
     assert "CREATE TABLE IF NOT EXISTS kept" in src
     assert "CREATE TABLE IF NOT EXISTS dropped" not in src
     assert "CREATE TABLE IF NOT EXISTS root" in src
-
-
-# ---------------------------------------------------------------------------
-# COMMENT ON emission
-# ---------------------------------------------------------------------------

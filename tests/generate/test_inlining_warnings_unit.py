@@ -1,8 +1,7 @@
 """What flattening warns about rather than failing on.
 
-Two branches that set the same keyword to different values lose one of them,
-so the flattener says so; branches that agree, and siblings that deliberately
-override a `$ref` target, do not warn.
+Two branches that set the same keyword to different values lose one of them, so the flattener says so.
+Branches that agree, and siblings that deliberately override a `$ref` target, do not warn.
 """
 
 import orjson

@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping, Sequence
 
+# TODO: Remove once we introduce a covariant Json in core.
 type JsonLike = Mapping[str, JsonLike] | Sequence[JsonLike] | str | float | bool | None
 """Any value a test may hand to a document builder to be serialized as JSON.
 

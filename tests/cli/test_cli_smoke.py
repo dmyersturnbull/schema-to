@@ -4,13 +4,16 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from subprocess import CompletedProcess
 
 import pytest
 
-_PG_EXAMPLE = Path(__file__).resolve().parents[2] / "examples" / "postgres"
+from schema_to.transpile.std_router import SupportedTarget
+
+_PG_EXAMPLE = Path(__file__).resolve().parent.parent.parent / "examples" / "postgres"
 
 
-def _run(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+def _run(*args: str, cwd: Path | None = None) -> CompletedProcess[str]:
     # ruff:ignore[subprocess-without-shell-equals-true]  # Test helper: executable and module are both constants.
     return subprocess.run(
         [sys.executable, "-m", "schema_to", *args],
@@ -21,12 +24,45 @@ def _run(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str
     )
 
 
+def _check_retcode(result: CompletedProcess[str], code: int = 0) -> None:
+    assert result.returncode == code, (
+        f"CLI exited with code {code}:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
+
+def _check_files(
+    out_dir: Path, expected: str | tuple[str, ...] | set[str | tuple[str, ...]]
+) -> set[Path]:
+    """Checks that exactly the expected files were created, ignoring special pytest-generated files.
+
+    Returns:
+        The actual paths
+    """
+    if not isinstance(expected, set):
+        expected = {expected}
+    actual = {p for p in out_dir.iterdir() if p.name not in {"out", "err"}}
+    exp = {Path(out_dir, *p) if isinstance(p, tuple) else out_dir / p for p in expected}
+    assert {str(p.relative_to(out_dir)) for p in actual} == {
+        str(p.relative_to(out_dir)) for p in exp
+    }
+    for p in actual:
+        assert p.is_file(follow_symlinks=False), (
+            f"File {p} is not a regular file (stat: {p.lstat()})"
+        )
+    return actual
+
+
 def test_cli_help() -> None:
     """The CLI exits 0 and prints usage information for --help."""
     result = _run("--help")
-    assert result.returncode == 0
-    assert "schema-to" in result.stdout
-    assert "pass-thru" in result.stdout
+    _check_retcode(result)
+    out, err = result.stdout, result.stderr
+    assert not err, f"Should not have warning or error output with --help. STDERR: {err}"
+    assert "--roots" in out
+    assert "--yaml" in out
+    assert "--json" in out
+    for t in SupportedTarget:
+        assert t.value in result.stdout
 
 
 def test_cli_pass_thru_json_schema(tmp_path: Path) -> None:
@@ -39,13 +75,9 @@ def test_cli_pass_thru_json_schema(tmp_path: Path) -> None:
     output_dir.mkdir()
 
     result = _run(str(input_file), "--output", str(output_dir))
-    assert result.returncode == 0, f"CLI failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
-
-    output_files = list(output_dir.iterdir())
-    assert len(output_files) == 1, f"Expected 1 output file, got: {[f.name for f in output_files]}"
-    assert output_files[0].name == "user.schema.json"
-
-    content = json.loads(output_files[0].read_text())
+    _check_retcode(result)
+    _check_files(output_dir, "user.schema.json")
+    content = json.loads((output_dir / "user.schema.json").read_text())
     assert content.get("type") == "object"
     assert content.get("title") == "User"
 
@@ -60,12 +92,9 @@ def test_cli_pass_thru_yaml_output(tmp_path: Path) -> None:
     output_dir.mkdir()
 
     result = _run(str(input_file), "--output", str(output_dir), "--yaml")
-    assert result.returncode == 0, f"CLI failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
-
-    output_files = list(output_dir.iterdir())
-    assert len(output_files) == 1
-    assert output_files[0].name == "item.schema.yaml"
-    assert b"type:" in output_files[0].read_bytes()
+    _check_retcode(result)
+    _check_files(output_dir, "item.schema.yaml")
+    assert b"type:" in (output_dir / "item.schema.yaml").read_bytes()
 
 
 def test_cli_unsupported_target_exits_nonzero(tmp_path: Path) -> None:
@@ -73,25 +102,25 @@ def test_cli_unsupported_target_exits_nonzero(tmp_path: Path) -> None:
     schema = {"type": "object"}
     input_file = tmp_path / "schema.json"
     input_file.write_text(json.dumps(schema))
-
     result = _run(str(input_file), "--to", "typescript")
-    assert result.returncode != 0
-    assert "not supported" in result.stderr
+    _check_retcode(result, 2)
+    assert "Invalid value for '-t' / '--to':" in result.stderr
 
 
 @pytest.mark.parametrize("flag", ["--help"])
 def test_cli_no_input_shows_help(flag: str) -> None:
     """Invoking with --help always succeeds."""
     result = _run(flag)
-    assert result.returncode == 0
+    _check_retcode(result)
 
 
 def test_cli_fastapi_named_templates(tmp_path: Path) -> None:
     """`--template name=path` fills route bodies from the named templates."""
     template_dir = _PG_EXAMPLE / "templates"
+    found = list(template_dir.glob("*.py.jinja"))
     template_args = [
         arg
-        for path in sorted(template_dir.glob("*.py.jinja"))
+        for path in found
         for arg in ("--template", f"{path.name.removesuffix('.py.jinja')}={path}")
     ]
     result = _run(
@@ -102,8 +131,8 @@ def test_cli_fastapi_named_templates(tmp_path: Path) -> None:
         str(tmp_path),
         *template_args,
     )
-    assert result.returncode == 0, f"CLI failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
-
+    _check_retcode(result)
+    _check_files(tmp_path, "main.py")
     main = (tmp_path / "main.py").read_text()
     assert "build_list_query(" in main
     assert "x-fastapi" not in main
@@ -128,9 +157,10 @@ def test_cli_roots_restricts_generated_defs(tmp_path: Path) -> None:
     result = _run(
         str(input_file), "--to", "pydantic", "--output", str(output_dir), "--roots", "Kept"
     )
-    assert result.returncode == 0, f"CLI failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    _check_retcode(result)
 
     # The module is named after the document it was generated from.
+    _check_files(output_dir, "root.py")
     content = (output_dir / "root.py").read_text()
     assert "class Kept(BaseModel):" in content
     assert "class Dropped(BaseModel):" not in content
@@ -142,10 +172,9 @@ def test_cli_unknown_template_spec_exits_nonzero(tmp_path: Path) -> None:
     schema = {"openapi": "3.1.0", "info": {"title": "x", "version": "1"}, "paths": {}}
     input_file = tmp_path / "api.json"
     input_file.write_text(json.dumps(schema))
-
     result = _run(str(input_file), "--to", "fastapi", "--template", "noequals")
-    assert result.returncode != 0
-    assert "NAME=PATH" in result.stderr
+    _check_retcode(result, 2)
+    assert "Invalid value for '--template'" in result.stderr
 
 
 def test_cli_json_schema_extracts_openapi_components(tmp_path: Path) -> None:
@@ -167,9 +196,8 @@ def test_cli_json_schema_extracts_openapi_components(tmp_path: Path) -> None:
     output_dir.mkdir()
 
     result = _run(str(input_file), "--to", "json-schema", "--output", str(output_dir))
-    assert result.returncode == 0, f"CLI failed:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    _check_retcode(result)
 
-    written = {path.name for path in output_dir.iterdir()}
-    assert written == {"User.schema.json", "Group.schema.json"}
+    _check_files(output_dir, {"User.schema.json", "Group.schema.json"})
     user = json.loads((output_dir / "User.schema.json").read_text())
     assert user["properties"]["id"]["type"] == "string"

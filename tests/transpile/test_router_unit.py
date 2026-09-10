@@ -1,7 +1,8 @@
 """Routing a target name to the transpilers that run it.
 
-The router is the one place that knows what a target is made of, so what it
-returns for each name — and which raw-document kinds those transpilers accept —
+The router is the one place that knows what a target is made of,
+so what it returns for each name,
+and which raw-document kinds those transpilers accept,
 is what every other module depends on.
 """
 
@@ -10,18 +11,17 @@ from tests.support.docs import json_schema_doc, openapi_doc, schema_map_doc
 
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import JsonSchemaRawDoc, OpenApiRawDoc, SchemaMapRawDoc
-from schema_to.transpile.factory import RoutingError, TranspilerRouter
+from schema_to.transpile.factory import UnknownTargetError
+from schema_to.transpile.std_router import SupportedTarget, TranspilerRouter
 
-_TARGETS = sorted(TranspilerRouter.SUPPORTED_TARGETS)
 
-
-@pytest.mark.parametrize("target", _TARGETS)
-def test_every_supported_target_routes_to_something(target: str) -> None:
+@pytest.mark.parametrize("target", list(SupportedTarget))
+def test_every_supported_target_routes_to_something(target: SupportedTarget) -> None:
     assert TranspilerRouter().route(target, MediaTypes.json)
 
 
-@pytest.mark.parametrize("target", _TARGETS)
-def test_a_routed_transpiler_accepts_the_documents_it_selects(target: str) -> None:
+@pytest.mark.parametrize("target", list(SupportedTarget))
+def test_a_routed_transpiler_accepts_the_documents_it_selects(target: SupportedTarget) -> None:
     """`selects` is what the pipeline groups documents by, so it has to agree with `accepts`."""
     for transpiler in TranspilerRouter().route(target, MediaTypes.json):
         doc = {
@@ -36,7 +36,7 @@ def test_a_routed_transpiler_accepts_the_documents_it_selects(target: str) -> No
 
 def test_an_unknown_target_names_the_ones_that_exist() -> None:
     """A typo should be answerable from the error alone."""
-    with pytest.raises(RoutingError) as caught:
+    with pytest.raises(UnknownTargetError) as caught:
         TranspilerRouter().route("pydentic", MediaTypes.json)
     message = str(caught.value)
     assert "pydentic" in message
