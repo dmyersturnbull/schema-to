@@ -24,8 +24,7 @@ schema-to --to fastapi \
   examples/postgres/things.openapi.yaml -o out/
 ```
 
-The generated `out/main.py` depends on 
-the [`_db.py`](./_db.py) glue module here.
+The generated `out/main.py` depends on the [`_db.py`](./_db.py) glue module here.
 Copy it next to `main.py`, then wire `get_db` to a real connection pool.
 
 ## The extension keywords
@@ -71,7 +70,7 @@ Filters and globals:
 Templates own all query-convention knowledge.
 The names `where`, `select`, `sort`, etc. are just the parameter names this example uses;
 the template reads them with `param("where")` and passes them to query-dsl.
-Likewise `json_properties` is derived purely from the JSON Schema types of the resource's properties (object/array ⇒ JSON);
+Likewise `json_properties` is derived purely from the JSON Schema types of the resource's properties (object/array to JSON);
 there is no PostgreSQL-specific configuration involved.
 
 ## The templates

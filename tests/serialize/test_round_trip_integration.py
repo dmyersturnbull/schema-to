@@ -1,0 +1,83 @@
+"""Parser/serializer round-trip tests.
+
+Verifies that parse → serialize → re-parse → re-serialize is idempotent,
+for both JSON Schema and OpenAPI documents.
+These tests exercise the parsers and serializers directly without going through a `Transpiler`.
+"""
+
+import orjson
+import pytest
+from hypothesis import HealthCheck, given, settings
+from tests.strategies.json_schema import json_schema_st
+from tests.strategies.openapi import openapi_doc_st
+from tests.support.docs import json_schema_doc, openapi_doc
+from tests.support.types import JsonLike
+
+from schema_to.parse.json_schema import JsonSchemaParser
+from schema_to.parse.openapi import OpenApiParser
+from schema_to.result import Ok
+from schema_to.serialize.json_schema import JsonSchemaSerializer
+from schema_to.serialize.openapi import OpenApiSerializer
+
+_JS_PARSER = JsonSchemaParser()
+_JS_SERIALIZER = JsonSchemaSerializer()
+_OA_PARSER = OpenApiParser()
+_OA_SERIALIZER = OpenApiSerializer()
+
+
+def _stable_json(obj: object) -> bytes:
+    return orjson.dumps(obj, option=orjson.OPT_SORT_KEYS)
+
+
+# ---------------------------------------------------------------------------
+# JSON Schema round-trip
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+@given(schema=json_schema_st())
+@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+def test_json_schema_round_trip(schema: JsonLike) -> None:
+    """Parse → serialize → re-parse → re-serialize must be idempotent."""
+    doc = json_schema_doc(schema)
+
+    r1 = _JS_PARSER.apply(doc)
+    assert isinstance(r1, Ok), f"First parse failed: {[e.message for e in r1.errors]}"
+    serialized1 = _JS_SERIALIZER.serialize_document(r1.value)
+
+    r2 = _JS_PARSER.apply(json_schema_doc(serialized1))
+    assert isinstance(r2, Ok), f"Second parse failed: {[e.message for e in r2.errors]}"
+    serialized2 = _JS_SERIALIZER.serialize_document(r2.value)
+
+    assert _stable_json(serialized1) == _stable_json(serialized2), (
+        f"Round-trip not idempotent.\n"
+        f"  after 1st serialize: {serialized1}\n"
+        f"  after 2nd serialize: {serialized2}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# OpenAPI round-trip
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+@given(openapi=openapi_doc_st())
+@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+def test_openapi_round_trip(openapi: dict) -> None:
+    """Parse → serialize → re-parse → re-serialize must be idempotent."""
+    doc = openapi_doc(openapi)
+
+    r1 = _OA_PARSER.apply(doc)
+    assert isinstance(r1, Ok), f"First parse failed: {[e.message for e in r1.errors]}"
+    serialized1 = _OA_SERIALIZER.serialize(r1.value)
+
+    r2 = _OA_PARSER.apply(openapi_doc(serialized1))
+    assert isinstance(r2, Ok), f"Second parse failed: {[e.message for e in r2.errors]}"
+    serialized2 = _OA_SERIALIZER.serialize(r2.value)
+
+    assert _stable_json(serialized1) == _stable_json(serialized2), (
+        f"Round-trip not idempotent.\n"
+        f"  after 1st serialize: {serialized1!r:.500}\n"
+        f"  after 2nd serialize: {serialized2!r:.500}"
+    )

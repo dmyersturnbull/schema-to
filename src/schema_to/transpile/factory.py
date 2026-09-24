@@ -87,9 +87,9 @@ class AbstractTranspilerRouter[T: Enum](ABC):
             t = self.enum()
             try:
                 target = t(target)
-            except KeyError:
+            except ValueError:
                 raise UnknownTargetError(
-                    value=target, supported=frozenset(m.name for m in t)
+                    value=target, supported=frozenset(m.value for m in t)
                 ) from None
         return self._route(target, output_media_type, templates, roots, schema_map=schema_map)
 

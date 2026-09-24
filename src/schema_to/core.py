@@ -30,13 +30,15 @@ type JsonArrayLimb = MutableSequence[JsonPrimitive]
 
 
 def is_json_primitive_sequence(values: Sequence[JsonValue], /) -> TypeIs[Sequence[JsonPrimitive]]:
+    """Returns whether every element of the sequence `values` is a `JsonPrimitive`."""
     return all(isinstance(v, bool | int | float | str | None) for v in values)
 
 
 def is_json_primitive_mapping(
     values: Mapping[str, JsonValue], /
 ) -> TypeIs[Mapping[str, JsonPrimitive]]:
-    return all(isinstance(v, bool | int | float | str | None) for v in values)
+    """Returns whether every value of the mapping `values` is a `JsonPrimitive`."""
+    return all(isinstance(v, bool | int | float | str | None) for v in values.values())
 
 
 # ty: ignore[invalid-type-guard-definition]  # ty is wrong

@@ -7,6 +7,8 @@ from pathlib import PurePath
 
 __all__ = [
     "AccessDeniedError",
+    "DeviceMissingError",
+    "Filename",
     "PathExistsError",
     "PathMissingError",
     "TypedIOError",

@@ -101,8 +101,9 @@ class DirectoryDataSource(DataSource):
     def __post_init__(self) -> None:
         if not self.root.is_dir():
             raise TypedNotADirectoryError(filename=self.root)
-        # ruff:ignore[set-attr-with-constant]  # Workaround to allow `slots=True`
-        setattr(self, "paths", frozenset(sorted(self.__expand_sources())))
+        # `object.__setattr__` is how a frozen dataclass fills a derived field;
+        # plain `setattr` raises `FrozenInstanceError`.
+        object.__setattr__(self, "paths", frozenset(sorted(self.__expand_sources())))
 
     def __expand_sources(self) -> Iterator[Path]:
         cls = type(self)

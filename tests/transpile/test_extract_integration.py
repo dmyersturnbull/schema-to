@@ -1,0 +1,51 @@
+"""Tests for the OpenAPI → JSON Schema extraction transpiler."""
+
+from dataclasses import replace
+
+import orjson
+import pytest
+from hypothesis import HealthCheck, given, settings
+from tests.strategies.openapi import openapi_doc_st
+from tests.support.docs import json_schema_doc, openapi_doc
+from tests.support.drive import JSON_SCHEMA
+
+from schema_to import JsonSchemaParser, MediaTypes, Ok
+
+_JS_PARSER = JsonSchemaParser()
+
+
+@pytest.mark.slow
+@given(openapi=openapi_doc_st())
+@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
+def test_openapi_extract_schemas(openapi: dict) -> None:
+    """Extracted artifact count matches component schema count, IDs match names, and each extracted schema re-parses successfully."""
+    doc = openapi_doc(openapi)
+    result = JSON_SCHEMA.run(doc)
+    assert isinstance(result, Ok), f"Extract failed: {result}"
+
+    component_schemas = openapi.get("components", {}).get("schemas", {})
+    assert len(result.value) == len(component_schemas)
+
+    artifact_stems = {a.artifact_id.removesuffix(".schema.json") for a in result.value}
+    assert artifact_stems == set(component_schemas.keys())
+
+    for artifact in result.value:
+        assert artifact.artifact_id.endswith(".schema.json")
+        doc2 = json_schema_doc(orjson.loads(artifact.content))
+        r = _JS_PARSER.apply(doc2)
+        assert isinstance(r, Ok), (
+            f"Extracted schema {artifact.artifact_id!r} failed to re-parse: "
+            f"{[e.message for e in r.errors]}"
+        )
+
+
+def test_openapi_extract_yaml_output() -> None:
+    openapi = {
+        "openapi": "3.1.0",
+        "info": {"title": "Test", "version": "1.0"},
+        "components": {"schemas": {"Foo": {"type": "object"}}},
+    }
+    route = replace(JSON_SCHEMA, output_media_type=MediaTypes.json_schema_yaml)
+    [artifact] = route.artifacts(openapi_doc(openapi))
+    assert artifact.artifact_id == "Foo.schema.yaml"
+    assert b"type" in artifact.content

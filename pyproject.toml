@@ -154,6 +154,10 @@ log_cli = true
 log_format = "%(asctime)s %(levelname)-7s %(name)s %(filename)s:%(lineno)s | %(message)s "
 log_date_format = "%Y-%m-%d %H:%M:%S"
 markers = [
+  "unit: exercises one module's own API",
+  "integration: exercises one feature across a few stages composed by hand",
+  "smoke: runs the `schema-to` CLI as a subprocess",
+  "e2e: runs a whole transpilation through a routed `Transpiler`",
   "slow: tests that need a long time to run",
 ]
 addopts = [
