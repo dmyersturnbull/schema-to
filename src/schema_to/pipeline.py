@@ -49,12 +49,13 @@ It drives the full process:
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import final, override
 
 from schema_to.ast.base import AstNode
 from schema_to.cst.base import CstNode
 from schema_to.errors import TranspilationError, TranspilationWarning
+from schema_to.io.locate import DocumentLocator
 from schema_to.io.sink import Artifact, DataSink
 from schema_to.io.source import DataSource, RawDoc
 from schema_to.result import Err, Ok, Result
@@ -451,6 +452,23 @@ class _PipelineHelper:
     artifacts_written: list[str] = field(default_factory=list, init=False)
     errors: list[TranspilationError] = field(default_factory=list, init=False)
     warnings: list[TranspilationWarning] = field(default_factory=list, init=False)
+    docs: dict[str, RawDoc] = field(default_factory=dict, init=False)
+
+    def located_errors(self) -> tuple[TranspilationError, ...]:
+        """The errors, with a line and column added to each location where they can be found."""
+        locator = DocumentLocator(self.docs)
+        for error in self.errors:
+            if error.location is not None:
+                error.location = locator.fill(error.location)
+        return tuple(self.errors)
+
+    def located_warnings(self) -> tuple[TranspilationWarning, ...]:
+        """The warnings, with a line and column added to each location where they can be found."""
+        locator = DocumentLocator(self.docs)
+        return tuple(
+            w if w.location is None else replace(w, location=locator.fill(w.location))
+            for w in self.warnings
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -506,12 +524,12 @@ class Pipeline[I: RawDoc, O: Artifact]:
         for index, documents in self._route(helper):
             self._transpile_batch(self.transpilers[index], documents, helper)
         if helper.errors:
-            return Err(tuple(helper.errors))
+            return Err(helper.located_errors(), warnings=helper.located_warnings())
         return Ok(
             ProcessSummary(
                 docs_used=helper.docs_used,
                 artifacts_written=helper.artifacts_written,
-                warnings=tuple(helper.warnings),
+                warnings=helper.located_warnings(),
             )
         )
 
@@ -527,6 +545,7 @@ class Pipeline[I: RawDoc, O: Artifact]:
         batches: list[list[I]] = [[] for _ in self.transpilers]
         for source in self.sources:
             for document in source.documents():
+                helper.docs[document.doc_id] = document
                 index = next(
                     (i for i, t in enumerate(self.transpilers) if t.accepts(document)), None
                 )

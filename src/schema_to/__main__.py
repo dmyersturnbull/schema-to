@@ -6,10 +6,12 @@ from typing import Annotated, Final, NamedTuple, Self
 
 from typer import Argument, BadParameter, Exit, Option, Typer, echo
 
+from schema_to.errors import TranspilationError, TranspilationWarning
 from schema_to.io.file import FileDataSink, FileDataSourceFactory, SchemaMapDirectorySource
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.source import DataSource
 from schema_to.pipeline import Pipeline
+from schema_to.report import format_error, format_warning
 from schema_to.result import Err, Ok
 from schema_to.transpile.std_router import SupportedTarget, TranspilerRouter
 
@@ -92,16 +94,23 @@ def transpile(
     pipeline = Pipeline(sources=sources, transpilers=transpilers, sink=FileDataSink(output))
     match pipeline.process():
         case Ok(summary):
+            _report(summary.warnings, ())
             echo(
-                f"Wrote {summary.artifacts_written} artifact(s) from "
-                f"{summary.docs_used} document(s)."
+                f"Wrote {len(summary.artifacts_written)} artifact(s) from "
+                f"{len(summary.docs_used)} document(s)."
             )
-            for w in summary.warnings:
-                echo(f"warning: {w}", err=True)
-        case Err(errors):
-            for e in errors:
-                echo(f"error: {e}", err=True)
+        case Err(errors, warnings=warnings):
+            _report(warnings, errors)
             raise Exit(1)
+
+
+def _report(
+    warnings: Sequence[TranspilationWarning], errors: Sequence[TranspilationError]
+) -> None:
+    for w in warnings:
+        echo(format_warning(w, cwd=Path.cwd()), err=True)
+    for e in errors:
+        echo(format_error(e, cwd=Path.cwd()), err=True)
 
 
 def _sources(

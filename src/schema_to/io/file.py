@@ -1,7 +1,7 @@
 """Filesystem-backed `DataSource` and `DataSink` implementations."""
 
 import glob
-from collections.abc import Callable, Mapping, Set
+from collections.abc import Callable, Mapping, Sequence, Set
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
@@ -13,7 +13,7 @@ from schema_to.io.sink import Artifact, DataSink
 from schema_to.io.source import DataSource, JsonSchemaRawDoc, OpenApiRawDoc, RawDoc, SchemaMapRawDoc
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Iterator
 
 __all__ = [
     "DirectoryDataSource",
@@ -41,8 +41,14 @@ _DEFAULT_SUFFIX_MAP: SuffixMap = {
 
 
 def _to_source_id(path: Path) -> str:
-    return path.absolute().as_uri()
-    # Alternative: `return path.absolute().as_uri().removeprefix(Path.cwd().as_uri() + "/")`
+    """Return the canonical `file:` URI of `path`, which may be relative to the CWD.
+
+    The path is resolved, not just made absolute:
+    A relative `$ref` is resolved by URI math against this URI,
+    which drops `..` segments,
+    so an ID that kept them (`…/cwd/../in/a.json`) would never match the URI a `$ref` computes for the same file.
+    """
+    return path.resolve().as_uri()
 
 
 def _infer_from_path(path: Path) -> tuple[type[RawDoc], MediaType]:
@@ -116,14 +122,15 @@ class DirectoryDataSource(DataSource):
     _: KW_ONLY
     recursive: bool
     include_hidden: bool = False
-    paths: Set[Path] = field(init=False, hash=False, repr=False)
+    paths: Sequence[Path] = field(init=False, hash=False, repr=False)
 
     def __post_init__(self) -> None:
         if not self.root.is_dir():
             raise TypedNotADirectoryError(filename=self.root)
         # `object.__setattr__` is how a frozen dataclass fills a derived field;
         # plain `setattr` raises `FrozenInstanceError`.
-        object.__setattr__(self, "paths", frozenset(sorted(self.__expand_sources())))
+        # Sorted and deduplicated, so documents are read in the same order on every run.
+        object.__setattr__(self, "paths", tuple(sorted(set(self.__expand_sources()))))
 
     def __expand_sources(self) -> Iterator[Path]:
         cls = type(self)

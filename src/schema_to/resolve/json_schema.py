@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, override
 
 from referencing import Registry, Resource
-from referencing.exceptions import Unresolvable
+from referencing.exceptions import NoSuchAnchor, PointerToNowhere, Unresolvable
 from referencing.jsonschema import DRAFT202012
 
 from schema_to.cst.json_schema import (
@@ -110,6 +110,20 @@ def _iter_sub_schemas(schema: ObjectSchema, pointer: str) -> Iterator[tuple[str,
         yield _single("unevaluatedProperties", schema.unevaluated_properties)
     if schema.content_schema is not None:
         yield _single("contentSchema", schema.content_schema)
+
+
+def _describe_unresolvable(exc: Unresolvable) -> str:
+    """Say why a reference failed, without dumping the target document as `str(exc)` would."""
+    match exc:
+        case PointerToNowhere(ref=pointer):
+            return f"the document has nothing at {pointer!r}"
+        case NoSuchAnchor(anchor=anchor):
+            return f"the document declares no anchor {anchor!r}"
+        case _:
+            return (
+                "it names a document that is not among the inputs "
+                "(a relative reference is resolved against the file that contains it)"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -285,23 +299,14 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         pointer = schema.source_ref.json_pointer if schema.source_ref else ""
         loc = SourceLocation(source_id, pointer)
 
-        if schema.ref:
+        for keyword, ref in (("$ref", schema.ref), ("$dynamicRef", schema.dynamic_ref)):
+            if not ref:
+                continue
             try:
-                ref_resolver.lookup(schema.ref)
+                ref_resolver.lookup(ref)
             except Unresolvable as exc:
-                errors.append(
-                    ResolutionError(f"Cannot resolve $ref {schema.ref!r}: {exc}", location=loc)
-                )
-
-        if schema.dynamic_ref:
-            try:
-                ref_resolver.lookup(schema.dynamic_ref)
-            except Unresolvable as exc:
-                errors.append(
-                    ResolutionError(
-                        f"Cannot resolve $dynamicRef {schema.dynamic_ref!r}: {exc}", location=loc
-                    )
-                )
+                msg = f"Cannot resolve {keyword} {ref!r}: {_describe_unresolvable(exc)}."
+                errors.append(ResolutionError(msg, location=loc))
 
         # $id changes the base URI for nested schemas.
         current_resolver = ref_resolver

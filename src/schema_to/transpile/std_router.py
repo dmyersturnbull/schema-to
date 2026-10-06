@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from enum import StrEnum, auto
 from typing import Self, override
 
+from schema_to.cst.json_schema import JsonSchemaDocument
 from schema_to.generate.fastapi.fastapi import FastApiTransformer
 from schema_to.generate.fastapi.template_body import TemplateBodyBackend
 from schema_to.generate.postgres.sql import PostgresTransformer
@@ -184,23 +185,32 @@ class TranspilerRouter(AbstractTranspilerRouter[SupportedTarget]):
         self, *, resolver: JsonSchemaRefResolver, roots: Set[str] | None
     ) -> Stage[Sequence[JsonSchemaRawDoc], Sequence[PythonArtifact]]:
         """A module per schema, collected into the package they are written as."""
-        per_schema = (
-            JsonSchemaParser()
-            .then(resolver)
-            .then(PydanticTransformer(resolver=resolver, roots=roots))
+        per_schema = resolver.then(PydanticTransformer(resolver=resolver, roots=roots))
+        return (
+            self._parse_and_register(resolver)
+            .then(Each(per_schema))
+            .then(PythonPackageAssembler())
+            .then(PythonPackageReifier())
         )
-        return Each(per_schema).then(PythonPackageAssembler()).then(PythonPackageReifier())
 
     def _postgres(
         self, *, resolver: JsonSchemaRefResolver, validate_json: bool, roots: Set[str] | None
     ) -> Stage[Sequence[JsonSchemaRawDoc], Sequence[SqlArtifact]]:
         per_schema = (
-            JsonSchemaParser()
-            .then(resolver)
-            .then(PostgresTransformer(validate_json=validate_json, roots=roots))
+            resolver.then(PostgresTransformer(validate_json=validate_json, roots=roots))
             .then(SqlReifier(artifact_name="schema.sql"))
         )
-        return Each(per_schema).then(Flatten())
+        return self._parse_and_register(resolver).then(Each(per_schema)).then(Flatten())
+
+    def _parse_and_register(
+        self, resolver: JsonSchemaRefResolver
+    ) -> Stage[Sequence[JsonSchemaRawDoc], Sequence[JsonSchemaDocument]]:
+        """Parse every document, then register them all before any is resolved.
+
+        A `$ref` into a sibling file cannot resolve until that file is registered,
+        so resolving each document as soon as it is parsed would depend on the order the files were read.
+        """
+        return Each(JsonSchemaParser()).then(Each(resolver.registering()))
 
     def _postgres_table_set(
         self, *, validate_json: bool, roots: Set[str] | None

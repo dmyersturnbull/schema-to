@@ -14,6 +14,7 @@ from schema_to.io.file import (
     FileDataSource,
     FileDataSourceFactory,
     PeekingDirectorySource,
+    SchemaMapDirectorySource,
 )
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.os_errors import PathMissingError, TypedNotADirectoryError
@@ -148,3 +149,65 @@ def test_the_factory_names_the_extensions_it_knows(tmp_path: Path) -> None:
 
 def test_the_factory_skips_a_path_that_is_neither(tmp_path: Path) -> None:
     assert FileDataSourceFactory(recursive=False).get([tmp_path / "nope.schema.json"]) == []
+
+
+# ---------------------------------------------------------------------------
+# Relative paths, which is how a person on a command line names their files.
+# ---------------------------------------------------------------------------
+
+
+def test_a_relative_file_gets_an_absolute_uri(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = write(tmp_path, "in/thing.schema.json", _SCHEMA)
+    monkeypatch.chdir(tmp_path)
+    source = FileDataSource(Path("in/thing.schema.json"), JsonSchemaRawDoc, MediaTypes.json_schema)
+    [doc] = source.documents()
+    assert source.source_id == path.resolve().as_uri()
+    assert doc.doc_id == doc.base_uri == path.resolve().as_uri()
+
+
+def test_a_relative_path_up_and_over_is_normalized(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `$ref` resolves to a URI with no `..` in it, so the ID must not have one either."""
+    path = write(tmp_path, "in/thing.schema.json", _SCHEMA)
+    (tmp_path / "elsewhere").mkdir()
+    monkeypatch.chdir(tmp_path / "elsewhere")
+    [doc] = FileDataSource(
+        Path("../in/thing.schema.json"), JsonSchemaRawDoc, MediaTypes.json_schema
+    ).documents()
+    assert doc.doc_id == path.resolve().as_uri()
+    assert ".." not in doc.doc_id
+
+
+def test_a_relative_directory_yields_absolute_uris(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    a = write(tmp_path, "in/a.schema.json", _SCHEMA)
+    b = write(tmp_path, "in/sub/b.schema.json", _SCHEMA)
+    monkeypatch.chdir(tmp_path / "in" / "sub")
+    source = DirectoryDataSource(Path(".."), recursive=True)
+    assert [d.doc_id for d in source.documents()] == [a.resolve().as_uri(), b.resolve().as_uri()]
+
+
+def test_the_cwd_as_a_directory_is_read(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = write(tmp_path, "a.schema.json", _SCHEMA)
+    monkeypatch.chdir(tmp_path)
+    [source] = FileDataSourceFactory(recursive=False).get([Path()])
+    assert [d.doc_id for d in source.documents()] == [path.resolve().as_uri()]
+
+
+def test_a_relative_schema_map_directory_yields_absolute_uris(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write(tmp_path, "maps/base/time.yaml", "timestamp:\n  type: string\n")
+    monkeypatch.chdir(tmp_path / "maps")
+    [doc] = SchemaMapDirectorySource(Path("base")).documents()
+    assert doc.doc_id == doc.base_uri == path.resolve().as_uri()
+
+
+def test_files_are_read_in_sorted_order(tmp_path: Path) -> None:
+    """Output should not depend on how a set happens to hash."""
+    for name in ("c", "a", "d", "b"):
+        write(tmp_path, f"{name}.schema.json", _SCHEMA)
+    docs = DirectoryDataSource(tmp_path, recursive=False).documents()
+    assert [d.display_name for d in docs] == ["a", "b", "c", "d"]
