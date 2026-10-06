@@ -42,7 +42,7 @@ _DEFAULT_SUFFIX_MAP: SuffixMap = {
 
 def _to_source_id(path: Path) -> str:
     return path.absolute().as_uri()
-    #return path.absolute().as_uri().removeprefix(Path.cwd().as_uri() + "/")
+    # Alternative: `return path.absolute().as_uri().removeprefix(Path.cwd().as_uri() + "/")`
 
 
 def _infer_from_path(path: Path) -> tuple[type[RawDoc], MediaType]:
@@ -244,8 +244,10 @@ class PeekingDirectorySource(DirectoryDataSource):
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class FileDataSourceFactory[I: RawDoc]:
+    """Factory for [FileDataSource][]."""
+
     recursive: bool
-    include_hidden: bool
+    include_hidden: bool = False
 
     def get(self, paths: Sequence[Path]) -> Sequence[DataSource[I]]:
         return list(self._get(paths))
@@ -253,7 +255,9 @@ class FileDataSourceFactory[I: RawDoc]:
     def _get(self, paths: Sequence[Path]) -> Iterator[DataSource[I]]:
         for p in paths:
             if p.is_dir():
-                yield PeekingDirectorySource(p, recursive=self.recursive, include_hidden=self.include_hidden)
+                yield PeekingDirectorySource(
+                    p, recursive=self.recursive, include_hidden=self.include_hidden
+                )
             elif p.is_file():
                 doc_cls, media_type = _infer_from_path(p)
                 yield FileDataSource(p, doc_cls, media_type)

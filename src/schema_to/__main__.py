@@ -86,7 +86,9 @@ def transpile(
     transpilers = ROUTER.route(
         to, output_media_type, templates=templates, roots=root_set, schema_map=schema_map
     )
-    sources = _sources(paths, recursive=recursive, schema_map=schema_map, include_hidden=include_hidden)
+    sources = _sources(
+        paths, recursive=recursive, schema_map=schema_map, include_hidden=include_hidden
+    )
     pipeline = Pipeline(sources=sources, transpilers=transpilers, sink=FileDataSink(output))
     match pipeline.process():
         case Ok(summary):
@@ -102,7 +104,9 @@ def transpile(
             raise Exit(1)
 
 
-def _sources(paths: Sequence[Path], *, recursive: bool, schema_map: bool, include_hidden: bool) -> Sequence[DataSource]:
+def _sources(
+    paths: Sequence[Path], *, recursive: bool, schema_map: bool, include_hidden: bool
+) -> Sequence[DataSource]:
     """Build the data sources for the given paths.
 
     A schema map cannot be told from a single schema by file name,
