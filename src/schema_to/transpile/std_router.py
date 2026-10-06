@@ -196,10 +196,9 @@ class TranspilerRouter(AbstractTranspilerRouter[SupportedTarget]):
     def _postgres(
         self, *, resolver: JsonSchemaRefResolver, validate_json: bool, roots: Set[str] | None
     ) -> Stage[Sequence[JsonSchemaRawDoc], Sequence[SqlArtifact]]:
-        per_schema = (
-            resolver.then(PostgresTransformer(validate_json=validate_json, roots=roots))
-            .then(SqlReifier(artifact_name="schema.sql"))
-        )
+        per_schema = resolver.then(
+            PostgresTransformer(validate_json=validate_json, roots=roots)
+        ).then(SqlReifier(artifact_name="schema.sql"))
         return self._parse_and_register(resolver).then(Each(per_schema)).then(Flatten())
 
     def _parse_and_register(

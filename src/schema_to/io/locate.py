@@ -314,7 +314,8 @@ def _yaml_member(
         if line.indent == indent and line.key() == name:
             end = k + 1
             while end < len(region) and (
-                region[end].indent > indent or (region[end].indent == indent and region[end].is_item)
+                region[end].indent > indent
+                or (region[end].indent == indent and region[end].is_item)
             ):
                 end += 1
             return line, region[k + 1 : end]

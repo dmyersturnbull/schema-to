@@ -156,7 +156,9 @@ def test_the_factory_skips_a_path_that_is_neither(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_a_relative_file_gets_an_absolute_uri(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_relative_file_gets_an_absolute_uri(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     path = write(tmp_path, "in/thing.schema.json", _SCHEMA)
     monkeypatch.chdir(tmp_path)
     source = FileDataSource(Path("in/thing.schema.json"), JsonSchemaRawDoc, MediaTypes.json_schema)

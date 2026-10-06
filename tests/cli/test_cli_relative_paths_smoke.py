@@ -70,7 +70,14 @@ def test_errors_name_the_file_relative_to_the_cwd_with_line_and_column(tmp_path:
     )
     (tmp_path / "elsewhere").mkdir()
     result = _run(
-        "--schema-map", "-r", "../schemas", "-t", "pydantic", "-o", "out", cwd=tmp_path / "elsewhere"
+        "--schema-map",
+        "-r",
+        "../schemas",
+        "-t",
+        "pydantic",
+        "-o",
+        "out",
+        cwd=tmp_path / "elsewhere",
     )
     assert result.returncode == 1
     # Not a terminal, so no colors.

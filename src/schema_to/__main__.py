@@ -104,9 +104,7 @@ def transpile(
             raise Exit(1)
 
 
-def _report(
-    warnings: Sequence[TranspilationWarning], errors: Sequence[TranspilationError]
-) -> None:
+def _report(warnings: Sequence[TranspilationWarning], errors: Sequence[TranspilationError]) -> None:
     for w in warnings:
         echo(format_warning(w, cwd=Path.cwd()), err=True)
     for e in errors:
