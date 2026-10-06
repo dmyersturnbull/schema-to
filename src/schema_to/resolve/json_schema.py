@@ -122,8 +122,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
     """Validates and resolves `$ref` / `$dynamicRef` in JSON Schema 2020-12 documents.
 
     Attributes:
-        _registry: The `referencing` library registry used for URI math and
-            anchor lookups.
+        _registry: The `referencing` library registry used for URI math and anchor lookups.
         _cst_by_pointer: Maps `(source_id, json_pointer)` → CST node.
         _cst_by_anchor: Maps `(source_id, anchor_name)` → CST node.
         _id_to_source: Maps absolute `$id` URI → `source_id`.
@@ -163,15 +162,14 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
     def register_map(self, cst: JsonSchemaMapDocument) -> None:
         """Add a map of named schemas to the registry.
 
-        Each entry is indexed at its own pointer (`/name`), which is where a
-        `$ref` of the form `./that-file.yaml#/name` looks for it.
+        Each entry is indexed at its own pointer (`/name`),
+        which is where a `$ref` of the form `./that-file.yaml#/name` looks for it.
         """
         if cst.source_id in self._map_docs:
             return
         self._map_docs[cst.source_id] = cst
         for name, schema in cst.schemas.items():
             self._index_cst(schema, source_id=cst.source_id, pointer=f"/{_escape(name)}")
-
         raw = {name: _SERIALIZER.serialize(schema) for name, schema in cst.schemas.items()}
         resource = Resource.from_contents(raw, default_specification=DRAFT202012)
         self._registry = self._registry.with_resource(cst.source_id, resource)
@@ -179,15 +177,15 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
     def apply(self, input: JsonSchemaDocument) -> Result[JsonSchemaDocument]:
         """Validate all `$ref` / `$dynamicRef` in *input*.
 
-        Returns `Ok(input)` unchanged if every reference resolves, or
-        `Err` with one `ResolutionError` per unresolvable reference.
+        Returns `Ok(input)` unchanged if every reference resolves,
+        or `Err` with one `ResolutionError` per unresolvable reference.
         Auto-registers the document if it has not been registered yet.
         """
         if input.source_id not in self._docs:
             self.register(input)
         try:
-            # References resolve against the document's base URI, which is not its ID
-            # when the document was carved out of a larger file.
+            # References resolve against the document's base URI,
+            # which is not its ID when the document was carved out of a larger file.
             ref_resolver = self._resolver_for(input.get_base_uri())
         except ResolutionError as exc:
             return Err((exc,))
@@ -195,7 +193,6 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         self._check_refs(
             input.root, ref_resolver=ref_resolver, source_id=input.source_id, errors=errors
         )
-
         if errors:
             return Err(tuple(errors))
         return Ok(input)
@@ -203,8 +200,8 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
     def lookup(self, ref: str, *, base_uri: str) -> JsonSchema | None:
         """Resolve a `$ref` string to its CST node.
 
-        Returns `None` when the ref cannot be resolved (i.e. the document
-        was never registered, or the pointer / anchor does not exist).
+        Returns `None` when the ref cannot be resolved
+        (i.e. the document was never registered, or the pointer / anchor does not exist).
         """
         doc_uri, fragment = self._split_ref(ref, base_uri)
         source_id = self._find_source_id(doc_uri)

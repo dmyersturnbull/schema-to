@@ -40,6 +40,28 @@ _DEFAULT_SUFFIX_MAP: SuffixMap = {
 }
 
 
+def _to_source_id(path: Path) -> str:
+    return path.absolute().as_uri()
+    #return path.absolute().as_uri().removeprefix(Path.cwd().as_uri() + "/")
+
+
+def _infer_from_path(path: Path) -> tuple[type[RawDoc], MediaType]:
+    """Return `(doc_cls, media_type)` for *path* by matching its name against [DirectoryDataSource.suffix_map][].
+
+    Checks longest suffixes first.
+
+    Raises:
+        ValueError: If the extension is not recognized.
+    """
+    name = path.name.lower()
+    for suffix in sorted(DirectoryDataSource.suffix_map, key=len, reverse=True):
+        if name.endswith(suffix):
+            return DirectoryDataSource.suffix_map[suffix]
+    recognised = ", ".join(sorted(DirectoryDataSource.suffix_map))
+    msg = f"Cannot infer document type from {path.name!r}. Use a recognised compound extension: {recognised}."
+    raise ValueError(msg)
+
+
 @dataclass(frozen=True, slots=True)
 class FileDataSource(DataSource):
     """A `DataSource` backed by a single file on the local filesystem.
@@ -56,7 +78,7 @@ class FileDataSource(DataSource):
 
     @property
     def source_id(self) -> str:
-        return self.path.as_uri()
+        return _to_source_id(self.path)
 
     def documents(self) -> Iterator[RawDoc]:
         if not self.path.is_file():
@@ -65,11 +87,11 @@ class FileDataSource(DataSource):
         stem = self.path.stem
         display_name = Path(stem).stem if "." in stem else stem
         yield self.doc_cls(
-            doc_id=self.path.as_uri(),
+            doc_id=_to_source_id(self.path),
             content=content,
             media_type=self.media_type,
             display_name=display_name,
-            base_uri=self.path.as_uri(),
+            base_uri=_to_source_id(self.path),
         )
 
 
@@ -77,11 +99,9 @@ class FileDataSource(DataSource):
 class DirectoryDataSource(DataSource):
     """A `DataSource` that yields all schema files matching known compound extensions under a directory.
 
-    Files whose name does not end with a recognised compound extension (e.g.
-    `.schema.json`, `.openapi.yaml`) are silently skipped, so a directory
-    can contain a mix of schema files and unrelated assets.
+    Files whose name does not end with a recognised compound extension are skipped.
 
-    Subclass and override `suffix_map` or `peek_fn` to customise discovery.
+    Subclass and override [suffix_map][] or [peek_fn][] to customise discovery.
 
     Attributes:
         root: Path to the directory.
@@ -122,7 +142,7 @@ class DirectoryDataSource(DataSource):
 
     @property
     def source_id(self) -> str:
-        return self.root.as_uri()
+        return _to_source_id(self.root)
 
     def documents(self) -> Iterator[RawDoc]:
         cls = type(self)
@@ -134,11 +154,11 @@ class DirectoryDataSource(DataSource):
             stem = path.stem
             display_name = Path(stem).stem if "." in stem else stem
             yield doc_cls(
-                doc_id=path.as_uri(),
+                doc_id=_to_source_id(path),
                 content=content,
                 media_type=media_type,
                 display_name=display_name,
-                base_uri=path.as_uri(),
+                base_uri=_to_source_id(path),
             )
 
 
@@ -146,20 +166,18 @@ class DirectoryDataSource(DataSource):
 class SchemaMapDirectorySource(DataSource):
     """A `DataSource` yielding every file under a directory as a `SchemaMapRawDoc`.
 
-    Use this for a tree of files that each hold several named schemas at the top
-    level — an OpenAPI `components/schemas` fragment split across files, where
-    one file `$ref`s another by relative path (`../base/time.yaml#/timestamp`).
+    Use this for a tree of files that each hold several named schemas at the top level.
+    An OpenAPI `components/schemas` fragment split across files,
+    where one file `$ref`s another by relative path (`../base/time.yaml#/timestamp`).
 
-    Unlike `DirectoryDataSource`, this matches on plain `.yaml` / `.yml` / `.json`
-    rather than compound extensions, since these files carry no compound suffix.
-    The caller selects this source explicitly rather than the pipeline sniffing for
-    it, because the distinguishing evidence is weak: a schema map looks like a
-    single schema whose keywords are all unrecognised, and both are valid documents.
-    `peek_doc_type` does rule out the confusable cases — see `is_schema_map` — so
-    files that are definitely something else are skipped rather than mis-parsed.
+    Unlike `DirectoryDataSource`, this matches on plain `.yaml` / `.yml` / `.json` rather than compound extensions,
+    since these files carry no compound suffix.
+    The caller selects this source explicitly rather than the pipeline sniffing for it because the distinguishing evidence is weak:
+    A schema map looks like a single schema whose keywords are all unrecognised, and both are valid documents.
+    `peek_doc_type` does rule out the confusable cases (see [is_schema_map][schema_to.io.routing.is_schema_map))
+    so files that are definitely something else are skipped rather than mis-parsed.
 
-    `doc_id` is each file's URI, so a relative `$ref` resolves by URI math against
-    the referring file, exactly as it does on disk.
+    `doc_id` is each file's URI, so a relative `$ref` resolves by URI math against the referring file, exactly as it does on disk.
 
     Attributes:
         root: Path to the directory.
@@ -186,7 +204,7 @@ class SchemaMapDirectorySource(DataSource):
 
     @property
     def source_id(self) -> str:
-        return self.root.as_uri()
+        return _to_source_id(self.root)
 
     def documents(self) -> Iterator[SchemaMapRawDoc]:
         for path in sorted(self._paths()):
@@ -194,11 +212,11 @@ class SchemaMapDirectorySource(DataSource):
             if not is_schema_map(content):
                 continue
             yield SchemaMapRawDoc(
-                doc_id=path.as_uri(),
+                doc_id=_to_source_id(path),
                 content=content,
                 media_type=type(self).suffixes[path.suffix.lower()],
                 display_name=path.stem,
-                base_uri=path.as_uri(),
+                base_uri=_to_source_id(path),
             )
 
     def _paths(self) -> Iterator[Path]:
@@ -216,32 +234,18 @@ class SchemaMapDirectorySource(DataSource):
 
 @dataclass(frozen=True, slots=True)
 class PeekingDirectorySource(DirectoryDataSource):
-    """DirectoryDataSource that uses `peek_doc_type` as a secondary content guard.
+    """DirectoryDataSource that uses [peek_doc_type][schema_to.io.routing.peek_doc_type] as a secondary filter.
 
-    Files whose compound extension matches but whose content cannot be identified
-    as a JSON Schema or OpenAPI document are silently skipped.
+    Files whose compound extension matches but whose content cannot be identified as a JSON Schema or OpenAPI document are skipped.
     """
 
     peek_fn: ClassVar[Callable[[bytes], object] | None] = peek_doc_type
 
 
-def _infer_from_path(path: Path) -> tuple[type[RawDoc], MediaType]:
-    """Return `(doc_cls, media_type)` for *path* by matching its name against `DirectoryDataSource.suffix_map`.
-
-    Checks longest suffixes first.  Raises `ValueError` for unrecognised extensions.
-    """
-    name = path.name.lower()
-    for suffix in sorted(DirectoryDataSource.suffix_map, key=len, reverse=True):
-        if name.endswith(suffix):
-            return DirectoryDataSource.suffix_map[suffix]
-    recognised = ", ".join(sorted(DirectoryDataSource.suffix_map))
-    msg = f"Cannot infer document type from {path.name!r}. Use a recognised compound extension: {recognised}."
-    raise ValueError(msg)
-
-
 @dataclass(frozen=True, slots=True, kw_only=True)
 class FileDataSourceFactory[I: RawDoc]:
     recursive: bool
+    include_hidden: bool
 
     def get(self, paths: Sequence[Path]) -> Sequence[DataSource[I]]:
         return list(self._get(paths))
@@ -249,18 +253,18 @@ class FileDataSourceFactory[I: RawDoc]:
     def _get(self, paths: Sequence[Path]) -> Iterator[DataSource[I]]:
         for p in paths:
             if p.is_dir():
-                yield PeekingDirectorySource(p, recursive=self.recursive)  # type: ignore[misc]
+                yield PeekingDirectorySource(p, recursive=self.recursive, include_hidden=self.include_hidden)
             elif p.is_file():
                 doc_cls, media_type = _infer_from_path(p)
-                yield FileDataSource(p, doc_cls, media_type)  # type: ignore[misc]
+                yield FileDataSource(p, doc_cls, media_type)
 
 
 @dataclass(frozen=True, slots=True)
 class FileDataSink[O: Artifact](DataSink[O]):
     """A `DataSink` that writes each `Artifact` as a file under a root directory.
 
-    `artifact.artifact_id` is treated as a relative path from `root`.  Parent
-    directories are created automatically when `create_dirs` is `True`.
+    `artifact.artifact_id` is treated as a relative path from `root`.
+    Parent directories are created automatically when `create_dirs` is `True`.
 
     Attributes:
         root: Base directory for all written files.
@@ -270,7 +274,7 @@ class FileDataSink[O: Artifact](DataSink[O]):
 
     @property
     def sink_id(self) -> str:
-        return self.root.as_uri()
+        return _to_source_id(self.root)
 
     def write(self, artifact: O) -> None:
         dest = self.root / artifact.artifact_id

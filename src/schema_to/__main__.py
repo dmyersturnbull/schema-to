@@ -48,6 +48,9 @@ def transpile(
     recursive: Annotated[
         bool, Option("-r", "--recursive", help="Search for input files in subdirectories.")
     ] = False,
+    include_hidden: Annotated[
+        bool, Option(help="Include hidden files when scanning directories.")
+    ] = False,
     output: Annotated[Path, Option("-o", "--output", help="Output directory.")] = CWD,
     to: Annotated[
         SupportedTarget, Option("-t", "--to", help="Target format.")
@@ -83,7 +86,7 @@ def transpile(
     transpilers = ROUTER.route(
         to, output_media_type, templates=templates, roots=root_set, schema_map=schema_map
     )
-    sources = _sources(paths, recursive=recursive, schema_map=schema_map)
+    sources = _sources(paths, recursive=recursive, schema_map=schema_map, include_hidden=include_hidden)
     pipeline = Pipeline(sources=sources, transpilers=transpilers, sink=FileDataSink(output))
     match pipeline.process():
         case Ok(summary):
@@ -92,21 +95,21 @@ def transpile(
                 f"{summary.docs_used} document(s)."
             )
             for w in summary.warnings:
-                echo(f"warning: {w.message}", err=True)
+                echo(f"warning: {w}", err=True)
         case Err(errors):
             for e in errors:
-                echo(f"error: {e.message}", err=True)
+                echo(f"error: {e}", err=True)
             raise Exit(1)
 
 
-def _sources(paths: Sequence[Path], *, recursive: bool, schema_map: bool) -> Sequence[DataSource]:
+def _sources(paths: Sequence[Path], *, recursive: bool, schema_map: bool, include_hidden: bool) -> Sequence[DataSource]:
     """Build the data sources for the given paths.
 
     A schema map cannot be told from a single schema by file name,
     so the flag — not the extension — selects the source.
     """
     if not schema_map:
-        return FileDataSourceFactory(recursive=recursive).get(paths)
+        return FileDataSourceFactory(recursive=recursive, include_hidden=include_hidden).get(paths)
     return [SchemaMapDirectorySource(path, recursive=recursive) for path in paths]
 
 

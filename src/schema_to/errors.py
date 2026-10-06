@@ -20,6 +20,14 @@ class SourceLocation:
     line: int | None = None
     column: int | None = None
 
+    def __str__(self) -> str:
+        return (
+            self.doc_id
+            + (f":{self.json_pointer}" if self.json_pointer else "")
+            + (f":{self.line}" if self.line is not None else "")
+            + (f":{self.column}" if self.column is not None else "")
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class TranspilationWarning:
@@ -35,18 +43,28 @@ class TranspilationWarning:
     code: str | None = None
     location: SourceLocation | None = None
 
+    def __str__(self) -> str:
+        return (
+            self.message
+            + (f" [{self.code}]" if self.code else "")
+            + (f" at {self.location}" if self.location else "")
+        )
+
 
 class TranspilationError(Exception):
     """Base class for all fatal errors produced by the transpilation pipeline.
 
-    Subclasses correspond to the pipeline stage that raised them, making it easy
-    to determine where a failure occurred without inspecting the stack trace.
+    Subclasses correspond to the pipeline stage that raised them,
+    making it easy to determine where a failure occurred without inspecting the stack trace.
     """
 
     def __init__(self, message: str, *, location: SourceLocation | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.location = location
+
+    def __str__(self) -> str:
+        return self.message + (f" at {self.location}" if self.location is not None else "")
 
 
 class ParseError(TranspilationError):
@@ -64,8 +82,7 @@ class SchemaValidationError(TranspilationError):
 class GenerationError(TranspilationError):
     """A CST node could not be converted to a target-language AST node.
 
-    Typically raised when the input uses a JSON Schema keyword that is not
-    expressible in the requested target language.
+    Typically raised when the input uses a JSON Schema keyword that is not expressible in the requested target language.
     """
 
 
