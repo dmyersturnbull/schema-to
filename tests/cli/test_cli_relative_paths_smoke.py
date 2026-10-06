@@ -82,8 +82,9 @@ def test_errors_name_the_file_relative_to_the_cwd_with_line_and_column(tmp_path:
     assert result.returncode == 1
     # Not a terminal, so no colors.
     assert "\x1b[" not in result.stderr
+    path = re.escape(str(Path("..", "schemas", "main", "catalog.yaml")))
     assert re.search(
-        r"^\.\./schemas/main/catalog\.yaml:1:1: error: Cannot resolve \$ref '\.\./base/time\.yaml#/nope'",
+        rf"^{path}:1:1: error: Cannot resolve \$ref '\.\./base/time\.yaml#/nope'",
         result.stderr,
         flags=re.MULTILINE,
     ), result.stderr
