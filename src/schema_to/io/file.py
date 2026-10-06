@@ -1,6 +1,7 @@
 """Filesystem-backed `DataSource` and `DataSink` implementations."""
 
 import glob
+import os
 from collections.abc import Callable, Mapping, Set
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
@@ -41,8 +42,13 @@ _DEFAULT_SUFFIX_MAP: SuffixMap = {
 
 
 def _to_source_id(path: Path) -> str:
-    return path.absolute().as_uri()
-    # Alternative: `return path.absolute().as_uri().removeprefix(Path.cwd().as_uri() + "/")`
+    """Return the `file://` URI of *path*, made absolute against the working directory.
+
+    `..` and `.` segments are collapsed lexically.
+    Symlinks are deliberately not followed (unlike `Path.resolve`),
+    but an unnormalised `..` would make `urljoin` of a relative `$ref` land on the wrong URI.
+    """
+    return Path(os.path.normpath(path.absolute())).as_uri()
 
 
 def _infer_from_path(path: Path) -> tuple[type[RawDoc], MediaType]:

@@ -148,3 +148,64 @@ def test_the_factory_names_the_extensions_it_knows(tmp_path: Path) -> None:
 
 def test_the_factory_skips_a_path_that_is_neither(tmp_path: Path) -> None:
     assert FileDataSourceFactory(recursive=False).get([tmp_path / "nope.schema.json"]) == []
+
+
+def test_a_relative_file_path_gets_an_absolute_uri(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write(tmp_path, "thing.schema.json", _SCHEMA)
+    monkeypatch.chdir(tmp_path)
+    source = FileDataSource(Path("thing.schema.json"), JsonSchemaRawDoc, MediaTypes.json_schema)
+    [doc] = source.documents()
+    assert doc.doc_id == path.as_uri()
+    assert doc.base_uri == path.as_uri()
+    assert source.source_id == path.as_uri()
+
+
+def test_dot_dot_segments_are_collapsed_in_the_uri(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Otherwise a relative `$ref` joined onto the URI would not match the referenced file's URI."""
+    path = write(tmp_path, "a/thing.schema.json", _SCHEMA)
+    write(tmp_path, "b/keep", "")
+    monkeypatch.chdir(tmp_path / "b")
+    source = FileDataSource(
+        Path("../a/thing.schema.json"), JsonSchemaRawDoc, MediaTypes.json_schema
+    )
+    assert source.source_id == path.as_uri()
+
+
+def test_symlinks_are_not_followed_in_the_uri(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write(tmp_path, "real/thing.schema.json", _SCHEMA)
+    (tmp_path / "link").symlink_to(tmp_path / "real", target_is_directory=True)
+    monkeypatch.chdir(tmp_path)
+    source = FileDataSource(
+        Path("link/thing.schema.json"), JsonSchemaRawDoc, MediaTypes.json_schema
+    )
+    assert source.source_id == (tmp_path / "link" / "thing.schema.json").as_uri()
+
+
+@pytest.mark.parametrize("relative", [".", "sub/..", "../{name}"])
+def test_a_relative_directory_yields_absolute_document_uris(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, relative: str
+) -> None:
+    root = tmp_path / "in"
+    path = write(root, "sub/a.schema.json", _SCHEMA)
+    monkeypatch.chdir(root)
+    rel = Path(relative.format(name=root.name))
+    source = DirectoryDataSource(rel, recursive=True)
+    [doc] = source.documents()
+    assert doc.doc_id == path.as_uri()
+    assert source.source_id == root.as_uri()
+
+
+def test_the_factory_accepts_relative_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write(tmp_path, "d/a.schema.json", _SCHEMA)
+    monkeypatch.chdir(tmp_path)
+    [source] = FileDataSourceFactory(recursive=True).get([Path("d")])
+    [doc] = source.documents()
+    assert doc.doc_id.startswith("file:///")
