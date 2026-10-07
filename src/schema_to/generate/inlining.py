@@ -44,6 +44,7 @@ and falls back to a documented choice where it cannot:
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
+from schema_to.cst.base import location_of
 from schema_to.cst.json_schema import (
     DOC_KEYWORDS,
     SINGULAR_KEYWORDS,
@@ -51,7 +52,7 @@ from schema_to.cst.json_schema import (
     JsonSchema,
     ObjectSchema,
 )
-from schema_to.errors import SourceLocation, TranspilationWarning
+from schema_to.errors import TranspilationWarning
 from schema_to.parse._plan import ListSpec, MapSpec, SchemaSpec, sub_schema_fields
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 
@@ -306,12 +307,9 @@ class SchemaFlattener:
         return merged
 
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:
-        location = None
-        if schema.source_ref:
-            location = SourceLocation(
-                doc_id=schema.source_ref.source_id, json_pointer=schema.source_ref.json_pointer
-            )
-        self._warnings.append(TranspilationWarning(msg, code=code, location=location))
+        self._warnings.append(
+            TranspilationWarning(msg, code=code, location=location_of(schema.source_ref))
+        )
 
 
 # ---------------------------------------------------------------------------

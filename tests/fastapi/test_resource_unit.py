@@ -12,7 +12,7 @@ from schema_to.result import Ok
 
 
 def _object_schema(data: dict[str, Any]) -> ObjectSchema:
-    doc = json_schema_doc(data, "t://s", display_name="s")
+    doc = json_schema_doc(data, "t:///s")
     result = JsonSchemaParser().apply(doc)
     assert isinstance(result, Ok)
     root = result.value.root

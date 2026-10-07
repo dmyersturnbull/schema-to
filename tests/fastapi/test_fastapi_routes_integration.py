@@ -342,8 +342,8 @@ def test_a_reference_into_a_sibling_document_resolves_through_the_pipeline() -> 
     The FastAPI pipeline resolves each document independently unless every document is registered before any of them is resolved;
     this exercises the two-pass registration that makes cross-document `$ref`s work.
     """
-    main = openapi_doc(_MULTI_MAIN, "main.yaml")
-    shared = openapi_doc(_MULTI_SHARED, "shared.yaml")
+    main = openapi_doc(_MULTI_MAIN, "file:///main.yaml")
+    shared = openapi_doc(_MULTI_SHARED, "file:///shared.yaml")
     result = FASTAPI.run(main, shared)
     assert isinstance(result, Ok), (
         f"Transpile failed: {[getattr(e, 'message', str(e)) for e in result.errors]}"

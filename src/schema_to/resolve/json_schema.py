@@ -184,9 +184,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         if input.source_id not in self._docs:
             self.register(input)
         try:
-            # References resolve against the document's base URI,
-            # which is not its ID when the document was carved out of a larger file.
-            ref_resolver = self._resolver_for(input.get_base_uri())
+            ref_resolver = self._resolver_for(input.source_id)
         except ResolutionError as exc:
             return Err((exc,))
         errors: list[TranspilationError] = []
@@ -248,11 +246,17 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
     def _resolver_for(self, source_id: str) -> Resolver:
         """Return a resolver rooted at `source_id`.
 
+        The fragment of a carved-out document's ID is dropped,
+        as RFC 3986 drops a base URI's fragment:
+        `#/other` in `file:///catalog.yaml#/thing` means `file:///catalog.yaml#/other`.
+        `referencing` would instead look for `/other` inside the document registered as `source_id`,
+        which is only the carved-out piece.
+
         Raises:
             ResolutionError: If the document is not in the registry.
         """
         try:
-            return Resolver(self._registry.resolver(base_uri=source_id))
+            return Resolver(self._registry.resolver(base_uri=urllib.parse.urldefrag(source_id).url))
         except Unresolvable as exc:
             raise ResolutionError(str(exc), location=SourceLocation(source_id, "")) from exc
 
@@ -283,7 +287,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
             return
 
         pointer = schema.source_ref.json_pointer if schema.source_ref else ""
-        loc = SourceLocation(source_id, pointer)
+        loc = schema.source_ref.location() if schema.source_ref else SourceLocation(source_id, "")
 
         if schema.ref:
             try:

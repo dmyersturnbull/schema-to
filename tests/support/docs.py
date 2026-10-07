@@ -3,6 +3,9 @@
 One builder per `RawDoc` subclass.
 Each serializes `data` as JSON, since the parsers accept JSON and YAML alike,
 and JSON keeps the builders free of formatting concerns.
+
+A document's display name is computed from its URI,
+so a test that cares about the name chooses a URI that ends in it.
 """
 
 import orjson
@@ -11,34 +14,22 @@ from tests.support.types import JsonLike
 from schema_to.io.media_type import MediaType, MediaTypes
 from schema_to.io.source import JsonSchemaRawDoc, OpenApiRawDoc, SchemaMapRawDoc
 
-DEFAULT_SCHEMA_ID = "test://schema"
-DEFAULT_OPENAPI_ID = "test://api"
+DEFAULT_SCHEMA_URI = "test:///Test"
+DEFAULT_OPENAPI_URI = "test:///api/Test"
 
 
 def json_schema_doc(
-    data: JsonLike,
-    doc_id: str = DEFAULT_SCHEMA_ID,
-    *,
-    display_name: str = "Test",
-    media_type: MediaType = MediaTypes.json,
+    data: JsonLike, uri: str = DEFAULT_SCHEMA_URI, *, media_type: MediaType = MediaTypes.json
 ) -> JsonSchemaRawDoc:
     """Return `data` as a document whose root is a JSON Schema 2020-12 schema."""
-    return JsonSchemaRawDoc(
-        doc_id=doc_id, content=orjson.dumps(data), media_type=media_type, display_name=display_name
-    )
+    return JsonSchemaRawDoc(uri=uri, content=orjson.dumps(data), media_type=media_type)
 
 
 def openapi_doc(
-    data: JsonLike,
-    doc_id: str = DEFAULT_OPENAPI_ID,
-    *,
-    display_name: str = "Test",
-    media_type: MediaType = MediaTypes.json,
+    data: JsonLike, uri: str = DEFAULT_OPENAPI_URI, *, media_type: MediaType = MediaTypes.json
 ) -> OpenApiRawDoc:
     """Return `data` as an OpenAPI 3.1/3.2 document."""
-    return OpenApiRawDoc(
-        doc_id=doc_id, content=orjson.dumps(data), media_type=media_type, display_name=display_name
-    )
+    return OpenApiRawDoc(uri=uri, content=orjson.dumps(data), media_type=media_type)
 
 
 def schema_map_doc(
@@ -46,12 +37,9 @@ def schema_map_doc(
 ) -> SchemaMapRawDoc:
     """Return `data` as a document whose root maps names to schemas.
 
-    The `doc_id` is derived from `name` as a `file:` URI,
+    The `uri` is derived from `name` as a `file:` URI,
     so that a relative `$ref` between two of these resolves the way it would on disk.
     """
     return SchemaMapRawDoc(
-        doc_id=f"file:///{name}.yaml",
-        content=orjson.dumps(data),
-        media_type=media_type,
-        display_name=name,
+        uri=f"file:///{name}.yaml", content=orjson.dumps(data), media_type=media_type
     )

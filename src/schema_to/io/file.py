@@ -89,15 +89,8 @@ class FileDataSource(DataSource):
     def documents(self) -> Iterator[RawDoc]:
         if not self.path.is_file():
             raise PathMissingError(filename=self.path)
-        content = self.path.read_bytes()
-        stem = self.path.stem
-        display_name = Path(stem).stem if "." in stem else stem
         yield self.doc_cls(
-            doc_id=_to_source_id(self.path),
-            content=content,
-            media_type=self.media_type,
-            display_name=display_name,
-            base_uri=_to_source_id(self.path),
+            uri=_to_source_id(self.path), content=self.path.read_bytes(), media_type=self.media_type
         )
 
 
@@ -157,15 +150,7 @@ class DirectoryDataSource(DataSource):
             content = path.read_bytes()
             if cls.peek_fn is not None and cls.peek_fn(content) is None:
                 continue
-            stem = path.stem
-            display_name = Path(stem).stem if "." in stem else stem
-            yield doc_cls(
-                doc_id=_to_source_id(path),
-                content=content,
-                media_type=media_type,
-                display_name=display_name,
-                base_uri=_to_source_id(path),
-            )
+            yield doc_cls(uri=_to_source_id(path), content=content, media_type=media_type)
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,7 +168,7 @@ class SchemaMapDirectorySource(DataSource):
     `peek_doc_type` does rule out the confusable cases (see [is_schema_map][schema_to.io.routing.is_schema_map))
     so files that are definitely something else are skipped rather than mis-parsed.
 
-    `doc_id` is each file's URI, so a relative `$ref` resolves by URI math against the referring file, exactly as it does on disk.
+    `uri` is each file's URI, so a relative `$ref` resolves by URI math against the referring file, exactly as it does on disk.
 
     Attributes:
         root: Path to the directory.
@@ -218,11 +203,9 @@ class SchemaMapDirectorySource(DataSource):
             if not is_schema_map(content):
                 continue
             yield SchemaMapRawDoc(
-                doc_id=_to_source_id(path),
+                uri=_to_source_id(path),
                 content=content,
                 media_type=type(self).suffixes[path.suffix.lower()],
-                display_name=path.stem,
-                base_uri=_to_source_id(path),
             )
 
     def _paths(self) -> Iterator[Path]:

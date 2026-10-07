@@ -32,7 +32,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, cast, override
 
-from schema_to.cst.base import CstNode
+from schema_to.cst.base import CstNode, location_of
 from schema_to.cst.openapi import OpenApiDocument, Reference
 from schema_to.errors import ResolutionError, SourceLocation, TranspilationWarning
 from schema_to.parse._plan import ListSpec, MapSpec, NodeSpec, OneOfSpec, SetSpec, plan_for
@@ -247,9 +247,7 @@ def _replace[N: CstNode](node: N, changes: Mapping[str, object]) -> N:
 
 
 def _location(ref: Reference) -> SourceLocation | None:
-    if ref.source_ref is None:
-        return None
-    return SourceLocation(ref.source_ref.source_id, ref.source_ref.json_pointer)
+    return location_of(ref.source_ref)
 
 
 def _fitting(options: Sequence[FieldSpec], value: object) -> FieldSpec | None:

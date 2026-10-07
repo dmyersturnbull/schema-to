@@ -5,7 +5,7 @@ Branches that agree, and siblings that deliberately override a `$ref` target, do
 """
 
 import orjson
-from tests.support.docs import DEFAULT_SCHEMA_ID
+from tests.support.docs import DEFAULT_SCHEMA_URI
 from tests.support.stages import flat_schema, flatten_warnings, json_schema_cst, object_schema
 from tests.support.types import JsonLike
 
@@ -23,8 +23,8 @@ from schema_to.resolve.json_schema import JsonSchemaRefResolver
 from schema_to.result import Ok
 
 
-def _parse_map(data: JsonLike, doc_id: str) -> JsonSchemaMapDocument:
-    doc = SchemaMapRawDoc(doc_id=doc_id, content=orjson.dumps(data), media_type=MediaTypes.json)
+def _parse_map(data: JsonLike, uri: str) -> JsonSchemaMapDocument:
+    doc = SchemaMapRawDoc(uri=uri, content=orjson.dumps(data), media_type=MediaTypes.json)
     result = JsonSchemaMapParser().apply(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     return result.value
@@ -71,9 +71,9 @@ def test_recursive_ref_terminates() -> None:
     """A self-referential schema stops instead of recursing forever."""
     data = {"$defs": {"node": {"type": "object", "allOf": [{"$ref": "#/$defs/node"}]}}}
     resolver = JsonSchemaRefResolver()
-    resolver.register(json_schema_cst(data, DEFAULT_SCHEMA_ID))
+    resolver.register(json_schema_cst(data, DEFAULT_SCHEMA_URI))
     node = object_schema(data).get_defs()["node"]
-    result = SchemaFlattener(resolver=resolver).flatten(node, base_uri=DEFAULT_SCHEMA_ID)
+    result = SchemaFlattener(resolver=resolver).flatten(node, base_uri=DEFAULT_SCHEMA_URI)
     assert "recursive-ref" in [w.code for w in result.warnings]
 
 

@@ -40,6 +40,7 @@ from schema_to.ast.sql import (
     PgDataType,
     SqlScript,
 )
+from schema_to.cst.base import location_of
 from schema_to.cst.json_schema import (
     BooleanApplicatorKeyword,
     BooleanSchema,
@@ -49,7 +50,7 @@ from schema_to.cst.json_schema import (
     ObjectSchema,
     is_object_schema,
 )
-from schema_to.errors import GenerationError, SourceLocation, TranspilationWarning
+from schema_to.errors import GenerationError, TranspilationWarning
 from schema_to.generate.inlining import SchemaFlattener
 from schema_to.generate.postgres._sql_utils import quote_sql_identifier, safe_sql_identifier
 from schema_to.pipeline import Transformer
@@ -380,12 +381,9 @@ class ColumnBuilder:
         return DataType(base=PgDataType.CUSTOM, custom=sql_type)
 
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:
-        loc: SourceLocation | None = None
-        if schema.source_ref:
-            loc = SourceLocation(
-                doc_id=schema.source_ref.source_id, json_pointer=schema.source_ref.json_pointer
-            )
-        self._warnings.append(TranspilationWarning(msg, code=code, location=loc))
+        self._warnings.append(
+            TranspilationWarning(msg, code=code, location=location_of(schema.source_ref))
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -452,7 +450,7 @@ class _GenCtx:
             types = sorted(str(t) for t in root.get_types())
             found = f"type {', '.join(types)}" if types else "no type and no properties"
         msg = f"A table requires an object schema at the document root; found {found}."
-        raise GenerationError(msg)
+        raise GenerationError(msg, location=location_of(input.source_ref))
 
     def _flatten(self, schema: JsonSchema, *, base_uri: str) -> JsonSchema:
         """Merge `allOf` branches and the `$ref` target into a single schema."""

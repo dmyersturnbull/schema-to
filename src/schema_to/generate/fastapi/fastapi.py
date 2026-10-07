@@ -20,7 +20,7 @@
 
 import re
 from collections.abc import Set
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 from schema_to.ast.python import (
@@ -39,6 +39,7 @@ from schema_to.ast.python import (
     VarDef,
 )
 from schema_to.ast.python import Parameter as PyParameter
+from schema_to.cst.base import location_of
 from schema_to.cst.json_schema import (
     BooleanSchema,
     JsonSchema,
@@ -76,6 +77,7 @@ from schema_to.generate.fastapi.endpoint_body import (
 )
 from schema_to.generate.fastapi.security import build_security_module, route_security_params
 from schema_to.generate.pydantic.pydantic import PydanticTransformer
+from schema_to.parse._utils import ptr
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
 
@@ -310,7 +312,12 @@ class _GenCtx:
         for name, schema in self.doc.components.schemas.items():
             if self.roots is not None and name not in self.roots:
                 continue
-            doc = JsonSchemaDocument(root=schema, source_id=name, display_name=name)
+            doc = JsonSchemaDocument.lifted(
+                schema,
+                from_uri=self.doc.source_id or "",
+                json_pointer=ptr("", "components", "schemas", name),
+                name=name,
+            )
             result = PydanticTransformer().apply(doc)
             self.warnings.extend(result.warnings)
             if isinstance(result, Err):
@@ -369,7 +376,7 @@ class _GenCtx:
             self._effective_security(op), concrete_map(self.doc.components.security_schemes)
         )
         self.extra_imports.extend(imports)
-        self.warnings.extend(warnings)
+        self.warnings.extend(_located_at(warnings, op))
         return params
 
     def _render_body(
@@ -392,7 +399,7 @@ class _GenCtx:
         )
         body = self.body_backend.render(ctx)
         self.extra_imports.extend(body.imports)
-        self.warnings.extend(body.warnings)
+        self.warnings.extend(_located_at(body.warnings, op))
         return body
 
     def _route_params(self, merged: Sequence[OasParameter], op: Operation) -> Sequence[RouteParam]:
@@ -562,6 +569,14 @@ def _merged_parameters(path_item: PathItem, op: Operation) -> Sequence[OasParame
     for p in concrete_list(op.parameters):
         by_key[p.name, p.in_] = p
     return list(by_key.values())
+
+
+def _located_at(
+    warnings: Sequence[TranspilationWarning], op: Operation
+) -> Sequence[TranspilationWarning]:
+    """Return `warnings`, locating at `op` each one that names no location of its own."""
+    where = location_of(op.source_ref)
+    return [w if w.location is not None else replace(w, location=where) for w in warnings]
 
 
 def _iter_operations(path_item: PathItem) -> Iterator[tuple[HttpMethod, Operation]]:

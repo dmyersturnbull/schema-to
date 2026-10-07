@@ -82,7 +82,7 @@ def test_a_pointer_with_no_segments_is_the_parent() -> None:
 
 def test_a_location_names_the_document_and_the_pointer() -> None:
     location = loc("file:///a.yaml", "#/paths")
-    assert (location.doc_id, location.json_pointer) == ("file:///a.yaml", "#/paths")
+    assert (location.uri, location.json_pointer) == ("file:///a.yaml", "#/paths")
 
 
 # ---------------------------------------------------------------------------
@@ -96,11 +96,11 @@ def test_a_document_is_decoded_by_its_media_type() -> None:
 
 
 def test_malformed_bytes_become_a_parse_error_that_says_where() -> None:
-    doc = JsonSchemaRawDoc(doc_id="d", content=b'{"a": }', media_type=MediaTypes.json)
+    doc = JsonSchemaRawDoc(uri="test:///d", content=b'{"a": }', media_type=MediaTypes.json)
     with pytest.raises(ParseError) as caught:
         decode_raw_doc(doc, DefaultJsonLikeReader())
     assert caught.value.location is not None
-    assert caught.value.location.doc_id == "d"
+    assert caught.value.location.uri == "test:///d"
     assert caught.value.location.line is not None
 
 

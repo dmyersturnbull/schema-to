@@ -11,15 +11,15 @@ from dataclasses import replace
 import pytest
 from hypothesis import HealthCheck, given, settings
 from tests.strategies.restricted import json_schema_with_defs_st, object_schema_st
-from tests.support.docs import DEFAULT_SCHEMA_ID, json_schema_doc, openapi_doc
+from tests.support.docs import DEFAULT_SCHEMA_URI, json_schema_doc, openapi_doc
 from tests.support.drive import PYDANTIC
 from tests.support.stages import pydantic_source
 from tests.support.types import JsonLike
 
 
-def _transpile(data: JsonLike, doc_id: str = DEFAULT_SCHEMA_ID) -> str:
+def _transpile(data: JsonLike, uri: str = DEFAULT_SCHEMA_URI) -> str:
     """Run the routed pydantic target and return the emitted Python source."""
-    return PYDANTIC.text(json_schema_doc(data, doc_id))
+    return PYDANTIC.text(json_schema_doc(data, uri))
 
 
 # ---------------------------------------------------------------------------

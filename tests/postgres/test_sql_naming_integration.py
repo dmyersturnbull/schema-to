@@ -17,10 +17,10 @@ def test_empty_object() -> None:
 def test_no_title_no_comment() -> None:
     """Schema with no title and no description produces no COMMENT ON."""
     schema = {"type": "object"}
-    # source_id "test://schema" → safe_sql_identifier → "test_schema"
+    # source_id "test:///Test" → safe_sql_identifier → "test_test"
     assert (
         postgres_source(schema)
-        == "CREATE TABLE IF NOT EXISTS test_schema (\n    -- (no columns)\n);\n"
+        == "CREATE TABLE IF NOT EXISTS test_test (\n    -- (no columns)\n);\n"
     )
 
 

@@ -1,6 +1,7 @@
 """Filename and artifact-type selection for the schema-shaped targets."""
 
 from typing import TYPE_CHECKING, Literal, NamedTuple, overload
+from urllib.parse import urlsplit
 
 from schema_to.cst.json_schema import JsonSchemaDocument
 from schema_to.cst.openapi import OpenApiDocument
@@ -55,16 +56,17 @@ def choose_output(
     """Chooses a filename and the correct artifact type for JSON Schema or OpenAPI.
 
     Args:
-        doc: The parsed document being re-emitted.  Both its ID and its display name
+        doc: The parsed document being re-emitted.  Both its URI and its display name
             are carried over from the `RawDoc` it was parsed from.
         output_media_type: A required media-type, currently required to be a YAML or JSON type.
-            If `None`, uses YAML if `doc.source_id.endswith(".yaml")`, otherwise uses JSON.
+            If `None`, uses YAML if the path of `doc.source_id` ends with `.yaml`,
+            otherwise uses JSON.
         kind: OpenAPI or JSON Schema.
         stem: Base filename, overriding the one derived from `doc`.
             Required when one source document yields several artifacts,
             which would otherwise share a filename.
     """
-    source_id = doc.source_id or ""
+    path = urlsplit(doc.source_id or "").path
     # TODO: `writer` can support more, but this forces `.yaml` or `.json`.
     if output_media_type:
         is_yaml = output_media_type.type in {
@@ -72,7 +74,7 @@ def choose_output(
             "text",
         } and output_media_type.subtype.endswith(("+yaml", "yaml"))
     else:
-        is_yaml = source_id.endswith(".yaml")
+        is_yaml = path.endswith(".yaml")
     ext = ".yaml" if is_yaml else ".json"
     artifact_type: type[Artifact]
     if kind == "openapi":

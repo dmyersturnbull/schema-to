@@ -30,7 +30,9 @@ from abc import ABC
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-__all__ = ["SYNTHETIC", "CstNode", "SourceRef"]
+from schema_to.errors import SourceLocation
+
+__all__ = ["SYNTHETIC", "CstNode", "SourceRef", "location_of"]
 
 
 # Field metadata marking a field that carries no wire data — an extension bag or
@@ -44,14 +46,28 @@ SYNTHETIC: Mapping[str, bool] = {"synthetic": True}
 class SourceRef:
     """A provenance link from a CST node back to its origin.
 
+    A node parsed from a derived document
+    (e.g. one schema lifted out of a schema-map file)
+    points at the document it was derived from, not at the derived document,
+    so a diagnostic names a place the user can actually open.
+
     Attributes:
-        source_id: Identifier matching `RawDoc.source_id`.
+        source_id: URI of the original document, matching `RawDoc.provenance`'s `uri`.
         json_pointer: An [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)
-          pointer locating this node within the parsed document tree.
+          pointer locating this node within that document.
     """
 
     source_id: str
     json_pointer: str
+
+    def location(self) -> SourceLocation:
+        """Return this reference as the location of a diagnostic."""
+        return SourceLocation(self.source_id, self.json_pointer)
+
+
+def location_of(ref: SourceRef | None) -> SourceLocation | None:
+    """Return the location of a diagnostic about a node with `ref`, or `None` for a synthesized one."""
+    return ref.location() if ref is not None else None
 
 
 # ruff:ignore[abstract-base-class-without-abstract-method]  # Sealed marker; abstract identity is enforced by the type system.

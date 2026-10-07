@@ -12,6 +12,7 @@ from typing import Literal, TypeGuard, assert_type
 
 from schema_to.core import JsonValue
 from schema_to.cst.base import SYNTHETIC, CstNode, SourceRef
+from schema_to.io.uri import pointer_uri
 
 __all__ = [
     "DOC_KEYWORDS",
@@ -363,22 +364,38 @@ class JsonSchemaDocument(CstNode):
     """The root of a parsed JSON Schema 2020-12 document.
 
     Attributes:
-        source_id: Identifies this document.
-        base_uri: What a relative `$ref` inside it resolves against.  Usually the same
-            as `source_id`; they differ for a document carved out of a larger one,
-            whose ID must stay unique while its references still mean what they did
-            in the file they were written in.
+        source_id: URI identifying this document,
+            which is also what a relative `$ref` inside it resolves against.
+            A document carved out of a larger one has the original's URI plus a fragment,
+            so that its ID stays unique
+            while a reference written in it still resolves as it would in the file it came from.
+        display_name: Short name, carried over from `RawDoc.display_name`.
+        source_ref: Where in the original document this one's root is.
     """
 
     root: JsonSchema
     source_id: str
     display_name: str | None = None
     source_ref: SourceRef | None = None
-    base_uri: str | None = None
 
-    def get_base_uri(self) -> str:
-        """Return what a relative `$ref` in this document resolves against."""
-        return self.base_uri or self.source_id
+    @classmethod
+    def lifted(
+        cls, root: JsonSchema, *, from_uri: str, json_pointer: str, name: str
+    ) -> JsonSchemaDocument:
+        """Return a schema found inside another document, as a document of its own.
+
+        Args:
+            root: The schema.
+            from_uri: URI of the document it was found in.
+            json_pointer: Where in that document it was found.
+            name: Its display name.
+        """
+        return cls(
+            root=root,
+            source_id=pointer_uri(from_uri, json_pointer),
+            display_name=name,
+            source_ref=SourceRef(from_uri, json_pointer),
+        )
 
 
 @dataclass(frozen=True, slots=True)

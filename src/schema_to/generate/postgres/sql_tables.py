@@ -26,6 +26,7 @@ from schema_to.ast.sql import (
     SqlScript,
     TableConstraint,
 )
+from schema_to.cst.base import location_of
 from schema_to.cst.json_schema import JsonSchemaMapDocument, ObjectSchema, is_object_schema
 from schema_to.errors import GenerationError, SourceLocation, TranspilationWarning
 from schema_to.generate.inlining import SchemaFlattener
@@ -69,6 +70,11 @@ class TableSpec:
     def where(self) -> str:
         """Human-readable identification for error messages."""
         return f"schema {self.schema_name!r}"
+
+    @property
+    def location(self) -> SourceLocation:
+        """Where the schema was written, for a diagnostic about its table."""
+        return location_of(self.schema.source_ref) or SourceLocation(self.source_id, "")
 
     @property
     def primary_key(self) -> tuple[str, ...]:
@@ -166,7 +172,7 @@ class _GenCtx:
                 f"Schema {name!r} is marked with `x-pg-table` but is not an object schema, "
                 f"so it has no columns."
             )
-            raise GenerationError(msg)
+            raise GenerationError(msg, location=location_of(schema.source_ref))
         keywords = read_table_keywords(flat.get_extensions(), where=f"schema {name!r}")
         table_name = keywords.table or name
         return TableSpec(
@@ -262,7 +268,7 @@ class _GenCtx:
                             f"Table {spec.table_name!r} references table {target!r}, "
                             f"which no schema in this set declares.",
                             code="unknown-fk-target",
-                            location=SourceLocation(spec.source_id, ""),
+                            location=spec.location,
                         )
                     )
 
@@ -275,7 +281,7 @@ class _GenCtx:
                         f"Table {spec.table_name!r} has no `id` property and no "
                         f"`x-pg-primary-key`, so it is generated without a primary key.",
                         code="no-primary-key",
-                        location=SourceLocation(spec.source_id, ""),
+                        location=spec.location,
                     )
                 )
 
@@ -289,7 +295,7 @@ class _GenCtx:
                     f"declared after everything it references; its keys within the cycle "
                     f"are DEFERRABLE INITIALLY DEFERRED and are checked at commit.",
                     code="reference-cycle",
-                    location=SourceLocation(by_name[name].source_id, ""),
+                    location=by_name[name].location,
                 )
             )
 
@@ -475,7 +481,7 @@ def _reject_duplicate_names(specs: Sequence[TableSpec]) -> None:
                 f"Two schemas both declare table {spec.table_name!r}: "
                 f"{clash.schema_name!r} and {spec.schema_name!r}."
             )
-            raise GenerationError(msg)
+            raise GenerationError(msg, location=spec.location)
         seen[spec.table_name] = spec
 
 

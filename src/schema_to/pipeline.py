@@ -433,7 +433,7 @@ class ProcessSummary:
     """Summary of a completed `Pipeline.process()` run.
 
     Attributes:
-        docs_used: `doc_id`s of `RawDoc`s that a transpiler consumed.
+        docs_used: `uri`s of `RawDoc`s that a transpiler consumed.
         artifacts_written: `artifact_id`s of `Artifact`s written to the sink.
         warnings: Non-fatal diagnostics accumulated during transpilation.
     """
@@ -533,12 +533,13 @@ class Pipeline[I: RawDoc, O: Artifact]:
                 if index is None:
                     helper.warnings.append(
                         TranspilationWarning(
-                            f"No transpiler accepts {document.doc_id!r}; skipping.",
+                            f"No transpiler accepts {document.uri!r}; skipping.",
                             code="no-transpiler",
+                            location=document.location(),
                         )
                     )
                     continue
-                helper.docs_used.append(document.doc_id)
+                helper.docs_used.append(document.uri)
                 batches[index].append(document)
         return [(i, docs) for i, docs in enumerate(batches) if docs]
 

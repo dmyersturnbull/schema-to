@@ -40,7 +40,7 @@ _SPEC = {
 
 
 def _src() -> str:
-    doc = openapi_doc(_SPEC, "t://api", display_name="api")
+    doc = openapi_doc(_SPEC, "t:///api")
     return FASTAPI.text(doc)
 
 

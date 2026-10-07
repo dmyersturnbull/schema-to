@@ -4,28 +4,56 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True, slots=True)
+class TextRange:
+    """A span of raw text.
+
+    Attributes:
+        line: 1-based line number of the start.
+        column: 1-based column number of the start.
+        end_line: 1-based line number of the end, or `None` if only a point is known.
+        end_column: 1-based column number of the end, or `None` if only a point is known.
+    """
+
+    line: int
+    column: int
+    end_line: int | None = None
+    end_column: int | None = None
+
+    def __str__(self) -> str:
+        return f"{self.line}:{self.column}"
+
+
+@dataclass(frozen=True, slots=True)
 class SourceLocation:
     """A position within a source document.
 
     Attributes:
-        doc_id: Opaque identifier matching `RawDoc.doc_id`.
+        uri: URI of the document as the user wrote it, matching `RawDoc.uri`
+            or, for a document derived from another, `Origin.uri`.
         json_pointer: [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)
-            pointer to the offending node within the parsed document.
-        line: 1-based line number in the raw text, if available.
-        column: 1-based column number in the raw text, if available.
+            pointer to the offending node within the document at `uri`.
+        range: Where the node sits in the raw text, if known.
     """
 
-    doc_id: str
+    uri: str
     json_pointer: str | None = None
-    line: int | None = None
-    column: int | None = None
+    range: TextRange | None = None
+
+    @property
+    def line(self) -> int | None:
+        """The 1-based line the location starts on, if known."""
+        return self.range.line if self.range is not None else None
+
+    @property
+    def column(self) -> int | None:
+        """The 1-based column the location starts on, if known."""
+        return self.range.column if self.range is not None else None
 
     def __str__(self) -> str:
         return (
-            self.doc_id
+            self.uri
             + (f":{self.json_pointer}" if self.json_pointer else "")
-            + (f":{self.line}" if self.line is not None else "")
-            + (f":{self.column}" if self.column is not None else "")
+            + (f":{self.range}" if self.range is not None else "")
         )
 
 

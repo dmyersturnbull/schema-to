@@ -8,7 +8,13 @@ These helpers do the composing and unwrap each `Result` along the way.
 from collections.abc import Sequence
 
 from tests.support.asserts import ok
-from tests.support.docs import json_schema_doc, openapi_doc, schema_map_doc
+from tests.support.docs import (
+    DEFAULT_OPENAPI_URI,
+    DEFAULT_SCHEMA_URI,
+    json_schema_doc,
+    openapi_doc,
+    schema_map_doc,
+)
 from tests.support.types import JsonLike
 
 from schema_to.ast.python import PythonModule
@@ -28,14 +34,14 @@ from schema_to.resolve.json_schema import JsonSchemaRefResolver
 from schema_to.result import Result
 
 
-def json_schema_cst(data: JsonLike, doc_id: str = "test://schema") -> JsonSchemaDocument:
+def json_schema_cst(data: JsonLike, uri: str = DEFAULT_SCHEMA_URI) -> JsonSchemaDocument:
     """Parse `data` as a JSON Schema document."""
-    return ok(JsonSchemaParser().apply(json_schema_doc(data, doc_id)))
+    return ok(JsonSchemaParser().apply(json_schema_doc(data, uri)))
 
 
-def openapi_cst(data: JsonLike, doc_id: str = "test://api") -> OpenApiDocument:
+def openapi_cst(data: JsonLike, uri: str = DEFAULT_OPENAPI_URI) -> OpenApiDocument:
     """Parse `data` as an OpenAPI document."""
-    return ok(OpenApiParser().apply(openapi_doc(data, doc_id)))
+    return ok(OpenApiParser().apply(openapi_doc(data, uri)))
 
 
 def schema_map_cst(data: JsonLike, name: str = "main") -> JsonSchemaMapDocument:
@@ -44,7 +50,7 @@ def schema_map_cst(data: JsonLike, name: str = "main") -> JsonSchemaMapDocument:
 
 
 def resolved_json_schema(
-    data: JsonLike, doc_id: str = "test://schema"
+    data: JsonLike, uri: str = DEFAULT_SCHEMA_URI
 ) -> tuple[JsonSchemaDocument, JsonSchemaRefResolver]:
     """Parse and resolve `data`, returning the document and the resolver that holds it.
 
@@ -52,19 +58,19 @@ def resolved_json_schema(
     to follow a `$ref` that survives resolution.
     """
     resolver = JsonSchemaRefResolver()
-    return ok(resolver.apply(json_schema_cst(data, doc_id))), resolver
+    return ok(resolver.apply(json_schema_cst(data, uri))), resolver
 
 
-def pydantic_source(data: JsonLike, doc_id: str = "test://schema") -> str:
+def pydantic_source(data: JsonLike, uri: str = DEFAULT_SCHEMA_URI) -> str:
     """Parse, resolve, generate, and reify `data` into Pydantic source."""
-    document, resolver = resolved_json_schema(data, doc_id)
+    document, resolver = resolved_json_schema(data, uri)
     module = ok(PydanticTransformer(resolver=resolver).apply(document))
     return _one_artifact_text(ok(PythonReifier().apply(module)))
 
 
-def postgres_source(data: JsonLike, doc_id: str = "test://schema") -> str:
+def postgres_source(data: JsonLike, uri: str = DEFAULT_SCHEMA_URI) -> str:
     """Parse, resolve, generate, and reify `data` into PostgreSQL DDL."""
-    document, resolver = resolved_json_schema(data, doc_id)
+    document, resolver = resolved_json_schema(data, uri)
     script = ok(PostgresTransformer(resolver=resolver).apply(document))
     return _one_artifact_text(ok(SqlReifier("schema.sql").apply(script)))
 
@@ -77,14 +83,14 @@ def table_set_source(data: JsonLike, name: str = "main") -> str:
     return _one_artifact_text(ok(SqlReifier("schema.sql").apply(script)))
 
 
-def fastapi_module(data: JsonLike, doc_id: str = "test://api") -> PythonModule:
+def fastapi_module(data: JsonLike, uri: str = DEFAULT_OPENAPI_URI) -> PythonModule:
     """Parse `data` and generate the FastAPI module for it, without reifying."""
-    return ok(FastApiTransformer().apply(openapi_cst(data, doc_id)))
+    return ok(FastApiTransformer().apply(openapi_cst(data, uri)))
 
 
-def fastapi_source(data: JsonLike, doc_id: str = "test://api") -> str:
+def fastapi_source(data: JsonLike, uri: str = DEFAULT_OPENAPI_URI) -> str:
     """Parse, generate, and reify `data` into FastAPI application source."""
-    return _one_artifact_text(ok(PythonReifier().apply(fastapi_module(data, doc_id))))
+    return _one_artifact_text(ok(PythonReifier().apply(fastapi_module(data, uri))))
 
 
 def _one_artifact_text(artifacts: Sequence[Artifact]) -> str:
@@ -92,15 +98,15 @@ def _one_artifact_text(artifacts: Sequence[Artifact]) -> str:
     return artifacts[0].content.decode()
 
 
-def object_schema(data: JsonLike, doc_id: str = "test://schema") -> ObjectSchema:
+def object_schema(data: JsonLike, uri: str = DEFAULT_SCHEMA_URI) -> ObjectSchema:
     """Parse `data` and return its root, which must be an object schema."""
-    root = json_schema_cst(data, doc_id).root
+    root = json_schema_cst(data, uri).root
     assert isinstance(root, ObjectSchema), f"Root is {type(root).__name__}, not an ObjectSchema"
     return root
 
 
 def flattened(
-    data: JsonLike, *, resolve: bool = False, doc_id: str = "test://schema"
+    data: JsonLike, *, resolve: bool = False, uri: str = DEFAULT_SCHEMA_URI
 ) -> FlatteningResult:
     """Flatten `data`'s `allOf` branches, following `$ref` only when `resolve` is set.
 
@@ -110,8 +116,8 @@ def flattened(
     resolver = None
     if resolve:
         resolver = JsonSchemaRefResolver()
-        resolver.register(json_schema_cst(data, doc_id))
-    return SchemaFlattener(resolver=resolver).flatten(object_schema(data, doc_id), base_uri=doc_id)
+        resolver.register(json_schema_cst(data, uri))
+    return SchemaFlattener(resolver=resolver).flatten(object_schema(data, uri), base_uri=uri)
 
 
 def flat_schema(data: JsonLike, *, resolve: bool = False) -> ObjectSchema:
@@ -126,9 +132,9 @@ def flatten_warnings(data: JsonLike, *, resolve: bool = False) -> Sequence[str]:
     return [w.code for w in flattened(data, resolve=resolve).warnings if w.code]
 
 
-def openapi_result(data: JsonLike, doc_id: str = "d") -> Result[OpenApiDocument]:
+def openapi_result(data: JsonLike, uri: str = "test:///d") -> Result[OpenApiDocument]:
     """Parse `data` as an OpenAPI document without asserting that it succeeded."""
-    return OpenApiParser().apply(openapi_doc(data, doc_id))
+    return OpenApiParser().apply(openapi_doc(data, uri))
 
 
 def minimal_openapi(**extra: JsonLike) -> JsonLike:

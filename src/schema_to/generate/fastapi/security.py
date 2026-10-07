@@ -20,6 +20,7 @@ from schema_to.ast.python import (
     PythonTypeAnnotation,
     VarDef,
 )
+from schema_to.cst.base import location_of
 from schema_to.cst.openapi import ApiKeyLocation, SecuritySchemeType
 from schema_to.errors import TranspilationWarning
 from schema_to.generate._python_utils import safe_python_field_name
@@ -101,6 +102,7 @@ def build_security_module(schemes: Mapping[str, SecurityScheme]) -> SecurityModu
                     f"Security scheme {name!r} of type {scheme.type_.value!r} has no FastAPI "
                     "equivalent; skipping.",
                     code="security-unsupported",
+                    location=location_of(scheme.source_ref),
                 )
             )
             continue

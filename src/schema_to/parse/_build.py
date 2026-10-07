@@ -15,7 +15,7 @@ only when a field it cannot be constructed without is missing or unusable.
 from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass
 from enum import Enum
-from typing import final
+from typing import TYPE_CHECKING, final
 
 from schema_to.core import JsonValue, as_array, as_object
 from schema_to.cst.base import CstNode, SourceRef
@@ -26,12 +26,7 @@ from schema_to.cst.json_schema import (
     JsonSchema,
     ObjectSchema,
 )
-from schema_to.errors import (
-    SchemaValidationError,
-    SourceLocation,
-    TranspilationError,
-    TranspilationWarning,
-)
+from schema_to.errors import SchemaValidationError, TranspilationError, TranspilationWarning
 from schema_to.parse._plan import (
     BoolSpec,
     EnumSpec,
@@ -53,6 +48,9 @@ from schema_to.parse._plan import (
     plan_for,
 )
 from schema_to.parse._utils import enum_member, ptr
+
+if TYPE_CHECKING:
+    from schema_to.io.source import RawDoc
 
 __all__ = [
     "FAILED",
@@ -107,7 +105,7 @@ class Cursor:
     so an error can only be reported against the node it belongs to.
 
     Attributes:
-        source_id: Identifier matching `RawDoc.doc_id`.
+        source_id: URI of the document the value is in, matching `RawDoc.provenance`.
         pointer: RFC 6901 pointer to the value under construction.
         errors: Accumulator shared by every cursor derived from this one.
         warnings: Accumulator shared by every cursor derived from this one.
@@ -123,9 +121,28 @@ class Cursor:
     version: SpecVersion | None = None
 
     @classmethod
-    def root(cls, source_id: str, version: SpecVersion | None = None) -> Cursor:
-        """Return a cursor at the document root with fresh accumulators."""
-        return cls(source_id, "", [], [], version)
+    def root(
+        cls, source_id: str, version: SpecVersion | None = None, *, pointer: str = ""
+    ) -> Cursor:
+        """Return a cursor at the document root with fresh accumulators.
+
+        Args:
+            source_id: URI of the document.
+            version: The specification version the document declares.
+            pointer: Where the root sits in the document at `source_id`,
+                for a root that is a part of a larger document.
+        """
+        return cls(source_id, pointer, [], [], version)
+
+    @classmethod
+    def of(cls, doc: RawDoc, version: SpecVersion | None = None) -> Cursor:
+        """Return a cursor at the root of `doc`, in the original if `doc` was derived from one.
+
+        A node's `SourceRef` then names the file the user wrote,
+        rather than the derived document's own URI, which exists nowhere.
+        """
+        home = doc.provenance
+        return cls.root(home.uri, version, pointer=home.json_pointer)
 
     def at(self, *segments: str | int) -> Cursor:
         """Return a cursor descended into `segments`, sharing this cursor's accumulators."""
@@ -144,17 +161,13 @@ class Cursor:
 
     def fail(self, message: str) -> Failed:
         """Record a validation error here and return `FAILED`, for use in a `return`."""
-        self.errors.append(
-            SchemaValidationError(message, location=SourceLocation(self.source_id, self.pointer))
-        )
+        self.errors.append(SchemaValidationError(message, location=self.ref().location()))
         return FAILED
 
     def warn(self, message: str, *, code: str | None = None) -> None:
         """Record a non-fatal diagnostic here."""
         self.warnings.append(
-            TranspilationWarning(
-                message, code=code, location=SourceLocation(self.source_id, self.pointer)
-            )
+            TranspilationWarning(message, code=code, location=self.ref().location())
         )
 
     def ref(self) -> SourceRef:

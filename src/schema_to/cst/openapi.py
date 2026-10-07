@@ -487,7 +487,7 @@ class OpenApiDocument(CstNode):
     """The root of a parsed OpenAPI 3.1 document.
 
     Special attributes:
-      - source_id: Matches `RawDoc.source_id`.
+      - source_id: Matches `RawDoc.uri`.
       - display_name: Short name for the document, carried over from the `RawDoc`.
         It is what a re-emitted file is named after.
       - source_ref: Points to the document root (`""`).
