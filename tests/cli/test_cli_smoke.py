@@ -201,3 +201,75 @@ def test_cli_json_schema_extracts_openapi_components(tmp_path: Path) -> None:
     _check_files(output_dir, {"User.schema.json", "Group.schema.json"})
     user = json.loads((output_dir / "User.schema.json").read_text())
     assert user["properties"]["id"]["type"] == "string"
+
+
+_REL_BASE = {"timestamp": {"type": "string", "format": "date-time"}}
+_REL_THING = {
+    "Thing": {
+        "type": "object",
+        "properties": {
+            "at": {"$ref": "../base/time.yaml#/timestamp"},
+            "other": {"$ref": "#/Other"},
+        },
+    },
+    "Other": {"type": "object", "properties": {"n": {"type": "integer"}}},
+}
+
+
+def _write_ref_tree(root: Path) -> None:
+    (root / "in" / "base").mkdir(parents=True)
+    (root / "in" / "sub").mkdir()
+    (root / "out").mkdir()
+    (root / "in" / "base" / "time.yaml").write_text(json.dumps(_REL_BASE))
+    (root / "in" / "sub" / "thing.yaml").write_text(json.dumps(_REL_THING))
+
+
+@pytest.mark.parametrize("directory", ["in", "./in", "../{name}/in"])
+def test_cli_schema_map_recursive_relative_dir_resolves_refs(
+    tmp_path: Path, directory: str
+) -> None:
+    """Cross-file `$ref`s resolve when the input directory is given as a relative path."""
+    _write_ref_tree(tmp_path)
+    result = _run(
+        directory.format(name=tmp_path.name),
+        "--schema-map",
+        "-r",
+        "--to",
+        "pydantic",
+        "--output",
+        "out",
+        cwd=tmp_path,
+    )
+    _check_retcode(result)
+    assert "error" not in result.stderr
+    assert {p.name for p in (tmp_path / "out").iterdir()} == {
+        "timestamp.py",
+        "thing.py",
+        "other.py",
+    }
+
+
+def test_cli_relative_file_path(tmp_path: Path) -> None:
+    """A single input file given as a relative path is read and transpiled."""
+    (tmp_path / "user.schema.json").write_text(json.dumps({"type": "object", "title": "User"}))
+    (tmp_path / "out").mkdir()
+    result = _run("user.schema.json", "--output", "out", cwd=tmp_path)
+    _check_retcode(result)
+    assert (tmp_path / "out" / "user.schema.json").is_file()
+
+
+def test_cli_relative_file_path_with_parent_segment(tmp_path: Path) -> None:
+    (tmp_path / "schemas").mkdir()
+    (tmp_path / "work").mkdir()
+    (tmp_path / "schemas" / "user.schema.json").write_text(json.dumps({"type": "object"}))
+    result = _run("../schemas/user.schema.json", "--output", "out", cwd=tmp_path / "work")
+    _check_retcode(result)
+    assert (tmp_path / "work" / "out" / "user.schema.json").is_file()
+
+
+def test_cli_relative_dir_without_schema_map(tmp_path: Path) -> None:
+    (tmp_path / "in").mkdir()
+    (tmp_path / "in" / "a.schema.json").write_text(json.dumps({"type": "object"}))
+    result = _run("in", "-r", "--output", "out", cwd=tmp_path)
+    _check_retcode(result)
+    assert (tmp_path / "out" / "a.schema.json").is_file()
