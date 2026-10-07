@@ -3,7 +3,8 @@
 import pytest
 from tests.support.docs import json_schema_doc
 
-from schema_to.errors import SourceLocation, TextRange
+from schema_to.core import Range
+from schema_to.errors import SourceLocation
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.memory import memory_uri
 from schema_to.io.source import JsonSchemaRawDoc, Origin, RawDoc
@@ -11,44 +12,69 @@ from schema_to.io.source import JsonSchemaRawDoc, Origin, RawDoc
 
 @pytest.mark.parametrize("uri", ["", "main.yaml", "./main.yaml", "/abs/main.yaml", "a b:c"])
 def test_an_identifier_that_is_not_a_uri_is_rejected(uri: str) -> None:
-    with pytest.raises(ValueError, match="must be a URI"):
-        RawDoc(uri=uri, content=b"{}", media_type=MediaTypes.json)
+    with pytest.raises(ValueError, match="no scheme"):
+        RawDoc.original(uri, b"{}", MediaTypes.json)
 
 
 def test_a_subclass_is_validated_too() -> None:
-    with pytest.raises(ValueError, match="must be a URI"):
-        JsonSchemaRawDoc(uri="main.yaml", content=b"{}", media_type=MediaTypes.json)
+    with pytest.raises(ValueError, match="no scheme"):
+        JsonSchemaRawDoc.original("main.yaml", b"{}", MediaTypes.json)
 
 
 def test_a_custom_scheme_is_a_uri() -> None:
-    doc = RawDoc(uri=memory_uri("users.schema.json"), content=b"{}", media_type=MediaTypes.json)
+    doc = RawDoc.original(memory_uri("users.schema.json"), b"{}", MediaTypes.json)
     assert doc.uri == "memory:///users.schema.json"
     assert doc.display_name == "users"
 
 
-def test_the_display_name_is_computed_from_the_uri() -> None:
-    assert json_schema_doc({}, "file:///dir/users.schema.json").display_name == "users"
+@pytest.mark.parametrize(
+    ("uri", "expected"),
+    [
+        ("file:///dir/users.schema.json", "users"),
+        ("file:///dir/catalog.yaml", "catalog"),
+        ("memory:///thing", "thing"),
+        ("https://example.com/a/b/product.json", "product"),
+        ("file:///my%20schema.json", "my schema"),
+        ("test://schema", ""),
+    ],
+)
+def test_the_display_name_is_the_last_path_segment_before_its_first_dot(
+    uri: str, expected: str
+) -> None:
+    assert json_schema_doc({}, uri).display_name == expected
 
 
-def test_a_document_is_its_own_provenance() -> None:
-    doc = json_schema_doc({}, "file:///a.json")
-    assert doc.origin is None
-    assert doc.provenance == Origin("file:///a.json")
-    assert doc.location() == SourceLocation("file:///a.json", "")
-    assert doc.location("/x", at=TextRange(2, 5)) == SourceLocation(
-        "file:///a.json", "/x", TextRange(2, 5)
+@pytest.mark.parametrize(
+    ("uri", "expected"),
+    [
+        ("file:///catalog.yaml#/author-data", "author-data"),
+        ("file:///catalog.yaml#/v1.0", "v1.0"),
+        ("file:///catalog.yaml#/a~1b", "a/b"),
+        ("file:///catalog.yaml#/a~0b", "a~b"),
+        ("file:///catalog.yaml#/two%20words", "two words"),
+        ("file:///api.yaml#/components/schemas/Pet", "Pet"),
+    ],
+)
+def test_a_fragment_names_a_document_carved_out_of_a_file(uri: str, expected: str) -> None:
+    """The file is shared by every document carved out of it, so its name cannot tell them apart."""
+    assert json_schema_doc({}, uri).display_name == expected
+
+
+def test_a_whole_file_is_its_own_origin() -> None:
+    doc = JsonSchemaRawDoc.original(
+        "file:///a.json", b'{\n  "type": "object"\n}\n', MediaTypes.json
     )
+    assert doc.origin == Origin("file:///a.json", "", Range.covering('{\n  "type": "object"\n}\n'))
+    assert doc.location("") == SourceLocation("file:///a.json", "", doc.origin.range)
 
 
 def test_a_derived_document_locates_things_in_the_original() -> None:
-    origin = Origin("file:///c.yaml", "/thing", TextRange(10, 1, 14, 1))
+    origin = Origin("file:///c.yaml", "/thing", Range.covering("a: 1\nb: 2\n"))
     doc = JsonSchemaRawDoc(
         uri="file:///c.yaml#/thing", content=b"{}", media_type=MediaTypes.json, origin=origin
     )
-    assert doc.provenance == origin
-    # A position in re-encoded content means nothing in the original, so the original's range wins.
-    assert doc.location("/properties/a", at=TextRange(1, 40)) == SourceLocation(
-        "file:///c.yaml", "/thing/properties/a", TextRange(10, 1, 14, 1)
+    assert doc.location("/properties/a") == SourceLocation(
+        "file:///c.yaml", "/thing/properties/a", origin.range
     )
 
 

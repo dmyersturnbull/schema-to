@@ -535,7 +535,7 @@ class Pipeline[I: RawDoc, O: Artifact]:
                         TranspilationWarning(
                             f"No transpiler accepts {document.uri!r}; skipping.",
                             code="no-transpiler",
-                            location=document.location(),
+                            location=document.location(""),
                         )
                     )
                     continue

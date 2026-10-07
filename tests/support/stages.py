@@ -117,7 +117,7 @@ def flattened(
     if resolve:
         resolver = JsonSchemaRefResolver()
         resolver.register(json_schema_cst(data, uri))
-    return SchemaFlattener(resolver=resolver).flatten(object_schema(data, uri), base_uri=uri)
+    return SchemaFlattener(resolver=resolver).flatten(object_schema(data, uri))
 
 
 def flat_schema(data: JsonLike, *, resolve: bool = False) -> ObjectSchema:

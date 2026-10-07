@@ -56,12 +56,12 @@ def test_accepts_json_schema_document() -> None:
 
 
 def test_rejects_openapi_document() -> None:
-    doc = OpenApiRawDoc(uri="test://s", content=b"{}", media_type=MediaTypes.json)
+    doc = OpenApiRawDoc.original("test:///s", b"{}", MediaTypes.json)
     assert not POSTGRES.transpiler().accepts(doc)
 
 
 def test_rejects_raw_document() -> None:
-    doc = RawDoc(uri="test://s", content=b"{}", media_type=MediaTypes.json)
+    doc = RawDoc.original("test:///s", b"{}", MediaTypes.json)
     assert not POSTGRES.transpiler().accepts(doc)
 
 

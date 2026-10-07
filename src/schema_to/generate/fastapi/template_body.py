@@ -118,6 +118,7 @@ class TemplateBodyBackend(EndpointBodyBackend):
         return TranspilationWarning(
             f"Could not render the body template for {ctx.method.value.upper()} {ctx.path}.",
             code="template-body-render",
+            location=ctx.location,
         )
 
 

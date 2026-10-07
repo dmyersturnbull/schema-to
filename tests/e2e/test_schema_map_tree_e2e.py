@@ -58,9 +58,7 @@ def test_directory_tree_resolves_relative_refs_and_flattens(tmp_path: Path) -> N
         assert isinstance(resolver.apply_map(doc), Ok)
 
     catalog = next(d for d in docs if d.source_id.endswith("catalog.yaml"))
-    flat = SchemaFlattener(resolver=resolver).flatten(
-        catalog.schemas["thing-data"], base_uri=catalog.source_id
-    )
+    flat = SchemaFlattener(resolver=resolver).flatten(catalog.schemas["thing-data"])
     assert flat.warnings == ()
     assert isinstance(flat.schema, ObjectSchema)
     assert list(flat.schema.properties or {}) == ["id", "insert-time", "name"]
@@ -68,7 +66,7 @@ def test_directory_tree_resolves_relative_refs_and_flattens(tmp_path: Path) -> N
 
     # The cross-file ref resolved to a concrete string type, not an opaque $ref.
     insert_time = (flat.schema.properties or {})["insert-time"]
-    resolved = SchemaFlattener(resolver=resolver).flatten(insert_time, base_uri=catalog.source_id)
+    resolved = SchemaFlattener(resolver=resolver).flatten(insert_time)
     assert isinstance(resolved.schema, ObjectSchema)
     assert resolved.schema.get_types() == frozenset({JsonSchemaType.STRING})
     assert resolved.schema.pattern == "^2"

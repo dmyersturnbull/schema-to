@@ -23,39 +23,45 @@ _THING: JsonLike = {
 }
 
 
-def _error_locations[T](result: Result[T]) -> list[SourceLocation | None]:
+type _Place = tuple[str, str]
+
+
+def _place(location: SourceLocation | None) -> _Place:
+    assert location is not None
+    return (location.uri, location.json_pointer)
+
+
+def _error_places[T](result: Result[T]) -> list[_Place]:
     assert isinstance(result, Err)
-    return [e.location for e in result.errors]
+    return [_place(e.location) for e in result.errors]
 
 
-def _warning_locations[T](result: Result[T], code: str) -> list[SourceLocation | None]:
-    return [w.location for w in result.warnings if w.code == code]
+def _warning_places[T](result: Result[T], code: str) -> list[_Place]:
+    return [_place(w.location) for w in result.warnings if w.code == code]
 
 
 def test_a_duplicate_table_is_located_at_the_schema_that_repeats_it() -> None:
     doc = schema_map_doc({"a-data": _THING, "b-data": _THING}, "catalog")
     result = POSTGRES_TABLE_SET.run(doc)
-    assert _error_locations(result) == [SourceLocation("file:///catalog.yaml", "/b-data")]
+    assert _error_places(result) == [("file:///catalog.yaml", "/b-data")]
 
 
 def test_a_table_that_is_not_an_object_is_located_at_its_schema() -> None:
     doc = schema_map_doc({"thing": {"type": "string", "x-pg-table": "thing"}}, "catalog")
     result = POSTGRES_TABLE_SET.run(doc)
-    assert _error_locations(result) == [SourceLocation("file:///catalog.yaml", "/thing")]
+    assert _error_places(result) == [("file:///catalog.yaml", "/thing")]
 
 
 def test_a_table_warning_is_located_at_its_schema() -> None:
     keyless = {"type": "object", "x-pg-table": "thing", "properties": {"n": {"type": "string"}}}
     result = POSTGRES_TABLE_SET.run(schema_map_doc({"thing": keyless}, "catalog"))
     assert isinstance(result, Ok)
-    assert _warning_locations(result, "no-primary-key") == [
-        SourceLocation("file:///catalog.yaml", "/thing")
-    ]
+    assert _warning_places(result, "no-primary-key") == [("file:///catalog.yaml", "/thing")]
 
 
 def test_a_boolean_root_is_located_at_the_document() -> None:
     result = PYDANTIC.run(json_schema_doc(True, "file:///flag.schema.json"))  # ruff: ignore[boolean-positional-value-in-call]
-    assert _error_locations(result) == [SourceLocation("file:///flag.schema.json", "")]
+    assert _error_places(result) == [("file:///flag.schema.json", "")]
 
 
 def test_an_unsupported_security_scheme_is_located_at_the_scheme() -> None:
@@ -67,8 +73,8 @@ def test_an_unsupported_security_scheme_is_located_at_the_scheme() -> None:
     }
     result = FASTAPI.run(openapi_doc(spec, "file:///api.yaml"))
     assert isinstance(result, Ok)
-    assert _warning_locations(result, "security-unsupported") == [
-        SourceLocation("file:///api.yaml", "/components/securitySchemes/tls")
+    assert _warning_places(result, "security-unsupported") == [
+        ("file:///api.yaml", "/components/securitySchemes/tls")
     ]
 
 
@@ -84,8 +90,9 @@ def test_a_route_security_warning_is_located_at_its_operation() -> None:
     }
     result = FASTAPI.run(openapi_doc(spec, "file:///api.yaml"))
     assert isinstance(result, Ok)
-    here = SourceLocation("file:///api.yaml", "/paths/~1things/get")
-    assert _warning_locations(result, "security-unknown-scheme") == [here]
+    assert _warning_places(result, "security-unknown-scheme") == [
+        ("file:///api.yaml", "/paths/~1things/get")
+    ]
 
 
 def test_a_lifted_component_is_unique_but_still_points_into_the_openapi_document() -> None:

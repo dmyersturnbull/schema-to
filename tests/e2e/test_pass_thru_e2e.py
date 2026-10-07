@@ -38,9 +38,7 @@ def test_json_schema_pass_thru_invertible(schema: JsonLike) -> None:
     assert isinstance(r1, Ok), f"First transpile failed: {r1}"
     artifact1 = r1.value[0]
 
-    doc2 = JsonSchemaRawDoc(
-        uri="test:///test2", content=artifact1.content, media_type=artifact1.media_type
-    )
+    doc2 = JsonSchemaRawDoc.original("test:///test2", artifact1.content, artifact1.media_type)
     r2 = transpiler.transpile(doc2)
     assert isinstance(r2, Ok), f"Second transpile failed: {r2}"
     artifact2 = r2.value[0]
@@ -64,9 +62,7 @@ def test_openapi_pass_thru_invertible(openapi: JsonLike) -> None:
     assert isinstance(r1, Ok), f"First transpile failed: {r1}"
     artifact1 = r1.value[0]
 
-    doc2 = OpenApiRawDoc(
-        uri="test:///test2", content=artifact1.content, media_type=artifact1.media_type
-    )
+    doc2 = OpenApiRawDoc.original("test:///test2", artifact1.content, artifact1.media_type)
     r2 = transpiler.transpile(doc2)
     assert isinstance(r2, Ok), f"Second transpile failed: {r2}"
     artifact2 = r2.value[0]

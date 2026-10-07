@@ -11,11 +11,12 @@ or another origin.
 
 from abc import ABC, abstractmethod
 from dataclasses import KW_ONLY, dataclass
-from typing import TYPE_CHECKING
+from pathlib import PurePosixPath
+from typing import TYPE_CHECKING, Self
 
-from schema_to.errors import SourceLocation, TextRange
-from schema_to.io.uri import display_name as uri_display_name
-from schema_to.io.uri import is_uri
+from schema_to.core import Range
+from schema_to.errors import SourceLocation
+from schema_to.io.uri import Uri
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -27,28 +28,33 @@ __all__ = ["DataSource", "JsonSchemaRawDoc", "OpenApiRawDoc", "Origin", "RawDoc"
 
 @dataclass(frozen=True, slots=True)
 class Origin:
-    """Where the content of a derived `RawDoc` actually lives.
+    """The part of the file the user wrote that a `RawDoc`'s content came from.
 
-    Stages that split or rewrite a document yield documents of their own,
-    each with a new URI so that it stays unique.
-    That URI names something that exists nowhere,
-    so the derived document records the real place here,
-    and a diagnostic can point at somewhere the user can open.
+    A stage that splits a document yields documents of its own,
+    each with a new URI of its own so that it stays unique.
+    That URI names something that exists nowhere.
+    The origin is the real place instead,
+    so that a diagnostic about the document can point somewhere the user can open.
+    A document that is a whole file has the file as its origin.
 
     Attributes:
-        uri: URI of the original document, without a fragment.
+        uri: URI of the file the user wrote, without a fragment.
         json_pointer: [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)
-            pointer to the content within the original.
-            Empty means all of it.
-        range: Where the content sits in the original's raw text.
-            `None` if unknown,
-            which it is for anything but a reader that reports spans.
-            The built-in readers do not.
+            pointer to the content within that file.
+            Empty if the content is all of it.
+        range: Where the content sits in that file's raw text.
+            Until a reader reports the span of each node,
+            this is the span of the whole file.
     """
 
     uri: str
-    json_pointer: str = ""
-    range: TextRange | None = None
+    json_pointer: str
+    range: Range
+
+    @classmethod
+    def whole(cls, uri: str, content: bytes) -> Self:
+        """Return the origin of a document that is all of the file at `uri`, which holds `content`."""
+        return cls(uri, "", Range.covering(content.decode(errors="replace")))
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,12 +72,11 @@ class RawDoc:
             (e.g. `memory:///users.schema.json`) that resolves nowhere,
             and so only a `$ref` within it can be followed.
             The path should be meaningful, since `display_name` is computed from it.
-            A document derived from another has a fragment,
+            A document derived from part of another has a fragment,
             as in `file:///catalog.yaml#/author-data`.
         content: Raw bytes exactly as supplied by the source.
         media_type: Content type, used to select the appropriate `DocumentParser`.
-        origin: Where the content actually lives, if not at `uri`.
-            `None` for a document that is its own original.
+        origin: Where in the file the user wrote this document's content came from.
 
     Raises:
         ValueError: If `uri` is not a URI.
@@ -81,44 +86,43 @@ class RawDoc:
     content: bytes
     media_type: MediaType
     _: KW_ONLY
-    origin: Origin | None = None
+    origin: Origin
 
     def __post_init__(self) -> None:
-        if not is_uri(self.uri):
-            msg = (
-                f"A document's identifier must be a URI, with a scheme, "
-                f"such as 'file:///a.json' or 'memory:///a.json'; got {self.uri!r}."
-            )
-            raise ValueError(msg)
+        Uri.parse(self.uri)
+
+    @classmethod
+    def original(cls, uri: str, content: bytes, media_type: MediaType) -> Self:
+        """Return a document that is all of the file at `uri`, which holds `content`."""
+        return cls(uri, content, media_type, origin=Origin.whole(uri, content))
 
     @property
     def display_name(self) -> str:
         """Short human-readable name for log messages and generated identifiers.
 
-        For example, `"users"` for `file:///dir/users.schema.json`.
-        See [schema_to.io.uri.display_name][].
+        This is the last segment of the URI's fragment, if there is one,
+        which is how a document carved out of a larger file keeps its own name.
+        Otherwise, it is the last segment of the path, up to its first dot:
+        `file:///dir/users.schema.json` is `users`.
+        It is empty if the URI has neither, as in `test://schema`,
+        whose only name-like part is the authority.
         """
-        return uri_display_name(self.uri)
+        uri = Uri.parse(self.uri)
+        if uri.pointer:
+            name = uri.pointer.rpartition("/")[2]
+            return name.replace("~1", "/").replace("~0", "~")
+        return PurePosixPath(uri.path).name.split(".")[0]
 
-    @property
-    def provenance(self) -> Origin:
-        """Where the content actually lives: its `origin`, or else itself."""
-        return self.origin or Origin(self.uri)
-
-    def location(self, json_pointer: str = "", *, at: TextRange | None = None) -> SourceLocation:
-        """Return the location of a node within this document, for a diagnostic.
-
-        For a derived document, this is in the original.
-        Its content has been re-encoded, so `at`, a position in that content,
-        means nothing there and the original's own range, if any, is used instead.
+    def location(self, json_pointer: str) -> SourceLocation:
+        """Return the location of a node within this document, as the user would find it.
 
         Args:
             json_pointer: Pointer to the node, relative to this document.
-            at: Where the node sits in `content`, if known.
+                Empty for the document as a whole.
         """
-        home = self.provenance
-        span = home.range if self.origin is not None else at
-        return SourceLocation(home.uri, home.json_pointer + json_pointer, span)
+        return SourceLocation(
+            self.origin.uri, self.origin.json_pointer + json_pointer, self.origin.range
+        )
 
 
 @dataclass(frozen=True, slots=True)

@@ -29,9 +29,7 @@ def _named_templates() -> Mapping[str, str]:
 
 
 def _generate(target: str) -> str:
-    doc = OpenApiRawDoc(
-        uri="t:///api.openapi.yaml", content=_EXAMPLE.read_bytes(), media_type=MediaTypes.yaml
-    )
+    doc = OpenApiRawDoc.original("t:///api.openapi.yaml", _EXAMPLE.read_bytes(), MediaTypes.yaml)
     [transpiler] = TranspilerRouter().route(
         target, output_media_type=MediaTypes.json, templates=_named_templates()
     )

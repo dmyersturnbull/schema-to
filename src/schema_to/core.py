@@ -1,7 +1,8 @@
 """Core JSON value types, and the narrowing helpers that recover them."""
 
 from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
-from typing import TypeIs, cast
+from dataclasses import dataclass
+from typing import Self, TypeIs, cast
 
 __all__ = [
     "JsonArray",
@@ -10,6 +11,8 @@ __all__ = [
     "JsonObjectLimb",
     "JsonPrimitive",
     "JsonValue",
+    "Position",
+    "Range",
     "as_array",
     "as_object",
     "is_json_array_limb",
@@ -18,6 +21,7 @@ __all__ = [
     "is_json_primitive",
     "is_json_primitive_mapping",
     "is_json_primitive_sequence",
+    "ptr",
 ]
 
 type JsonPrimitive = bool | int | float | str | None
@@ -89,3 +93,56 @@ def as_array(value: JsonValue) -> Sequence[JsonValue] | None:
     if not isinstance(value, Sequence) or isinstance(value, str):
         return None
     return cast("Sequence[JsonValue]", value)
+
+
+def ptr(parent: str, *segments: str | int) -> str:
+    """Append JSON Pointer segments to `parent` ([RFC 6901](https://www.rfc-editor.org/rfc/rfc6901))."""
+    parts = [
+        s.replace("~", "~0").replace("/", "~1") if isinstance(s, str) else str(s) for s in segments
+    ]
+    return parent + "".join(f"/{p}" for p in parts)
+
+
+@dataclass(frozen=True, slots=True)
+class Position:
+    """A point in a text: a line and a column.
+
+    Attributes:
+        line: 1-based line number.
+        column: 1-based column number.
+    """
+
+    line: int
+    column: int
+
+    def __str__(self) -> str:
+        return f"{self.line}:{self.column}"
+
+
+@dataclass(frozen=True, slots=True)
+class Range:
+    """A span of a text, from one `Position` to another.
+
+    Attributes:
+        start: The first position in the span.
+        end: The position just after the span.
+            Equal to `start` for a span of nothing, such as the point where a parser gave up.
+    """
+
+    start: Position
+    end: Position
+
+    @classmethod
+    def covering(cls, text: str) -> Self:
+        """Return the range that spans all of `text`."""
+        lines = text.split("\n")
+        return cls(Position(1, 1), Position(len(lines), len(lines[-1]) + 1))
+
+    @classmethod
+    def at(cls, line: int, column: int) -> Self:
+        """Return the empty range at a line and column."""
+        position = Position(line, column)
+        return cls(position, position)
+
+    def __str__(self) -> str:
+        return f"{self.start}-{self.end}"

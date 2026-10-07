@@ -1,7 +1,6 @@
 """Filename and artifact-type selection for the schema-shaped targets."""
 
 from typing import TYPE_CHECKING, Literal, NamedTuple, overload
-from urllib.parse import urlsplit
 
 from schema_to.cst.json_schema import JsonSchemaDocument
 from schema_to.cst.openapi import OpenApiDocument
@@ -14,6 +13,7 @@ from schema_to.io.sink import (
     OpenApiJsonArtifact,
     OpenApiYamlArtifact,
 )
+from schema_to.io.uri import Uri
 
 if TYPE_CHECKING:
     from schema_to.io.media_type import MediaType
@@ -32,7 +32,6 @@ def choose_output(
     output_media_type: MediaType | None,
     *,
     kind: Literal["openapi"],
-    stem: str | None = None,
 ) -> OutputInfo[OpenApiArtifact]: ...
 
 
@@ -42,7 +41,6 @@ def choose_output(
     output_media_type: MediaType | None,
     *,
     kind: Literal["schema"],
-    stem: str | None = None,
 ) -> OutputInfo[JsonSchemaArtifact]: ...
 
 
@@ -51,7 +49,6 @@ def choose_output(
     output_media_type: MediaType | None,
     *,
     kind: Literal["openapi", "schema"],
-    stem: str | None = None,
 ) -> OutputInfo[OpenApiArtifact | JsonSchemaArtifact]:
     """Chooses a filename and the correct artifact type for JSON Schema or OpenAPI.
 
@@ -62,11 +59,7 @@ def choose_output(
             If `None`, uses YAML if the path of `doc.source_id` ends with `.yaml`,
             otherwise uses JSON.
         kind: OpenAPI or JSON Schema.
-        stem: Base filename, overriding the one derived from `doc`.
-            Required when one source document yields several artifacts,
-            which would otherwise share a filename.
     """
-    path = urlsplit(doc.source_id or "").path
     # TODO: `writer` can support more, but this forces `.yaml` or `.json`.
     if output_media_type:
         is_yaml = output_media_type.type in {
@@ -74,12 +67,12 @@ def choose_output(
             "text",
         } and output_media_type.subtype.endswith(("+yaml", "yaml"))
     else:
-        is_yaml = path.endswith(".yaml")
+        is_yaml = Uri.parse(doc.source_id).path.endswith(".yaml")
     ext = ".yaml" if is_yaml else ".json"
     artifact_type: type[Artifact]
     if kind == "openapi":
         artifact_type = OpenApiYamlArtifact if is_yaml else OpenApiJsonArtifact
     else:
         artifact_type = JsonSchemaYamlArtifact if is_yaml else JsonSchemaJsonArtifact
-    base = (stem or doc.display_name or kind).removesuffix(f".{kind}")
+    base = doc.display_name.removesuffix(f".{kind}")
     return OutputInfo(f"{base}.{kind}{ext}", artifact_type)

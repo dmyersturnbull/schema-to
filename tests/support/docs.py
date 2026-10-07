@@ -22,14 +22,14 @@ def json_schema_doc(
     data: JsonLike, uri: str = DEFAULT_SCHEMA_URI, *, media_type: MediaType = MediaTypes.json
 ) -> JsonSchemaRawDoc:
     """Return `data` as a document whose root is a JSON Schema 2020-12 schema."""
-    return JsonSchemaRawDoc(uri=uri, content=orjson.dumps(data), media_type=media_type)
+    return JsonSchemaRawDoc.original(uri, orjson.dumps(data), media_type)
 
 
 def openapi_doc(
     data: JsonLike, uri: str = DEFAULT_OPENAPI_URI, *, media_type: MediaType = MediaTypes.json
 ) -> OpenApiRawDoc:
     """Return `data` as an OpenAPI 3.1/3.2 document."""
-    return OpenApiRawDoc(uri=uri, content=orjson.dumps(data), media_type=media_type)
+    return OpenApiRawDoc.original(uri, orjson.dumps(data), media_type)
 
 
 def schema_map_doc(
@@ -40,6 +40,4 @@ def schema_map_doc(
     The `uri` is derived from `name` as a `file:` URI,
     so that a relative `$ref` between two of these resolves the way it would on disk.
     """
-    return SchemaMapRawDoc(
-        uri=f"file:///{name}.yaml", content=orjson.dumps(data), media_type=media_type
-    )
+    return SchemaMapRawDoc.original(f"file:///{name}.yaml", orjson.dumps(data), media_type)

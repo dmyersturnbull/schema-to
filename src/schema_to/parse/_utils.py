@@ -1,9 +1,11 @@
 """Shared utilities for document parsers."""
 
 from collections.abc import MutableSequence
+from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
-from schema_to.errors import ParseError, SourceLocation, TextRange, TranspilationError
+from schema_to.core import Range
+from schema_to.errors import ParseError, SourceLocation, TranspilationError
 from schema_to.io.core import JsonLikeReader, ReadError
 from schema_to.result import Err, Result
 
@@ -21,9 +23,7 @@ __all__ = [
     "enum_member",
     "extract",
     "int_field",
-    "loc",
     "num_field",
-    "ptr",
     "str_field",
     "str_or",
 ]
@@ -38,18 +38,6 @@ def enum_member[E: Enum](enum_cls: type[E], value: object) -> E | None:
     return next((member for member in enum_cls if member.value == value), None)
 
 
-def ptr(parent: str, *segments: str | int) -> str:
-    """Append JSON Pointer segments to `parent` (RFC 6901)."""
-    parts = [
-        s.replace("~", "~0").replace("/", "~1") if isinstance(s, str) else str(s) for s in segments
-    ]
-    return parent + "".join(f"/{p}" for p in parts)
-
-
-def loc(source_id: str, pointer: str) -> SourceLocation:
-    return SourceLocation(uri=source_id, json_pointer=pointer)
-
-
 def decode_raw_doc(doc: RawDoc, reader: JsonLikeReader) -> JsonValue:
     """Decode a raw document's bytes to a JSON-compatible value.
 
@@ -59,8 +47,21 @@ def decode_raw_doc(doc: RawDoc, reader: JsonLikeReader) -> JsonValue:
     try:
         return reader.read(doc.content, doc.media_type)
     except ReadError as e:
-        at = TextRange(e.line, e.column) if e.line is not None and e.column is not None else None
-        raise ParseError(str(e), location=doc.location(at=at)) from e
+        raise ParseError(str(e), location=_where_it_failed(doc, e)) from e
+
+
+def _where_it_failed(doc: RawDoc, error: ReadError) -> SourceLocation:
+    """Return where `error` is in the file the user wrote.
+
+    A reader reports a position in `doc.content`,
+    which is the text of the file only if `doc` is all of it.
+    A document derived from part of a file is generated rather than written,
+    so a reader does not fail on one.
+    """
+    location = doc.location("")
+    if error.line is None or error.column is None:
+        return location
+    return replace(location, range=Range.at(error.line, error.column))
 
 
 def extract[T](result: Result[T], errors: MutableSequence[TranspilationError]) -> T | None:

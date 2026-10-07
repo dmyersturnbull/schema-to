@@ -46,14 +46,12 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             raw = decode_raw_doc(input, self.reader)
         except TranspilationError as exc:
             return Err((exc,))
-        at = Cursor.of(input)
+        at = Cursor.of(input, None)
         root = build_schema(raw, at)
         if isinstance(root, Failed) or at.errors:
             return Err(tuple(at.errors), warnings=tuple(at.warnings))
         return Ok(
-            JsonSchemaDocument(
-                root=root, source_id=input.uri, display_name=input.display_name, source_ref=at.ref()
-            ),
+            JsonSchemaDocument(root=root, source_id=input.uri, display_name=input.display_name),
             warnings=tuple(at.warnings),
         )
 
@@ -81,10 +79,10 @@ class JsonSchemaMapParser(DocParser[SchemaMapRawDoc, JsonSchemaMapDocument]):
                 ParseError(
                     f"A schema-map document must be an object mapping names to schemas; "
                     f"got {type(raw).__name__!r}.",
-                    location=input.location(),
+                    location=input.location(""),
                 )
             )
-        at = Cursor.of(input)
+        at = Cursor.of(input, None)
         schemas: dict[str, JsonSchema] = {}
         for name, value in entries.items():
             schema = build_schema(value, at.at(name))
@@ -93,11 +91,5 @@ class JsonSchemaMapParser(DocParser[SchemaMapRawDoc, JsonSchemaMapDocument]):
         if at.errors:
             return Err(tuple(at.errors), warnings=tuple(at.warnings))
         return Ok(
-            JsonSchemaMapDocument(
-                schemas=schemas,
-                source_id=input.uri,
-                display_name=input.display_name,
-                source_ref=at.ref(),
-            ),
-            warnings=tuple(at.warnings),
+            JsonSchemaMapDocument(schemas=schemas, source_id=input.uri), warnings=tuple(at.warnings)
         )

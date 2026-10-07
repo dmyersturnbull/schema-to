@@ -26,9 +26,8 @@ from schema_to.ast.sql import (
     SqlScript,
     TableConstraint,
 )
-from schema_to.cst.base import location_of
 from schema_to.cst.json_schema import JsonSchemaMapDocument, ObjectSchema, is_object_schema
-from schema_to.errors import GenerationError, SourceLocation, TranspilationWarning
+from schema_to.errors import GenerationError, TranspilationWarning
 from schema_to.generate.inlining import SchemaFlattener
 from schema_to.generate.postgres._pg_keywords import (
     TABLE,
@@ -62,7 +61,6 @@ class TableSpec:
 
     table_name: str
     schema_name: str
-    source_id: str
     schema: ObjectSchema
     keywords: TableKeywords
 
@@ -70,11 +68,6 @@ class TableSpec:
     def where(self) -> str:
         """Human-readable identification for error messages."""
         return f"schema {self.schema_name!r}"
-
-    @property
-    def location(self) -> SourceLocation:
-        """Where the schema was written, for a diagnostic about its table."""
-        return location_of(self.schema.source_ref) or SourceLocation(self.source_id, "")
 
     @property
     def primary_key(self) -> tuple[str, ...]:
@@ -140,7 +133,7 @@ class _GenCtx:
         preamble = "CREATE EXTENSION IF NOT EXISTS pg_jsonschema;" if self.validate_json else None
         return SqlScript(
             statements=(*tables, *indexes),
-            source_ids=tuple(dict.fromkeys(spec.source_id for spec in ordered)),
+            source_ids=tuple(dict.fromkeys(spec.schema.source_ref.uri for spec in ordered)),
             preamble=preamble,
         )
 
@@ -154,37 +147,31 @@ class _GenCtx:
         for name, schema in doc.schemas.items():
             if self.roots is not None and name not in self.roots:
                 continue
-            spec = self._as_spec(name, schema, source_id=_origin_of(schema, doc))
+            spec = self._as_spec(name, schema)
             if spec is not None:
                 specs.append(spec)
         return specs
 
-    def _as_spec(self, name: str, schema: JsonSchema, *, source_id: str) -> TableSpec | None:
+    def _as_spec(self, name: str, schema: JsonSchema) -> TableSpec | None:
         # Test for the keyword before flattening. Most schemas in a tree are not tables,
         # and flattening every one of them would be wasted work. The cost is that
         # `x-pg-table` must be written on the schema itself, not on an `allOf` branch —
         # which is where you would write it anyway.
         if not isinstance(schema, ObjectSchema) or TABLE not in schema.get_extensions():
             return None
-        flat = self._flatten(schema, base_uri=source_id)
+        flat = self._flatten(schema)
         if not is_object_schema(flat):
             msg = (
                 f"Schema {name!r} is marked with `x-pg-table` but is not an object schema, "
                 f"so it has no columns."
             )
-            raise GenerationError(msg, location=location_of(schema.source_ref))
+            raise GenerationError(msg, location=schema.source_ref.location())
         keywords = read_table_keywords(flat.get_extensions(), where=f"schema {name!r}")
         table_name = keywords.table or name
-        return TableSpec(
-            table_name=table_name,
-            schema_name=name,
-            source_id=source_id,
-            schema=flat,
-            keywords=keywords,
-        )
+        return TableSpec(table_name=table_name, schema_name=name, schema=flat, keywords=keywords)
 
-    def _flatten(self, schema: JsonSchema, *, base_uri: str) -> JsonSchema:
-        result = SchemaFlattener(resolver=self.resolver).flatten(schema, base_uri=base_uri)
+    def _flatten(self, schema: JsonSchema) -> JsonSchema:
+        result = SchemaFlattener(resolver=self.resolver).flatten(schema)
         self.warnings.extend(result.warnings)
         return result.schema
 
@@ -198,7 +185,7 @@ class _GenCtx:
         key = (id(spec), prop_name)
         flat = self._flat_prop_cache.get(key)
         if flat is None:
-            flat = self._flatten(prop_schema, base_uri=spec.source_id)
+            flat = self._flatten(prop_schema)
             self._flat_prop_cache[key] = flat
         return flat
 
@@ -268,7 +255,7 @@ class _GenCtx:
                             f"Table {spec.table_name!r} references table {target!r}, "
                             f"which no schema in this set declares.",
                             code="unknown-fk-target",
-                            location=spec.location,
+                            location=spec.schema.source_ref.location(),
                         )
                     )
 
@@ -281,7 +268,7 @@ class _GenCtx:
                         f"Table {spec.table_name!r} has no `id` property and no "
                         f"`x-pg-primary-key`, so it is generated without a primary key.",
                         code="no-primary-key",
-                        location=spec.location,
+                        location=spec.schema.source_ref.location(),
                     )
                 )
 
@@ -295,7 +282,7 @@ class _GenCtx:
                     f"declared after everything it references; its keys within the cycle "
                     f"are DEFERRABLE INITIALLY DEFERRED and are checked at commit.",
                     code="reference-cycle",
-                    location=by_name[name].location,
+                    location=by_name[name].schema.source_ref.location(),
                 )
             )
 
@@ -322,7 +309,7 @@ class _GenCtx:
             columns=tuple(columns),
             table_constraints=_table_constraints(spec),
             doc=spec.schema.description or spec.schema.title,
-            source_ids=(spec.source_id,),
+            source_ids=(spec.schema.source_ref.uri,),
         )
 
     def _build_column(
@@ -465,13 +452,6 @@ def _with_columns(request: IndexRequest, columns: tuple[str, ...]) -> IndexReque
 # ---------------------------------------------------------------------------
 
 
-def _origin_of(schema: JsonSchema, doc: JsonSchemaMapDocument) -> str:
-    """Return the file a schema was written in, which its references resolve against."""
-    if schema.source_ref is not None:
-        return schema.source_ref.source_id
-    return doc.source_id
-
-
 def _reject_duplicate_names(specs: Sequence[TableSpec]) -> None:
     seen: dict[str, TableSpec] = {}
     for spec in specs:
@@ -481,7 +461,7 @@ def _reject_duplicate_names(specs: Sequence[TableSpec]) -> None:
                 f"Two schemas both declare table {spec.table_name!r}: "
                 f"{clash.schema_name!r} and {spec.schema_name!r}."
             )
-            raise GenerationError(msg, location=spec.location)
+            raise GenerationError(msg, location=spec.schema.source_ref.location())
         seen[spec.table_name] = spec
 
 

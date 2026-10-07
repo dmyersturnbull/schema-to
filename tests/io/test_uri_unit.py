@@ -1,70 +1,53 @@
-"""Tests for document URIs: validity, fragments, and the name computed from them."""
+"""Tests for `Uri`: what it accepts, and how it carries a pointer."""
 
 import pytest
 
-from schema_to.io.uri import display_name, is_uri, pointer_uri
+from schema_to.io.uri import Uri
 
 
 @pytest.mark.parametrize(
     "text", ["file:///a.json", "memory:///a.json", "urn:uuid:1234", "https://x.org/a#/b", "t://a"]
 )
-def test_a_scheme_and_no_whitespace_make_a_uri(text: str) -> None:
-    assert is_uri(text)
+def test_a_uri_has_a_scheme(text: str) -> None:
+    assert Uri.parse(text).scheme == text.partition(":")[0]
 
 
-@pytest.mark.parametrize("text", ["", "a.json", "./a.json", "/a/b.json", "1x:a", "file:///a b"])
-def test_anything_else_is_not(text: str) -> None:
-    assert not is_uri(text)
+@pytest.mark.parametrize("text", ["", "a.json", "./a.json", "/a/b.json", "1x:a", "a b:c"])
+def test_a_string_with_no_scheme_is_not_a_uri(text: str) -> None:
+    with pytest.raises(ValueError, match="no scheme"):
+        Uri.parse(text)
 
 
-def test_a_pointer_becomes_the_fragment() -> None:
-    assert pointer_uri("file:///c.yaml", "/a-data") == "file:///c.yaml#/a-data"
-
-
-def test_an_existing_fragment_is_replaced_not_nested() -> None:
-    assert pointer_uri("file:///c.yaml#/a", "/b") == "file:///c.yaml#/b"
-
-
-def test_an_empty_pointer_is_the_whole_document() -> None:
-    assert pointer_uri("file:///c.yaml#/a", "") == "file:///c.yaml"
-
-
-def test_characters_a_uri_cannot_hold_are_encoded() -> None:
-    uri = pointer_uri("file:///c.yaml", "/two words")
-    assert uri == "file:///c.yaml#/two%20words"
-    assert is_uri(uri)
+def test_the_parts_are_split_out_and_decoded() -> None:
+    uri = Uri.parse("https://example.org/my%20dir/a.json#/two%20words")
+    assert (uri.scheme, uri.authority, uri.path, uri.pointer) == (
+        "https",
+        "example.org",
+        "/my dir/a.json",
+        "/two words",
+    )
+    assert uri.document == "https://example.org/my%20dir/a.json"
 
 
 @pytest.mark.parametrize(
-    ("uri", "expected"),
-    [
-        ("file:///dir/users.schema.json", "users"),
-        ("file:///dir/catalog.yaml", "catalog"),
-        ("memory:///thing", "thing"),
-        ("https://example.com/a/b/product.json", "product"),
-        ("file:///my%20schema.json", "my schema"),
-    ],
+    "text",
+    ["file:///a.yaml", "memory:///a.json#/b", "urn:x:y", "test://schema#/b", "https://h/p?q=1"],
 )
-def test_the_name_is_the_last_path_segment_before_its_first_dot(uri: str, expected: str) -> None:
-    assert display_name(uri) == expected
+def test_a_uri_prints_as_it_was_written(text: str) -> None:
+    """Including an empty authority, which `urlunsplit` would drop from `memory:///a`."""
+    assert str(Uri.parse(text)) == text
 
 
-@pytest.mark.parametrize(
-    ("uri", "expected"),
-    [
-        ("file:///catalog.yaml#/author-data", "author-data"),
-        ("file:///catalog.yaml#/v1.0", "v1.0"),
-        ("file:///catalog.yaml#/a~1b", "a/b"),
-        ("file:///catalog.yaml#/a~0b", "a~b"),
-        ("file:///catalog.yaml#/two%20words", "two words"),
-        ("file:///api.yaml#/components/schemas/Pet", "Pet"),
-    ],
-)
-def test_a_fragment_names_a_document_carved_out_of_a_file(uri: str, expected: str) -> None:
-    """The file is shared by every document carved out of it, so its name cannot tell them apart."""
-    assert display_name(uri) == expected
+def test_a_pointer_replaces_the_fragment() -> None:
+    assert str(Uri.parse("file:///c.yaml").with_pointer("/a-data")) == "file:///c.yaml#/a-data"
+    assert str(Uri.parse("file:///c.yaml#/a").with_pointer("/b")) == "file:///c.yaml#/b"
 
 
-@pytest.mark.parametrize("uri", ["test://schema", "memory:", "file:///"])
-def test_a_uri_with_no_path_has_no_name(uri: str) -> None:
-    assert not display_name(uri)
+def test_an_empty_pointer_addresses_the_whole_document() -> None:
+    assert str(Uri.parse("file:///c.yaml#/a").with_pointer("")) == "file:///c.yaml"
+
+
+def test_characters_a_fragment_cannot_hold_are_encoded() -> None:
+    uri = Uri.parse("file:///c.yaml").with_pointer("/two words")
+    assert str(uri) == "file:///c.yaml#/two%20words"
+    assert Uri.parse(str(uri)).pointer == "/two words"

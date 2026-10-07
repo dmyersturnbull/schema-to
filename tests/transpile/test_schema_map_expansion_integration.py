@@ -10,6 +10,7 @@ from tests.support.asserts import ok
 from tests.support.docs import json_schema_doc, schema_map_doc
 from tests.support.drive import PYDANTIC, Route
 
+from schema_to.core import Range
 from schema_to.cst.base import SourceRef
 from schema_to.errors import SourceLocation
 from schema_to.io.media_type import MediaTypes
@@ -18,6 +19,7 @@ from schema_to.parse.json_schema import JsonSchemaParser
 from schema_to.result import Err, Ok
 from schema_to.transpile.schema_map import SchemaMapExpander
 
+RANGE = Range.covering('{"bad": 1}')
 _PYDANTIC_MAP = Route("pydantic", SchemaMapRawDoc, schema_map=True)
 
 
@@ -37,10 +39,9 @@ def test_an_expanded_document_remembers_where_it_came_from() -> None:
     expanded = SchemaMapExpander().apply(doc)
     assert isinstance(expanded, Ok)
     [virtual] = expanded.value
-    assert virtual.origin == Origin("file:///catalog.yaml", "/a~1b")
-    assert virtual.location("/properties/x") == SourceLocation(
-        "file:///catalog.yaml", "/a~1b/properties/x"
-    )
+    assert virtual.origin == Origin("file:///catalog.yaml", "/a~1b", virtual.origin.range)
+    where = virtual.location("/properties/x")
+    assert (where.uri, where.json_pointer) == ("file:///catalog.yaml", "/a~1b/properties/x")
     assert virtual.display_name == "a/b"
 
 
@@ -50,15 +51,15 @@ def test_parsing_a_derived_document_points_the_cst_into_the_original() -> None:
         uri="file:///catalog.yaml#/bad",
         content=b'{"type": "nonsense"}',
         media_type=MediaTypes.json,
-        origin=Origin("file:///catalog.yaml", "/bad"),
+        origin=Origin("file:///catalog.yaml", "/bad", RANGE),
     )
     failed = JsonSchemaParser().apply(derived)
     assert isinstance(failed, Err)
-    assert failed.errors[0].location == SourceLocation("file:///catalog.yaml", "/bad/type")
+    assert failed.errors[0].location == SourceLocation("file:///catalog.yaml", "/bad/type", RANGE)
 
     parsed = ok(JsonSchemaParser().apply(replace(derived, content=b'{"type": "object"}')))
     assert parsed.source_id == "file:///catalog.yaml#/bad"
-    assert parsed.source_ref == SourceRef("file:///catalog.yaml", "/bad")
+    assert parsed.root.source_ref == SourceRef("file:///catalog.yaml", "/bad", RANGE)
 
 
 def test_sibling_refs_resolve_after_expansion() -> None:

@@ -7,7 +7,7 @@ so every read of a field goes through one of these rather than an unchecked subs
 import pytest
 from tests.support.docs import json_schema_doc
 
-from schema_to.core import JsonObject
+from schema_to.core import JsonObject, Range
 from schema_to.cst.openapi import HttpMethod, ParameterLocation
 from schema_to.errors import ParseError, TranspilationError
 from schema_to.io.core import DefaultJsonLikeReader
@@ -19,9 +19,7 @@ from schema_to.parse._utils import (
     enum_member,
     extract,
     int_field,
-    loc,
     num_field,
-    ptr,
     str_field,
     str_or,
 )
@@ -56,36 +54,6 @@ def test_a_value_of_the_wrong_type_is_none() -> None:
 
 
 # ---------------------------------------------------------------------------
-# JSON Pointers
-# ---------------------------------------------------------------------------
-
-
-def test_segments_are_joined_onto_the_parent() -> None:
-    assert ptr("#", "paths", "get") == "#/paths/get"
-
-
-def test_an_integer_segment_becomes_an_index() -> None:
-    assert ptr("#/items", 0) == "#/items/0"
-
-
-@pytest.mark.parametrize(
-    ("segment", "expected"), [("a/b", "#/a~1b"), ("a~b", "#/a~0b"), ("a~/b", "#/a~0~1b")]
-)
-def test_a_segment_escapes_the_characters_a_pointer_reserves(segment: str, expected: str) -> None:
-    """`~` and `/` both mean something in a pointer, so a name holding one has to escape it."""
-    assert ptr("#", segment) == expected
-
-
-def test_a_pointer_with_no_segments_is_the_parent() -> None:
-    assert ptr("#") == "#"
-
-
-def test_a_location_names_the_document_and_the_pointer() -> None:
-    location = loc("file:///a.yaml", "#/paths")
-    assert (location.uri, location.json_pointer) == ("file:///a.yaml", "#/paths")
-
-
-# ---------------------------------------------------------------------------
 # Decoding
 # ---------------------------------------------------------------------------
 
@@ -95,13 +63,25 @@ def test_a_document_is_decoded_by_its_media_type() -> None:
     assert decode_raw_doc(doc, DefaultJsonLikeReader()) == {"type": "object"}
 
 
-def test_malformed_bytes_become_a_parse_error_that_says_where() -> None:
-    doc = JsonSchemaRawDoc(uri="test:///d", content=b'{"a": }', media_type=MediaTypes.json)
+def test_malformed_json_becomes_a_parse_error_at_the_position_the_reader_reports() -> None:
+    doc = JsonSchemaRawDoc.original("test:///d", b'{"a": }', MediaTypes.json)
     with pytest.raises(ParseError) as caught:
         decode_raw_doc(doc, DefaultJsonLikeReader())
-    assert caught.value.location is not None
-    assert caught.value.location.uri == "test:///d"
-    assert caught.value.location.line is not None
+    location = caught.value.location
+    assert location is not None
+    assert (location.uri, location.json_pointer) == ("test:///d", "")
+    assert location.range.start.line == 1
+    assert location.range.start.column > 1
+
+
+def test_a_reader_that_reports_no_position_gets_the_whole_document() -> None:
+    text = b"a: [1\nb: 2\n"
+    doc = JsonSchemaRawDoc.original("test:///d", text, MediaTypes.yaml)
+    with pytest.raises(ParseError) as caught:
+        decode_raw_doc(doc, DefaultJsonLikeReader())
+    location = caught.value.location
+    assert location is not None
+    assert location.range == Range.covering(text.decode())
 
 
 # ---------------------------------------------------------------------------

@@ -58,11 +58,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, override
 
 from schema_to.cst.json_schema import JsonSchemaMapDocument
-from schema_to.errors import ResolutionError, SourceLocation
+from schema_to.errors import ResolutionError
 from schema_to.io.core import DefaultJsonLikeWriter, JsonLikeWriter
 from schema_to.io.source import JsonSchemaRawDoc, Origin, SchemaMapRawDoc
-from schema_to.io.uri import pointer_uri
-from schema_to.parse._utils import ptr
+from schema_to.io.uri import Uri
 from schema_to.parse.json_schema import JsonSchemaMapParser
 from schema_to.pipeline import Expander, Reducer
 from schema_to.resolve.json_schema import JsonSchemaRefResolver
@@ -112,16 +111,15 @@ class SchemaMapExpander(Expander[SchemaMapRawDoc, JsonSchemaRawDoc]):
     def _virtual_docs(
         self, parsed: JsonSchemaMapDocument, doc: SchemaMapRawDoc
     ) -> Iterator[JsonSchemaRawDoc]:
-        home = doc.provenance
         for name, schema in parsed.schemas.items():
             if self.roots is not None and name not in self.roots:
                 continue
-            pointer = ptr(home.json_pointer, name)
+            ref = schema.source_ref
             yield JsonSchemaRawDoc(
-                uri=pointer_uri(home.uri, pointer),
+                uri=str(Uri.parse(ref.uri).with_pointer(ref.json_pointer)),
                 content=self.writer.write_bytes(_SERIALIZER.serialize(schema), doc.media_type),
                 media_type=doc.media_type,
-                origin=Origin(home.uri, pointer),
+                origin=Origin(ref.uri, ref.json_pointer, ref.range),
             )
 
 
@@ -158,7 +156,7 @@ class SchemaMapMerger(Reducer[JsonSchemaMapDocument, JsonSchemaMapDocument]):
             for name, schema in document.schemas.items():
                 clash = origins.get(name)
                 if clash is not None:
-                    errors.append(_duplicate(name, clash, document.source_id))
+                    errors.append(_duplicate(name, clash, schema))
                     continue
                 merged[name] = schema
                 origins[name] = document.source_id
@@ -167,9 +165,9 @@ class SchemaMapMerger(Reducer[JsonSchemaMapDocument, JsonSchemaMapDocument]):
         return Ok(JsonSchemaMapDocument(schemas=merged, source_id=self.source_id))
 
 
-def _duplicate(name: str, first: str, second: str) -> ResolutionError:
+def _duplicate(name: str, first: str, second: JsonSchema) -> ResolutionError:
     msg = (
-        f"Schema {name!r} is declared in both {first!r} and {second!r}; "
+        f"Schema {name!r} is declared in both {first!r} and {second.source_ref.uri!r}; "
         f"a set of schema-map files is one namespace, so a name may be used once."
     )
-    return ResolutionError(msg, location=SourceLocation(second, f"/{name}"))
+    return ResolutionError(msg, location=second.source_ref.location())

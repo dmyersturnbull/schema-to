@@ -16,7 +16,7 @@ from schema_to.result import Ok
 
 
 def _parse_map(data: JsonLike, uri: str) -> JsonSchemaMapDocument:
-    doc = SchemaMapRawDoc(uri=uri, content=orjson.dumps(data), media_type=MediaTypes.json)
+    doc = SchemaMapRawDoc.original(uri, orjson.dumps(data), MediaTypes.json)
     result = JsonSchemaMapParser().apply(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     return result.value

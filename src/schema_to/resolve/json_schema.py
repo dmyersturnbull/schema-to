@@ -32,7 +32,7 @@ from schema_to.cst.json_schema import (
     JsonSchemaMapDocument,
     ObjectSchema,
 )
-from schema_to.errors import ResolutionError, SourceLocation, TranspilationError
+from schema_to.errors import ResolutionError, TranspilationError
 from schema_to.pipeline import RefResolver
 from schema_to.resolve._resolver import Resolver
 from schema_to.result import Err, Ok, Result
@@ -183,14 +183,9 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         """
         if input.source_id not in self._docs:
             self.register(input)
-        try:
-            ref_resolver = self._resolver_for(input.source_id)
-        except ResolutionError as exc:
-            return Err((exc,))
+        ref_resolver = self._resolver_for(input.source_id)
         errors: list[TranspilationError] = []
-        self._check_refs(
-            input.root, ref_resolver=ref_resolver, source_id=input.source_id, errors=errors
-        )
+        self._check_refs(input.root, ref_resolver=ref_resolver, errors=errors)
         if errors:
             return Err(tuple(errors))
         return Ok(input)
@@ -226,15 +221,10 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         """
         if input.source_id not in self._map_docs:
             self.register_map(input)
-        try:
-            ref_resolver = self._resolver_for(input.source_id)
-        except ResolutionError as exc:
-            return Err((exc,))
+        ref_resolver = self._resolver_for(input.source_id)
         errors: list[TranspilationError] = []
         for schema in input.schemas.values():
-            self._check_refs(
-                schema, ref_resolver=ref_resolver, source_id=input.source_id, errors=errors
-            )
+            self._check_refs(schema, ref_resolver=ref_resolver, errors=errors)
         if errors:
             return Err(tuple(errors))
         return Ok(input)
@@ -251,14 +241,8 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         `#/other` in `file:///catalog.yaml#/thing` means `file:///catalog.yaml#/other`.
         `referencing` would instead look for `/other` inside the document registered as `source_id`,
         which is only the carved-out piece.
-
-        Raises:
-            ResolutionError: If the document is not in the registry.
         """
-        try:
-            return Resolver(self._registry.resolver(base_uri=urllib.parse.urldefrag(source_id).url))
-        except Unresolvable as exc:
-            raise ResolutionError(str(exc), location=SourceLocation(source_id, "")) from exc
+        return Resolver(self._registry.resolver(base_uri=urllib.parse.urldefrag(source_id).url))
 
     def _index_cst(self, schema: JsonSchema, source_id: str, pointer: str) -> None:
         self._cst_by_pointer[source_id, pointer] = schema
@@ -276,18 +260,12 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
             self._index_cst(sub_schema, source_id, sub_pointer)
 
     def _check_refs(
-        self,
-        schema: JsonSchema,
-        *,
-        ref_resolver: Resolver,
-        source_id: str,
-        errors: list[TranspilationError],
+        self, schema: JsonSchema, *, ref_resolver: Resolver, errors: list[TranspilationError]
     ) -> None:
         if isinstance(schema, BooleanSchema):
             return
 
-        pointer = schema.source_ref.json_pointer if schema.source_ref else ""
-        loc = schema.source_ref.location() if schema.source_ref else SourceLocation(source_id, "")
+        loc = schema.source_ref.location()
 
         if schema.ref:
             try:
@@ -319,10 +297,8 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
                 # any real ref failures are already caught by the $ref/$dynamicRef checks above.
                 pass
 
-        for _, sub_schema in _iter_sub_schemas(schema, pointer):
-            self._check_refs(
-                sub_schema, ref_resolver=current_resolver, source_id=source_id, errors=errors
-            )
+        for _, sub_schema in _iter_sub_schemas(schema, schema.source_ref.json_pointer):
+            self._check_refs(sub_schema, ref_resolver=current_resolver, errors=errors)
 
     def _split_ref(self, ref: str, base_uri: str) -> tuple[str, str]:
         """Return `(doc_uri, fragment)` by resolving *ref* against *base_uri*.

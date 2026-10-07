@@ -24,7 +24,7 @@ from schema_to.result import Ok
 
 
 def _parse_map(data: JsonLike, uri: str) -> JsonSchemaMapDocument:
-    doc = SchemaMapRawDoc(uri=uri, content=orjson.dumps(data), media_type=MediaTypes.json)
+    doc = SchemaMapRawDoc.original(uri, orjson.dumps(data), MediaTypes.json)
     result = JsonSchemaMapParser().apply(doc)
     assert isinstance(result, Ok), [getattr(e, "message", str(e)) for e in result.errors]
     return result.value
@@ -73,7 +73,7 @@ def test_recursive_ref_terminates() -> None:
     resolver = JsonSchemaRefResolver()
     resolver.register(json_schema_cst(data, DEFAULT_SCHEMA_URI))
     node = object_schema(data).get_defs()["node"]
-    result = SchemaFlattener(resolver=resolver).flatten(node, base_uri=DEFAULT_SCHEMA_URI)
+    result = SchemaFlattener(resolver=resolver).flatten(node)
     assert "recursive-ref" in [w.code for w in result.warnings]
 
 
@@ -97,9 +97,7 @@ def test_ref_target_resolves_its_own_refs_against_its_own_document() -> None:
     resolver = JsonSchemaRefResolver()
     resolver.register_map(base)
     resolver.register_map(main)
-    result = SchemaFlattener(resolver=resolver).flatten(
-        main.schemas["thing"], base_uri="file:///main.yaml"
-    )
+    result = SchemaFlattener(resolver=resolver).flatten(main.schemas["thing"])
     assert [w.code for w in result.warnings] == []
     assert isinstance(result.schema, ObjectSchema)
     assert result.schema.get_types() == frozenset({JsonSchemaType.STRING})

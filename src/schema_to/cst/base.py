@@ -30,9 +30,10 @@ from abc import ABC
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from schema_to.core import Range
 from schema_to.errors import SourceLocation
 
-__all__ = ["SYNTHETIC", "CstNode", "SourceRef", "location_of"]
+__all__ = ["SYNTHETIC", "CstNode", "SourceRef"]
 
 
 # Field metadata marking a field that carries no wire data — an extension bag or
@@ -52,22 +53,21 @@ class SourceRef:
     so a diagnostic names a place the user can actually open.
 
     Attributes:
-        source_id: URI of the original document, matching `RawDoc.provenance`'s `uri`.
+        uri: URI of the original document, matching `RawDoc.origin`'s `uri`.
         json_pointer: An [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)
           pointer locating this node within that document.
+        range: Where the node sits in that document's raw text.
+            Until a reader reports the span of each node,
+            this is the span of the part of the document that was parsed.
     """
 
-    source_id: str
+    uri: str
     json_pointer: str
+    range: Range
 
     def location(self) -> SourceLocation:
         """Return this reference as the location of a diagnostic."""
-        return SourceLocation(self.source_id, self.json_pointer)
-
-
-def location_of(ref: SourceRef | None) -> SourceLocation | None:
-    """Return the location of a diagnostic about a node with `ref`, or `None` for a synthesized one."""
-    return ref.location() if ref is not None else None
+        return SourceLocation(self.uri, self.json_pointer, self.range)
 
 
 # ruff:ignore[abstract-base-class-without-abstract-method]  # Sealed marker; abstract identity is enforced by the type system.

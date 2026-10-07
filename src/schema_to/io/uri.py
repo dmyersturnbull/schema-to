@@ -1,55 +1,66 @@
-"""URI helpers for document identity.
+"""A parsed document URI.
 
 A document's URI is its unique ID and the base its relative `$ref`s resolve against.
-A document derived from another gets the original's URI plus a fragment,
+A document derived from part of another gets the original's URI plus a fragment,
 `file:///catalog.yaml#/author-data`,
 so its ID stays unique while URI math on a reference written in it still lands in the original file.
 """
 
-import re
-from pathlib import PurePosixPath
+from dataclasses import dataclass, replace
 from urllib.parse import quote, unquote, urldefrag, urlsplit
 
-__all__ = ["display_name", "is_uri", "pointer_uri"]
-
-# RFC 3986 `scheme ":" rest`, with no whitespace or control characters in the rest.
-_URI = re.compile(r"[A-Za-z][A-Za-z0-9+.\-]*:\S*")
+__all__ = ["Uri"]
 
 # What a fragment may hold unescaped, beyond unreserved characters (RFC 3986 §3.5).
 _FRAGMENT_SAFE = "/~:@!$&'()*+,;="
 
 
-def is_uri(text: str) -> bool:
-    """Report whether `text` is a URI: a scheme, a colon, then no whitespace.
+@dataclass(frozen=True, slots=True)
+class Uri:
+    """A URI split into the parts that this library cares about.
 
-    The scheme need not be one that can be fetched; `memory:` and `urn:` are fine.
+    Attributes:
+        document: The URI without its fragment, exactly as written.
+        scheme: The scheme, such as `file`.
+        authority: The part after `//`, such as a host. Empty if there is none.
+        path: The percent-decoded path.
+        pointer: The percent-decoded fragment.
+            This is a JSON Pointer when the URI addresses a node of a document.
+            Empty if there is no fragment.
     """
-    return _URI.fullmatch(text) is not None
 
+    document: str
+    scheme: str
+    authority: str
+    path: str
+    pointer: str
 
-def pointer_uri(uri: str, json_pointer: str) -> str:
-    """Return `uri` with its fragment replaced by `json_pointer`, percent-encoded.
+    @classmethod
+    def parse(cls, text: str) -> Uri:
+        """Split `text` into a `Uri`.
 
-    An empty pointer addresses the whole document, which needs no fragment.
-    """
-    base = urldefrag(uri).url
-    if not json_pointer:
-        return base
-    return f"{base}#{quote(json_pointer, safe=_FRAGMENT_SAFE)}"
+        The scheme need not be one that can be fetched; `memory:` and `urn:` are fine.
 
+        Raises:
+            ValueError: If `text` has no scheme.
+        """
+        parts = urlsplit(text)
+        if not parts.scheme:
+            msg = f"Not a URI, because it has no scheme: {text!r}."
+            raise ValueError(msg)
+        return cls(
+            document=urldefrag(text).url,
+            scheme=parts.scheme,
+            authority=parts.netloc,
+            path=unquote(parts.path),
+            pointer=unquote(parts.fragment),
+        )
 
-def display_name(uri: str) -> str:
-    """Return a short human-readable name for the document at `uri`.
+    def with_pointer(self, pointer: str) -> Uri:
+        """Return this URI with its fragment replaced by `pointer`."""
+        return replace(self, pointer=pointer)
 
-    This is the last segment of the fragment, if there is one,
-    which is how a schema lifted out of a larger file keeps its own name.
-    Otherwise, it is the last path segment up to its first dot:
-    `file:///dir/users.schema.json` is `users`.
-    The result is empty if the URI has neither, as in `test://schema`,
-    whose only name-like part is the authority.
-    """
-    parts = urlsplit(uri)
-    if parts.fragment:
-        _, _, last = unquote(parts.fragment).rpartition("/")
-        return last.replace("~1", "/").replace("~0", "~")
-    return PurePosixPath(unquote(parts.path)).name.split(".")[0]
+    def __str__(self) -> str:
+        if not self.pointer:
+            return self.document
+        return f"{self.document}#{quote(self.pointer, safe=_FRAGMENT_SAFE)}"

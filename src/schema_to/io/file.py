@@ -89,8 +89,8 @@ class FileDataSource(DataSource):
     def documents(self) -> Iterator[RawDoc]:
         if not self.path.is_file():
             raise PathMissingError(filename=self.path)
-        yield self.doc_cls(
-            uri=_to_source_id(self.path), content=self.path.read_bytes(), media_type=self.media_type
+        yield self.doc_cls.original(
+            _to_source_id(self.path), self.path.read_bytes(), self.media_type
         )
 
 
@@ -150,7 +150,7 @@ class DirectoryDataSource(DataSource):
             content = path.read_bytes()
             if cls.peek_fn is not None and cls.peek_fn(content) is None:
                 continue
-            yield doc_cls(uri=_to_source_id(path), content=content, media_type=media_type)
+            yield doc_cls.original(_to_source_id(path), content, media_type)
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,10 +202,8 @@ class SchemaMapDirectorySource(DataSource):
             content = path.read_bytes()
             if not is_schema_map(content):
                 continue
-            yield SchemaMapRawDoc(
-                uri=_to_source_id(path),
-                content=content,
-                media_type=type(self).suffixes[path.suffix.lower()],
+            yield SchemaMapRawDoc.original(
+                _to_source_id(path), content, type(self).suffixes[path.suffix.lower()]
             )
 
     def _paths(self) -> Iterator[Path]:

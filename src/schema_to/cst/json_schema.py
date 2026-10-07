@@ -12,7 +12,6 @@ from typing import Literal, TypeGuard, assert_type
 
 from schema_to.core import JsonValue
 from schema_to.cst.base import SYNTHETIC, CstNode, SourceRef
-from schema_to.io.uri import pointer_uri
 
 __all__ = [
     "DOC_KEYWORDS",
@@ -196,7 +195,7 @@ class BooleanSchema(_JsonSchema):
     """A JSON Schema that is always-valid (`true`) or never-valid (`false`)."""
 
     value: bool
-    source_ref: SourceRef | None = None
+    source_ref: SourceRef
 
 
 @dataclass(frozen=True, slots=True)
@@ -291,7 +290,7 @@ class ObjectSchema(_JsonSchema):
 
     # -- Extensions and provenance ----------------------------------------
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
     def get_boolean_applicator(
         self, *, only: Set[BooleanApplicatorKeyword | BooleanApplicatorLiteral] | None = None
@@ -370,32 +369,11 @@ class JsonSchemaDocument(CstNode):
             so that its ID stays unique
             while a reference written in it still resolves as it would in the file it came from.
         display_name: Short name, carried over from `RawDoc.display_name`.
-        source_ref: Where in the original document this one's root is.
     """
 
     root: JsonSchema
     source_id: str
-    display_name: str | None = None
-    source_ref: SourceRef | None = None
-
-    @classmethod
-    def lifted(
-        cls, root: JsonSchema, *, from_uri: str, json_pointer: str, name: str
-    ) -> JsonSchemaDocument:
-        """Return a schema found inside another document, as a document of its own.
-
-        Args:
-            root: The schema.
-            from_uri: URI of the document it was found in.
-            json_pointer: Where in that document it was found.
-            name: Its display name.
-        """
-        return cls(
-            root=root,
-            source_id=pointer_uri(from_uri, json_pointer),
-            display_name=name,
-            source_ref=SourceRef(from_uri, json_pointer),
-        )
+    display_name: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -414,8 +392,6 @@ class JsonSchemaMapDocument(CstNode):
 
     schemas: Mapping[str, JsonSchema]
     source_id: str
-    display_name: str | None = None
-    source_ref: SourceRef | None = None
 
     def get_schema(self, name: str) -> JsonSchema | None:
         """Return the schema named `name`, or `None`."""

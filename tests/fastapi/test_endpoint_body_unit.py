@@ -9,6 +9,8 @@ and both shipped backends:
 
 from typing import TYPE_CHECKING
 
+from tests.support.locations import location, source_ref
+
 from schema_to.cst.openapi import HttpMethod, Operation, ParameterLocation, PathItem
 from schema_to.generate.fastapi.endpoint_body import (
     EndpointContext,
@@ -31,7 +33,7 @@ if TYPE_CHECKING:
 
 
 def _op(extensions: Mapping[str, JsonValue] | None = None) -> Operation:
-    return Operation(responses={}, extensions=extensions or {})
+    return Operation(responses={}, extensions=extensions or {}, source_ref=source_ref())
 
 
 def test_infer_operation_from_path_and_method() -> None:
@@ -54,7 +56,9 @@ def test_endpoint_context_merges_extensions() -> None:
         method=HttpMethod.GET,
         path="/api/things/",
         op=_op({"x-pg-table": "op_table"}),
-        path_item=PathItem(extensions={"x-pg-table": "item_table", "x-pg-schema": "s"}),
+        path_item=PathItem(
+            extensions={"x-pg-table": "item_table", "x-pg-schema": "s"}, source_ref=source_ref()
+        ),
         params=(),
         security=(),
         resource_schema=None,
@@ -64,7 +68,9 @@ def test_endpoint_context_merges_extensions() -> None:
 
 
 def test_null_backend_renders_empty_body() -> None:
-    body = NullBodyBackend().render(EndpointContext(method=HttpMethod.GET, path="/api/things/"))
+    body = NullBodyBackend().render(
+        EndpointContext(method=HttpMethod.GET, path="/api/things/", location=location())
+    )
     assert body.lines == ()
     assert body.imports == ()
 
@@ -73,6 +79,7 @@ def test_template_backend_inline_body() -> None:
     ctx = EndpointContext(
         method=HttpMethod.GET,
         path="/api/things/{id}",
+        location=location(),
         params=(RouteParam("id", "id", ParameterLocation.PATH),),
         extensions={
             "x-pg-table": "things",
@@ -93,6 +100,7 @@ def test_template_backend_named_template() -> None:
     ctx = EndpointContext(
         method=HttpMethod.GET,
         path="/api/things/{id}",
+        location=location(),
         params=(RouteParam("id", "id", ParameterLocation.PATH),),
         extensions={"x-fastapi-template": "fetch"},
     )
@@ -104,13 +112,14 @@ def test_named_template_takes_precedence_over_inline() -> None:
     ctx = EndpointContext(
         method=HttpMethod.GET,
         path="/x",
+        location=location(),
         extensions={"x-fastapi-template": "t", "x-fastapi-body": "inline"},
     )
     assert backend.render(ctx).lines == ("named",)
 
 
 def test_template_backend_without_extension_is_empty() -> None:
-    ctx = EndpointContext(method=HttpMethod.GET, path="/api/things/")
+    ctx = EndpointContext(method=HttpMethod.GET, path="/api/things/", location=location())
     assert TemplateBodyBackend().render(ctx).lines == ()
 
 
@@ -118,6 +127,7 @@ def test_template_backend_reports_bad_template() -> None:
     ctx = EndpointContext(
         method=HttpMethod.GET,
         path="/api/things/",
+        location=location(),
         extensions={"x-fastapi-body": "{{ missing_var }}"},
     )
     body = TemplateBodyBackend().render(ctx)

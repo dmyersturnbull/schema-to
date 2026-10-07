@@ -2,58 +2,29 @@
 
 from dataclasses import dataclass
 
-
-@dataclass(frozen=True, slots=True)
-class TextRange:
-    """A span of raw text.
-
-    Attributes:
-        line: 1-based line number of the start.
-        column: 1-based column number of the start.
-        end_line: 1-based line number of the end, or `None` if only a point is known.
-        end_column: 1-based column number of the end, or `None` if only a point is known.
-    """
-
-    line: int
-    column: int
-    end_line: int | None = None
-    end_column: int | None = None
-
-    def __str__(self) -> str:
-        return f"{self.line}:{self.column}"
+from schema_to.core import Range
 
 
 @dataclass(frozen=True, slots=True)
 class SourceLocation:
-    """A position within a source document.
+    """A place in a source document.
 
     Attributes:
-        uri: URI of the document as the user wrote it, matching `RawDoc.uri`
-            or, for a document derived from another, `Origin.uri`.
+        uri: URI of the document the user wrote.
+            For something derived from part of a document, this is the document it was derived from.
         json_pointer: [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)
-            pointer to the offending node within the document at `uri`.
-        range: Where the node sits in the raw text, if known.
+            pointer to the node within that document.
+            Empty for the document as a whole.
+        range: Where the location sits in the document's raw text.
     """
 
     uri: str
-    json_pointer: str | None = None
-    range: TextRange | None = None
-
-    @property
-    def line(self) -> int | None:
-        """The 1-based line the location starts on, if known."""
-        return self.range.line if self.range is not None else None
-
-    @property
-    def column(self) -> int | None:
-        """The 1-based column the location starts on, if known."""
-        return self.range.column if self.range is not None else None
+    json_pointer: str
+    range: Range
 
     def __str__(self) -> str:
         return (
-            self.uri
-            + (f":{self.json_pointer}" if self.json_pointer else "")
-            + (f":{self.range}" if self.range is not None else "")
+            f"{self.uri}{f':{self.json_pointer}' if self.json_pointer else ''}:{self.range.start}"
         )
 
 

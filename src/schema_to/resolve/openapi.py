@@ -32,9 +32,9 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, cast, override
 
-from schema_to.cst.base import CstNode, location_of
+from schema_to.cst.base import CstNode
 from schema_to.cst.openapi import OpenApiDocument, Reference
-from schema_to.errors import ResolutionError, SourceLocation, TranspilationWarning
+from schema_to.errors import ResolutionError, TranspilationWarning
 from schema_to.parse._plan import ListSpec, MapSpec, NodeSpec, OneOfSpec, SetSpec, plan_for
 from schema_to.pipeline import RefResolver
 from schema_to.result import Err, Ok, Result
@@ -95,7 +95,7 @@ class OpenApiRefResolver(RefResolver[OpenApiDocument]):
 
 def _identities(doc: OpenApiDocument) -> Sequence[str]:
     """Return the URIs a document answers to: its id, and its 3.2 `$self`."""
-    return [uri for uri in (doc.source_id, doc.self_) if uri]
+    return [doc.source_id] if doc.self_ is None else [doc.source_id, doc.self_]
 
 
 def _base_uri(doc: OpenApiDocument) -> str:
@@ -104,7 +104,7 @@ def _base_uri(doc: OpenApiDocument) -> str:
     `$self` wins where a 3.2 document sets one;
     declaring where the document lives is exactly what that keyword is for.
     """
-    return doc.self_ or doc.source_id or ""
+    return doc.source_id if doc.self_ is None else doc.self_
 
 
 @dataclass
@@ -219,7 +219,7 @@ class _Session:
     # -- Diagnostics --------------------------------------------------------
 
     def _fail(self, ref: Reference, message: str) -> None:
-        self.errors.append(ResolutionError(message, location=_location(ref)))
+        self.errors.append(ResolutionError(message, location=ref.source_ref.location()))
 
     def _warn(self, ref: Reference, name: str, target: str) -> None:
         self.warnings.append(
@@ -227,7 +227,7 @@ class _Session:
                 f"{ref.ref!r} overrides `{name}`, but a {target} has no such field, "
                 f"so the override is dropped.",
                 code="unhonoured-override",
-                location=_location(ref),
+                location=ref.source_ref.location(),
             )
         )
 
@@ -244,10 +244,6 @@ def _replace[N: CstNode](node: N, changes: Mapping[str, object]) -> N:
     so that relationship has to be asserted rather than inferred.
     """
     return cast("N", replace(cast("DataclassInstance", node), **changes))
-
-
-def _location(ref: Reference) -> SourceLocation | None:
-    return location_of(ref.source_ref)
 
 
 def _fitting(options: Sequence[FieldSpec], value: object) -> FieldSpec | None:

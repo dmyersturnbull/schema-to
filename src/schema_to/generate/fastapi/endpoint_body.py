@@ -34,7 +34,7 @@ if TYPE_CHECKING:
         PathItem,
         SecurityRequirement,
     )
-    from schema_to.errors import TranspilationWarning
+    from schema_to.errors import SourceLocation, TranspilationWarning
     from schema_to.io.sink import PythonArtifact
 
 __all__ = [
@@ -72,6 +72,8 @@ class EndpointContext:
     Attributes:
         method: The HTTP method.
         path: The OpenAPI path template, e.g. `/things/{id}`.
+        location: Where the operation is in the OpenAPI document,
+            for a warning about the route.
         operation_id: The operation's `operationId`, if any.
         params: Resolved route parameters, in signature order.
         security: Effective security requirements for the operation.
@@ -81,6 +83,7 @@ class EndpointContext:
 
     method: HttpMethod
     path: str
+    location: SourceLocation
     operation_id: str | None = None
     params: Sequence[RouteParam] = field(default_factory=tuple)
     security: Sequence[SecurityRequirement] = field(default_factory=tuple)
@@ -158,6 +161,7 @@ def endpoint_context(
     return EndpointContext(
         method=method,
         path=path,
+        location=op.source_ref.location(),
         operation_id=op.operation_id,
         params=tuple(params),
         security=tuple(security),
