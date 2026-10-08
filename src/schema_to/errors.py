@@ -2,30 +2,7 @@
 
 from dataclasses import dataclass
 
-from schema_to.core import Range
-
-
-@dataclass(frozen=True, slots=True)
-class SourceLocation:
-    """A place in a source document.
-
-    Attributes:
-        uri: URI of the document the user wrote.
-            For something derived from part of a document, this is the document it was derived from.
-        json_pointer: [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)
-            pointer to the node within that document.
-            Empty for the document as a whole.
-        range: Where the location sits in the document's raw text.
-    """
-
-    uri: str
-    json_pointer: str
-    range: Range
-
-    def __str__(self) -> str:
-        return (
-            f"{self.uri}{f':{self.json_pointer}' if self.json_pointer else ''}:{self.range.start}"
-        )
+from schema_to.core import SourceRef
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,12 +12,12 @@ class TranspilationWarning:
     Attributes:
         message: Human-readable description.
         code: Machine-readable warning code, e.g. `"unsupported-keyword"`.
-        location: Origin in the source document, if known.
+        location: Where in the source document, if known.
     """
 
     message: str
     code: str | None = None
-    location: SourceLocation | None = None
+    location: SourceRef | None = None
 
     def __str__(self) -> str:
         return (
@@ -57,7 +34,7 @@ class TranspilationError(Exception):
     making it easy to determine where a failure occurred without inspecting the stack trace.
     """
 
-    def __init__(self, message: str, *, location: SourceLocation | None = None) -> None:
+    def __init__(self, message: str, *, location: SourceRef | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.location = location

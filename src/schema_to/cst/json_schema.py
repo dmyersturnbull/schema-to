@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from typing import Literal, TypeGuard, assert_type
 
-from schema_to.core import JsonValue
-from schema_to.cst.base import SYNTHETIC, CstNode, SourceRef
+from schema_to.core import JsonValue, SourceRef
+from schema_to.cst.base import SYNTHETIC, CstNode
 
 __all__ = [
     "DOC_KEYWORDS",

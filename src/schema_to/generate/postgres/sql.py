@@ -373,9 +373,7 @@ class ColumnBuilder:
         return DataType(base=PgDataType.CUSTOM, custom=sql_type)
 
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:
-        self._warnings.append(
-            TranspilationWarning(msg, code=code, location=schema.source_ref.location())
-        )
+        self._warnings.append(TranspilationWarning(msg, code=code, location=schema.source_ref))
 
 
 @dataclass(frozen=True, slots=True)
@@ -442,7 +440,7 @@ class _GenCtx:
             types = sorted(str(t) for t in root.get_types())
             found = f"type {', '.join(types)}" if types else "no type and no properties"
         msg = f"A table requires an object schema at the document root; found {found}."
-        raise GenerationError(msg, location=input.root.source_ref.location())
+        raise GenerationError(msg, location=input.root.source_ref)
 
     def _flatten(self, schema: JsonSchema) -> JsonSchema:
         """Merge `allOf` branches and the `$ref` target into a single schema."""

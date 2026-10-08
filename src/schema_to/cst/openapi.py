@@ -21,8 +21,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 
-from schema_to.core import JsonValue
-from schema_to.cst.base import SYNTHETIC, CstNode, SourceRef
+from schema_to.core import JsonValue, SourceRef
+from schema_to.cst.base import SYNTHETIC, CstNode
 from schema_to.cst.json_schema import JsonSchema
 
 __all__ = [

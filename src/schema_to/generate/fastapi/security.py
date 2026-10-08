@@ -20,8 +20,9 @@ from schema_to.ast.python import (
     PythonTypeAnnotation,
     VarDef,
 )
+from schema_to.core import SourceRef
 from schema_to.cst.openapi import ApiKeyLocation, SecuritySchemeType
-from schema_to.errors import SourceLocation, TranspilationWarning
+from schema_to.errors import TranspilationWarning
 from schema_to.generate._python_utils import safe_python_field_name
 
 if TYPE_CHECKING:
@@ -101,7 +102,7 @@ def build_security_module(schemes: Mapping[str, SecurityScheme]) -> SecurityModu
                     f"Security scheme {name!r} of type {scheme.type_.value!r} has no FastAPI "
                     "equivalent; skipping.",
                     code="security-unsupported",
-                    location=scheme.source_ref.location(),
+                    location=scheme.source_ref,
                 )
             )
             continue
@@ -148,7 +149,7 @@ def _require_scopes_stub() -> FunctionDef:
 def route_security_params(
     requirements: Sequence[SecurityRequirement] | None,
     schemes: Mapping[str, SecurityScheme],
-    location: SourceLocation,
+    location: SourceRef,
 ) -> tuple[list[Parameter], list[PyImport], list[TranspilationWarning]]:
     """Build `Security`/`Depends` parameters enforcing a route's requirements.
 

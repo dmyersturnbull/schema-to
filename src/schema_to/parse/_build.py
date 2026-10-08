@@ -17,8 +17,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, final
 
-from schema_to.core import JsonValue, Range, as_array, as_object, ptr
-from schema_to.cst.base import CstNode, SourceRef
+from schema_to.core import JsonValue, Range, SourceRef, as_array, as_object, ptr
+from schema_to.cst.base import CstNode
 from schema_to.cst.json_schema import (
     BooleanSchema,
     ConstValue,
@@ -157,14 +157,12 @@ class Cursor:
 
     def fail(self, message: str) -> Failed:
         """Record a validation error here and return `FAILED`, for use in a `return`."""
-        self.errors.append(SchemaValidationError(message, location=self.ref().location()))
+        self.errors.append(SchemaValidationError(message, location=self.ref()))
         return FAILED
 
     def warn(self, message: str, *, code: str | None = None) -> None:
         """Record a non-fatal diagnostic here."""
-        self.warnings.append(
-            TranspilationWarning(message, code=code, location=self.ref().location())
-        )
+        self.warnings.append(TranspilationWarning(message, code=code, location=self.ref()))
 
     def ref(self) -> SourceRef:
         """Return the provenance link for the value under construction."""

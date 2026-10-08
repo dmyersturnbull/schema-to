@@ -298,9 +298,7 @@ class SchemaFlattener:
         return merged
 
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:
-        self._warnings.append(
-            TranspilationWarning(msg, code=code, location=schema.source_ref.location())
-        )
+        self._warnings.append(TranspilationWarning(msg, code=code, location=schema.source_ref))
 
 
 # ---------------------------------------------------------------------------

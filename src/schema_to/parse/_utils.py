@@ -4,8 +4,8 @@ from collections.abc import MutableSequence
 from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
-from schema_to.core import Range
-from schema_to.errors import ParseError, SourceLocation, TranspilationError
+from schema_to.core import Range, SourceRef
+from schema_to.errors import ParseError, TranspilationError
 from schema_to.io.core import JsonLikeReader, ReadError
 from schema_to.result import Err, Result
 
@@ -50,7 +50,7 @@ def decode_raw_doc(doc: RawDoc, reader: JsonLikeReader) -> JsonValue:
         raise ParseError(str(e), location=_where_it_failed(doc, e)) from e
 
 
-def _where_it_failed(doc: RawDoc, error: ReadError) -> SourceLocation:
+def _where_it_failed(doc: RawDoc, error: ReadError) -> SourceRef:
     """Return where `error` is in the file the user wrote.
 
     A reader reports a position in `doc.content`,
@@ -58,10 +58,10 @@ def _where_it_failed(doc: RawDoc, error: ReadError) -> SourceLocation:
     A document derived from part of a file is generated rather than written,
     so a reader does not fail on one.
     """
-    location = doc.location("")
+    where = doc.ref("")
     if error.line is None or error.column is None:
-        return location
-    return replace(location, range=Range.at(error.line, error.column))
+        return where
+    return replace(where, range=Range.at(error.line, error.column))
 
 
 def extract[T](result: Result[T], errors: MutableSequence[TranspilationError]) -> T | None:

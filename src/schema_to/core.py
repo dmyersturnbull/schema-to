@@ -13,6 +13,7 @@ __all__ = [
     "JsonValue",
     "Position",
     "Range",
+    "SourceRef",
     "as_array",
     "as_object",
     "is_json_array_limb",
@@ -146,3 +147,32 @@ class Range:
 
     def __str__(self) -> str:
         return f"{self.start}-{self.end}"
+
+
+@dataclass(frozen=True, slots=True)
+class SourceRef:
+    """A place in a file that the user wrote.
+
+    It records where a CST node came from, where a `RawDoc`'s content came from,
+    and where a diagnostic is about.
+    A node or document derived from part of a file points into that file,
+    not at the derived thing's own URI, which exists nowhere,
+    so a diagnostic names a place the user can actually open.
+
+    Attributes:
+        uri: URI of the file, matching `RawDoc.origin`'s `uri`, without a fragment.
+        json_pointer: An [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)
+            pointer to the place within that file.
+            Empty for the file as a whole.
+        range: Where the place sits in the file's raw text.
+            Until a reader reports the span of each node,
+            this is the span of the whole file.
+    """
+
+    uri: str
+    json_pointer: str
+    range: Range
+
+    def __str__(self) -> str:
+        pointer = f":{self.json_pointer}" if self.json_pointer else ""
+        return f"{self.uri}{pointer}:{self.range.start}"

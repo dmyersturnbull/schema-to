@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
     from schema_to.ast.python import Parameter as PyParameter
     from schema_to.ast.python import PyImport
-    from schema_to.core import JsonValue
+    from schema_to.core import JsonValue, SourceRef
     from schema_to.cst.json_schema import ObjectSchema
     from schema_to.cst.openapi import (
         HttpMethod,
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
         PathItem,
         SecurityRequirement,
     )
-    from schema_to.errors import SourceLocation, TranspilationWarning
+    from schema_to.errors import TranspilationWarning
     from schema_to.io.sink import PythonArtifact
 
 __all__ = [
@@ -83,7 +83,7 @@ class EndpointContext:
 
     method: HttpMethod
     path: str
-    location: SourceLocation
+    location: SourceRef
     operation_id: str | None = None
     params: Sequence[RouteParam] = field(default_factory=tuple)
     security: Sequence[SecurityRequirement] = field(default_factory=tuple)
@@ -161,7 +161,7 @@ def endpoint_context(
     return EndpointContext(
         method=method,
         path=path,
-        location=op.source_ref.location(),
+        location=op.source_ref,
         operation_id=op.operation_id,
         params=tuple(params),
         security=tuple(security),

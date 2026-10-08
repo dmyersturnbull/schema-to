@@ -33,6 +33,7 @@ from schema_to.cst.json_schema import (
     ObjectSchema,
 )
 from schema_to.errors import ResolutionError, TranspilationError
+from schema_to.io.uri import Uri
 from schema_to.pipeline import RefResolver
 from schema_to.resolve._resolver import Resolver
 from schema_to.result import Err, Ok, Result
@@ -242,7 +243,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         `referencing` would instead look for `/other` inside the document registered as `source_id`,
         which is only the carved-out piece.
         """
-        return Resolver(self._registry.resolver(base_uri=urllib.parse.urldefrag(source_id).url))
+        return Resolver(self._registry.resolver(base_uri=Uri.parse(source_id).document))
 
     def _index_cst(self, schema: JsonSchema, source_id: str, pointer: str) -> None:
         self._cst_by_pointer[source_id, pointer] = schema
@@ -265,7 +266,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
         if isinstance(schema, BooleanSchema):
             return
 
-        loc = schema.source_ref.location()
+        loc = schema.source_ref
 
         if schema.ref:
             try:
@@ -315,7 +316,7 @@ class JsonSchemaRefResolver(RefResolver[JsonSchemaDocument]):
             doc_uri, fragment = resolved, ""
         # Pure fragment reference: doc_uri came out empty.
         if not doc_uri:
-            doc_uri = base_uri.split("#", 1)[0] if "#" in base_uri else base_uri
+            doc_uri = Uri.parse(base_uri).document
         return doc_uri, fragment
 
     def _find_source_id(self, doc_uri: str) -> str | None:

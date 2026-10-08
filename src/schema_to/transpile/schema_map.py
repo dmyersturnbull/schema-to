@@ -27,7 +27,7 @@ A virtual document keeps the file it came from in its URI
 (`…/catalog.yaml#/author-data`),
 so its ID is unique and still a real address:
 that fragment is also the pointer a sibling file's `$ref` would use.
-It also records the file and pointer as its `Origin`,
+It also records the file and pointer as its origin,
 so a diagnostic names the real file *and* the schema in it,
 rather than the virtual URI, which exists nowhere.
 
@@ -60,7 +60,7 @@ from typing import TYPE_CHECKING, override
 from schema_to.cst.json_schema import JsonSchemaMapDocument
 from schema_to.errors import ResolutionError
 from schema_to.io.core import DefaultJsonLikeWriter, JsonLikeWriter
-from schema_to.io.source import JsonSchemaRawDoc, Origin, SchemaMapRawDoc
+from schema_to.io.source import JsonSchemaRawDoc, SchemaMapRawDoc
 from schema_to.io.uri import Uri
 from schema_to.parse.json_schema import JsonSchemaMapParser
 from schema_to.pipeline import Expander, Reducer
@@ -119,7 +119,7 @@ class SchemaMapExpander(Expander[SchemaMapRawDoc, JsonSchemaRawDoc]):
                 uri=str(Uri.parse(ref.uri).with_pointer(ref.json_pointer)),
                 content=self.writer.write_bytes(_SERIALIZER.serialize(schema), doc.media_type),
                 media_type=doc.media_type,
-                origin=Origin(ref.uri, ref.json_pointer, ref.range),
+                origin=ref,
             )
 
 
@@ -170,4 +170,4 @@ def _duplicate(name: str, first: str, second: JsonSchema) -> ResolutionError:
         f"Schema {name!r} is declared in both {first!r} and {second.source_ref.uri!r}; "
         f"a set of schema-map files is one namespace, so a name may be used once."
     )
-    return ResolutionError(msg, location=second.source_ref.location())
+    return ResolutionError(msg, location=second.source_ref)

@@ -14,8 +14,7 @@ from dataclasses import KW_ONLY, dataclass
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Self
 
-from schema_to.core import Range
-from schema_to.errors import SourceLocation
+from schema_to.core import Range, SourceRef
 from schema_to.io.uri import Uri
 
 if TYPE_CHECKING:
@@ -23,38 +22,7 @@ if TYPE_CHECKING:
 
     from schema_to.io.media_type import MediaType
 
-__all__ = ["DataSource", "JsonSchemaRawDoc", "OpenApiRawDoc", "Origin", "RawDoc", "SchemaMapRawDoc"]
-
-
-@dataclass(frozen=True, slots=True)
-class Origin:
-    """The part of the file the user wrote that a `RawDoc`'s content came from.
-
-    A stage that splits a document yields documents of its own,
-    each with a new URI of its own so that it stays unique.
-    That URI names something that exists nowhere.
-    The origin is the real place instead,
-    so that a diagnostic about the document can point somewhere the user can open.
-    A document that is a whole file has the file as its origin.
-
-    Attributes:
-        uri: URI of the file the user wrote, without a fragment.
-        json_pointer: [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)
-            pointer to the content within that file.
-            Empty if the content is all of it.
-        range: Where the content sits in that file's raw text.
-            Until a reader reports the span of each node,
-            this is the span of the whole file.
-    """
-
-    uri: str
-    json_pointer: str
-    range: Range
-
-    @classmethod
-    def whole(cls, uri: str, content: bytes) -> Self:
-        """Return the origin of a document that is all of the file at `uri`, which holds `content`."""
-        return cls(uri, "", Range.covering(content.decode(errors="replace")))
+__all__ = ["DataSource", "JsonSchemaRawDoc", "OpenApiRawDoc", "RawDoc", "SchemaMapRawDoc"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +45,10 @@ class RawDoc:
         content: Raw bytes exactly as supplied by the source.
         media_type: Content type, used to select the appropriate `DocumentParser`.
         origin: Where in the file the user wrote this document's content came from.
+            A document that is a whole file has the file as its origin.
+            A document carved out of one, such as a single schema from a schema-map file,
+            has a new unique URI that exists nowhere,
+            so its origin records the real file and pointer for diagnostics to use.
 
     Raises:
         ValueError: If `uri` is not a URI.
@@ -86,7 +58,7 @@ class RawDoc:
     content: bytes
     media_type: MediaType
     _: KW_ONLY
-    origin: Origin
+    origin: SourceRef
 
     def __post_init__(self) -> None:
         Uri.parse(self.uri)
@@ -94,7 +66,8 @@ class RawDoc:
     @classmethod
     def original(cls, uri: str, content: bytes, media_type: MediaType) -> Self:
         """Return a document that is all of the file at `uri`, which holds `content`."""
-        return cls(uri, content, media_type, origin=Origin.whole(uri, content))
+        origin = SourceRef(uri, "", Range.covering(content.decode(errors="replace")))
+        return cls(uri, content, media_type, origin=origin)
 
     @property
     def display_name(self) -> str:
@@ -113,14 +86,14 @@ class RawDoc:
             return name.replace("~1", "/").replace("~0", "~")
         return PurePosixPath(uri.path).name.split(".")[0]
 
-    def location(self, json_pointer: str) -> SourceLocation:
-        """Return the location of a node within this document, as the user would find it.
+    def ref(self, json_pointer: str) -> SourceRef:
+        """Return the place of a node within this document, in the file the user wrote.
 
         Args:
             json_pointer: Pointer to the node, relative to this document.
                 Empty for the document as a whole.
         """
-        return SourceLocation(
+        return SourceRef(
             self.origin.uri, self.origin.json_pointer + json_pointer, self.origin.range
         )
 

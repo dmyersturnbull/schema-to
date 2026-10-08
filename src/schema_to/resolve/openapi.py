@@ -219,7 +219,7 @@ class _Session:
     # -- Diagnostics --------------------------------------------------------
 
     def _fail(self, ref: Reference, message: str) -> None:
-        self.errors.append(ResolutionError(message, location=ref.source_ref.location()))
+        self.errors.append(ResolutionError(message, location=ref.source_ref))
 
     def _warn(self, ref: Reference, name: str, target: str) -> None:
         self.warnings.append(
@@ -227,7 +227,7 @@ class _Session:
                 f"{ref.ref!r} overrides `{name}`, but a {target} has no such field, "
                 f"so the override is dropped.",
                 code="unhonoured-override",
-                location=ref.source_ref.location(),
+                location=ref.source_ref,
             )
         )
 

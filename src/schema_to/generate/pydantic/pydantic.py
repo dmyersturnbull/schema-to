@@ -225,7 +225,7 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
         if not declarations:
             error = GenerationError(
                 "Root schema is a boolean schema; cannot generate a Pydantic model.",
-                location=input.root.source_ref.location(),
+                location=input.root.source_ref,
             )
             return Err((error,), warnings=tuple(warnings))
 
@@ -663,9 +663,7 @@ class _GenCtx:
         return None
 
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:
-        self.warnings.append(
-            TranspilationWarning(msg, code=code, location=schema.source_ref.location())
-        )
+        self.warnings.append(TranspilationWarning(msg, code=code, location=schema.source_ref))
 
 
 # ---------------------------------------------------------------------------

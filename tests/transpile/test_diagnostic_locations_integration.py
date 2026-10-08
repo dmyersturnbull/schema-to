@@ -9,8 +9,8 @@ from tests.support.docs import json_schema_doc, openapi_doc, schema_map_doc
 from tests.support.drive import FASTAPI, JSON_SCHEMA, POSTGRES_TABLE_SET, PYDANTIC
 from tests.support.types import JsonLike
 
+from schema_to.core import SourceRef
 from schema_to.cst.json_schema import JsonSchemaDocument
-from schema_to.errors import SourceLocation
 from schema_to.parse.json_schema import JsonSchemaMapParser, JsonSchemaParser
 from schema_to.resolve.json_schema import JsonSchemaRefResolver
 from schema_to.result import Err, Ok, Result
@@ -26,7 +26,7 @@ _THING: JsonLike = {
 type _Place = tuple[str, str]
 
 
-def _place(location: SourceLocation | None) -> _Place:
+def _place(location: SourceRef | None) -> _Place:
     assert location is not None
     return (location.uri, location.json_pointer)
 

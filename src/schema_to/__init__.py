@@ -44,13 +44,13 @@ match pipeline.process():
 | `schema_to.errors` | `TranspilationError` subclasses |
 """
 
+from schema_to.core import SourceRef
 from schema_to.errors import (
     GenerationError,
     ParseError,
     ReificationError,
     ResolutionError,
     SchemaValidationError,
-    SourceLocation,
     TranspilationError,
     TranspilationWarning,
 )
@@ -193,7 +193,7 @@ __all__ = [
     "SchemaMapExpander",
     "SchemaMapMerger",
     "SchemaValidationError",
-    "SourceLocation",
+    "SourceRef",
     "SqlReifier",
     "Stage",
     "TemplateBodyBackend",

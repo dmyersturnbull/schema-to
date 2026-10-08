@@ -67,7 +67,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         root = as_object(data)
         if root is None:
             return Err.of(
-                ParseError("OpenAPI document must be a JSON object.", location=input.location(""))
+                ParseError("OpenAPI document must be a JSON object.", location=input.ref(""))
             )
         at = Cursor.of(input, _declared_version(root))
         _check_version(root, at)
@@ -77,7 +77,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         if at.errors:
             return Err(tuple(at.errors), warnings=tuple(at.warnings))
         if isinstance(doc, Failed):  # pragma: no cover — a failure always records an error
-            return Err.of(ParseError("Malformed OpenAPI document.", location=input.location("")))
+            return Err.of(ParseError("Malformed OpenAPI document.", location=input.ref("")))
         return Ok(doc, warnings=tuple(at.warnings))
 
 

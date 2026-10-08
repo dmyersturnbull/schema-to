@@ -79,7 +79,7 @@ class JsonSchemaMapParser(DocParser[SchemaMapRawDoc, JsonSchemaMapDocument]):
                 ParseError(
                     f"A schema-map document must be an object mapping names to schemas; "
                     f"got {type(raw).__name__!r}.",
-                    location=input.location(""),
+                    location=input.ref(""),
                 )
             )
         at = Cursor.of(input, None)

@@ -165,7 +165,7 @@ class _GenCtx:
                 f"Schema {name!r} is marked with `x-pg-table` but is not an object schema, "
                 f"so it has no columns."
             )
-            raise GenerationError(msg, location=schema.source_ref.location())
+            raise GenerationError(msg, location=schema.source_ref)
         keywords = read_table_keywords(flat.get_extensions(), where=f"schema {name!r}")
         table_name = keywords.table or name
         return TableSpec(table_name=table_name, schema_name=name, schema=flat, keywords=keywords)
@@ -255,7 +255,7 @@ class _GenCtx:
                             f"Table {spec.table_name!r} references table {target!r}, "
                             f"which no schema in this set declares.",
                             code="unknown-fk-target",
-                            location=spec.schema.source_ref.location(),
+                            location=spec.schema.source_ref,
                         )
                     )
 
@@ -268,7 +268,7 @@ class _GenCtx:
                         f"Table {spec.table_name!r} has no `id` property and no "
                         f"`x-pg-primary-key`, so it is generated without a primary key.",
                         code="no-primary-key",
-                        location=spec.schema.source_ref.location(),
+                        location=spec.schema.source_ref,
                     )
                 )
 
@@ -282,7 +282,7 @@ class _GenCtx:
                     f"declared after everything it references; its keys within the cycle "
                     f"are DEFERRABLE INITIALLY DEFERRED and are checked at commit.",
                     code="reference-cycle",
-                    location=by_name[name].schema.source_ref.location(),
+                    location=by_name[name].schema.source_ref,
                 )
             )
 
@@ -461,7 +461,7 @@ def _reject_duplicate_names(specs: Sequence[TableSpec]) -> None:
                 f"Two schemas both declare table {spec.table_name!r}: "
                 f"{clash.schema_name!r} and {spec.schema_name!r}."
             )
-            raise GenerationError(msg, location=spec.schema.source_ref.location())
+            raise GenerationError(msg, location=spec.schema.source_ref)
         seen[spec.table_name] = spec
 
 

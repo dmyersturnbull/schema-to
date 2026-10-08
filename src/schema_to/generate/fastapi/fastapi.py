@@ -39,6 +39,7 @@ from schema_to.ast.python import (
     VarDef,
 )
 from schema_to.ast.python import Parameter as PyParameter
+from schema_to.core import SourceRef
 from schema_to.cst.json_schema import BooleanSchema, JsonSchema, JsonSchemaType, ObjectSchema
 from schema_to.cst.openapi import (
     HttpMethod,
@@ -51,7 +52,7 @@ from schema_to.cst.openapi import (
     concrete_map,
 )
 from schema_to.cst.openapi import Parameter as OasParameter
-from schema_to.errors import SourceLocation, TranspilationWarning
+from schema_to.errors import TranspilationWarning
 from schema_to.generate._python_utils import (
     ANY,
     NONE,
@@ -360,7 +361,7 @@ class _GenCtx:
         params, imports, warnings = route_security_params(
             self._effective_security(op),
             concrete_map(self.doc.components.security_schemes),
-            op.source_ref.location(),
+            op.source_ref,
         )
         self.extra_imports.extend(imports)
         self.warnings.extend(warnings)
@@ -505,7 +506,7 @@ class _GenCtx:
             args.append(f"response_model={_annotation_str(response_ann)}")
         return Decorator(name=f"app.{method}({', '.join(args)})")
 
-    def _warn(self, message: str, *, code: str, location: SourceLocation | None = None) -> None:
+    def _warn(self, message: str, *, code: str, location: SourceRef | None = None) -> None:
         self.warnings.append(TranspilationWarning(message, code=code, location=location))
 
 
