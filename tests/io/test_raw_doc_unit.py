@@ -3,7 +3,7 @@
 import pytest
 from tests.support.docs import json_schema_doc
 
-from schema_to.core import Range, SourceRef
+from schema_to.core import Position, SourceRef
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.memory import memory_uri
 from schema_to.io.source import JsonSchemaRawDoc, RawDoc
@@ -63,19 +63,17 @@ def test_a_whole_file_is_its_own_origin() -> None:
     doc = JsonSchemaRawDoc.original(
         "file:///a.json", b'{\n  "type": "object"\n}\n', MediaTypes.json
     )
-    assert doc.origin == SourceRef(
-        "file:///a.json", "", Range.covering('{\n  "type": "object"\n}\n')
-    )
+    assert doc.origin == SourceRef("file:///a.json", "", Position(1, 1), Position(4, 1))
     assert doc.ref("") == doc.origin
 
 
 def test_a_derived_document_locates_things_in_the_original() -> None:
-    origin = SourceRef("file:///c.yaml", "/thing", Range.covering("a: 1\nb: 2\n"))
+    origin = SourceRef("file:///c.yaml", "/thing", Position(2, 1), Position(5, 1))
     doc = JsonSchemaRawDoc(
         uri="file:///c.yaml#/thing", content=b"{}", media_type=MediaTypes.json, origin=origin
     )
     assert doc.ref("/properties/a") == SourceRef(
-        "file:///c.yaml", "/thing/properties/a", origin.range
+        "file:///c.yaml", "/thing/properties/a", origin.start, origin.end
     )
 
 

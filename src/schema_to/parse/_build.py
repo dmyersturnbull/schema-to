@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, final
 
-from schema_to.core import JsonValue, Range, SourceRef, as_array, as_object, ptr
+from schema_to.core import JsonValue, Position, SourceRef, Span, as_array, as_object, ptr
 from schema_to.cst.base import CstNode
 from schema_to.cst.json_schema import (
     BooleanSchema,
@@ -108,9 +108,10 @@ class Cursor:
     Attributes:
         uri: URI of the file the user wrote that the value is in, matching `RawDoc.origin`.
         pointer: RFC 6901 pointer to the value under construction, within that file.
-        range: Where the value sits in that file's raw text.
-            Until a reader reports the span of each node,
-            this is the span of the document that is being parsed.
+        start: Where the value begins in that file's raw text, if known.
+        end: The position just after where the value ends, if known.
+        spans: Where each value of the document is, by pointer.
+            A value that is not here is located where the value it is inside of is.
         errors: Accumulator shared by every cursor derived from this one.
         warnings: Accumulator shared by every cursor derived from this one.
         version: The specification version the document declares,
@@ -120,30 +121,38 @@ class Cursor:
 
     uri: str
     pointer: str
-    range: Range
+    start: Position | None
+    end: Position | None
+    spans: Mapping[str, Span]
     errors: list[TranspilationError]
     warnings: list[TranspilationWarning]
     version: SpecVersion | None
 
     @classmethod
-    def of(cls, doc: RawDoc, version: SpecVersion | None) -> Cursor:
+    def of(cls, doc: RawDoc, spans: Mapping[str, Span], version: SpecVersion | None) -> Cursor:
         """Return a cursor at the root of `doc`, in the file the user wrote.
 
         A node's `SourceRef` then names that file,
         rather than the URI of a document derived from part of it, which exists nowhere.
+
+        Args:
+            doc: The document.
+            spans: Where each value of `doc` is in that file.
+                Empty for a document derived from part of a file,
+                since it was generated and does not have the file's text,
+                so each of its values is located where the part that it came from is.
+            version: The specification version the document declares.
         """
         origin = doc.origin
-        return cls(origin.uri, origin.json_pointer, origin.range, [], [], version)
+        start, end = spans.get(origin.json_pointer, (origin.start, origin.end))
+        return cls(origin.uri, origin.json_pointer, start, end, spans, [], [], version)
 
     def at(self, *segments: str | int) -> Cursor:
         """Return a cursor descended into `segments`, sharing this cursor's accumulators."""
+        pointer = ptr(self.pointer, *segments)
+        start, end = self.spans.get(pointer, (self.start, self.end))
         return Cursor(
-            self.uri,
-            ptr(self.pointer, *segments),
-            self.range,
-            self.errors,
-            self.warnings,
-            self.version,
+            self.uri, pointer, start, end, self.spans, self.errors, self.warnings, self.version
         )
 
     def probe(self) -> Cursor:
@@ -153,7 +162,9 @@ class Cursor:
         Everything else — position and declared version — carries over,
         so a rejected alternative is judged under the same rules as an accepted one.
         """
-        return Cursor(self.uri, self.pointer, self.range, [], [], self.version)
+        return Cursor(
+            self.uri, self.pointer, self.start, self.end, self.spans, [], [], self.version
+        )
 
     def fail(self, message: str) -> Failed:
         """Record a validation error here and return `FAILED`, for use in a `return`."""
@@ -166,7 +177,7 @@ class Cursor:
 
     def ref(self) -> SourceRef:
         """Return the provenance link for the value under construction."""
-        return SourceRef(self.uri, self.pointer, self.range)
+        return SourceRef(self.uri, self.pointer, self.start, self.end)
 
     @property
     def label(self) -> str:

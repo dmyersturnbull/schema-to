@@ -2,7 +2,7 @@
 
 from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
 from dataclasses import dataclass
-from typing import Self, TypeIs, cast
+from typing import TypeIs, cast
 
 __all__ = [
     "JsonArray",
@@ -12,8 +12,8 @@ __all__ = [
     "JsonPrimitive",
     "JsonValue",
     "Position",
-    "Range",
     "SourceRef",
+    "Span",
     "as_array",
     "as_object",
     "is_json_array_limb",
@@ -106,47 +106,22 @@ def ptr(parent: str, *segments: str | int) -> str:
 
 @dataclass(frozen=True, slots=True)
 class Position:
-    """A point in a text: a line and a column.
+    """A point in a text: a line, and usually a column.
 
     Attributes:
         line: 1-based line number.
-        column: 1-based column number.
+        column: 1-based column number, or `None` if only the line is known.
     """
 
     line: int
-    column: int
+    column: int | None
 
     def __str__(self) -> str:
-        return f"{self.line}:{self.column}"
+        return str(self.line) if self.column is None else f"{self.line}:{self.column}"
 
 
-@dataclass(frozen=True, slots=True)
-class Range:
-    """A span of a text, from one `Position` to another.
-
-    Attributes:
-        start: The first position in the span.
-        end: The position just after the span.
-            Equal to `start` for a span of nothing, such as the point where a parser gave up.
-    """
-
-    start: Position
-    end: Position
-
-    @classmethod
-    def covering(cls, text: str) -> Self:
-        """Return the range that spans all of `text`."""
-        lines = text.split("\n")
-        return cls(Position(1, 1), Position(len(lines), len(lines[-1]) + 1))
-
-    @classmethod
-    def at(cls, line: int, column: int) -> Self:
-        """Return the empty range at a line and column."""
-        position = Position(line, column)
-        return cls(position, position)
-
-    def __str__(self) -> str:
-        return f"{self.start}-{self.end}"
+type Span = tuple[Position, Position]
+"""Where something starts, and the position just after where it ends."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,15 +139,18 @@ class SourceRef:
         json_pointer: An [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)
             pointer to the place within that file.
             Empty for the file as a whole.
-        range: Where the place sits in the file's raw text.
-            Until a reader reports the span of each node,
-            this is the span of the whole file.
+        start: Where the place begins in the file's raw text, or `None` if that is not known.
+            If a reader cannot locate the place itself,
+            this is where the smallest enclosing piece of text that it can locate begins.
+        end: The position just after where the place ends, with the same caveat as `start`.
     """
 
     uri: str
     json_pointer: str
-    range: Range
+    start: Position | None
+    end: Position | None
 
     def __str__(self) -> str:
         pointer = f":{self.json_pointer}" if self.json_pointer else ""
-        return f"{self.uri}{pointer}:{self.range.start}"
+        start = f":{self.start}" if self.start is not None else ""
+        return f"{self.uri}{pointer}{start}"

@@ -13,7 +13,7 @@ from typing import override
 from tests.support.docs import json_schema_doc, schema_map_doc
 from tests.support.drive import Route
 
-from schema_to.core import Range, SourceRef
+from schema_to.core import Position, SourceRef
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.memory import InMemoryDataSink
 from schema_to.io.sink import JsonSchemaJsonArtifact
@@ -106,7 +106,7 @@ def test_unaccepted_documents_warn_without_failing() -> None:
     assert isinstance(result, Ok)
     [warning] = result.value.warnings
     assert warning.code == "no-transpiler"
-    assert warning.location == SourceRef("test:///map", "", Range.covering("{}"))
+    assert warning.location == SourceRef("test:///map", "", Position(1, 1), Position(1, 3))
     assert not sink.artifacts
 
 

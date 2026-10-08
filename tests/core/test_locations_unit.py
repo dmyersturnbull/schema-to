@@ -1,8 +1,8 @@
-"""Pointers, positions, and ranges."""
+"""Pointers and positions."""
 
 import pytest
 
-from schema_to.core import Position, Range, ptr
+from schema_to.core import Position, ptr
 
 
 @pytest.mark.parametrize(
@@ -29,15 +29,5 @@ def test_a_position_prints_as_line_and_column() -> None:
     assert str(Position(3, 7)) == "3:7"
 
 
-def test_a_range_covers_all_of_a_text() -> None:
-    assert Range.covering("ab\ncde\n") == Range(Position(1, 1), Position(3, 1))
-    assert Range.covering("ab\ncde") == Range(Position(1, 1), Position(2, 4))
-    assert Range.covering("") == Range(Position(1, 1), Position(1, 1))
-
-
-def test_an_empty_range_is_one_position() -> None:
-    assert Range.at(2, 5) == Range(Position(2, 5), Position(2, 5))
-
-
-def test_a_range_prints_its_ends() -> None:
-    assert str(Range(Position(1, 1), Position(3, 4))) == "1:1-3:4"
+def test_a_position_may_have_only_a_line() -> None:
+    assert str(Position(3, None)) == "3"

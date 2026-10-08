@@ -31,7 +31,7 @@ from schema_to.io.core import DefaultJsonLikeReader
 from schema_to.io.source import OpenApiRawDoc
 from schema_to.parse._build import Cursor, Failed, build_root
 from schema_to.parse._plan import SpecVersion
-from schema_to.parse._utils import decode_raw_doc
+from schema_to.parse._utils import decode_raw_doc, locate_raw_doc
 from schema_to.pipeline import DocParser
 from schema_to.result import Err, Ok, Result
 
@@ -69,7 +69,7 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
             return Err.of(
                 ParseError("OpenAPI document must be a JSON object.", location=input.ref(""))
             )
-        at = Cursor.of(input, _declared_version(root))
+        at = Cursor.of(input, locate_raw_doc(input, self.reader), _declared_version(root))
         _check_version(root, at)
         doc = build_root(
             OpenApiDocument, data, at, source_id=input.uri, display_name=input.display_name

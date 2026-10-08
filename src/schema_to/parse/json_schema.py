@@ -22,7 +22,7 @@ from schema_to.cst.json_schema import JsonSchema, JsonSchemaDocument, JsonSchema
 from schema_to.errors import ParseError, TranspilationError
 from schema_to.io.source import JsonSchemaRawDoc, SchemaMapRawDoc
 from schema_to.parse._build import Cursor, Failed, build_schema
-from schema_to.parse._utils import decode_raw_doc
+from schema_to.parse._utils import decode_raw_doc, locate_raw_doc
 from schema_to.pipeline import DocParser
 from schema_to.result import Err, Ok, Result
 
@@ -46,7 +46,7 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             raw = decode_raw_doc(input, self.reader)
         except TranspilationError as exc:
             return Err((exc,))
-        at = Cursor.of(input, None)
+        at = Cursor.of(input, locate_raw_doc(input, self.reader), None)
         root = build_schema(raw, at)
         if isinstance(root, Failed) or at.errors:
             return Err(tuple(at.errors), warnings=tuple(at.warnings))
@@ -82,7 +82,7 @@ class JsonSchemaMapParser(DocParser[SchemaMapRawDoc, JsonSchemaMapDocument]):
                     location=input.ref(""),
                 )
             )
-        at = Cursor.of(input, None)
+        at = Cursor.of(input, locate_raw_doc(input, self.schema_parser.reader), None)
         schemas: dict[str, JsonSchema] = {}
         for name, value in entries.items():
             schema = build_schema(value, at.at(name))

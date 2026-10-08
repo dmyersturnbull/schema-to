@@ -7,7 +7,7 @@ so every read of a field goes through one of these rather than an unchecked subs
 import pytest
 from tests.support.docs import json_schema_doc
 
-from schema_to.core import JsonObject, Range
+from schema_to.core import JsonObject, Position
 from schema_to.cst.openapi import HttpMethod, ParameterLocation
 from schema_to.errors import ParseError, TranspilationError
 from schema_to.io.core import DefaultJsonLikeReader
@@ -70,18 +70,16 @@ def test_malformed_json_becomes_a_parse_error_at_the_position_the_reader_reports
     location = caught.value.location
     assert location is not None
     assert (location.uri, location.json_pointer) == ("test:///d", "")
-    assert location.range.start.line == 1
-    assert location.range.start.column > 1
+    assert location.start == location.end == Position(1, 7)
 
 
-def test_a_reader_that_reports_no_position_gets_the_whole_document() -> None:
-    text = b"a: [1\nb: 2\n"
-    doc = JsonSchemaRawDoc.original("test:///d", text, MediaTypes.yaml)
+def test_malformed_yaml_becomes_a_parse_error_at_the_position_the_reader_reports() -> None:
+    doc = JsonSchemaRawDoc.original("test:///d", b"a: [1\nb: 2\n", MediaTypes.yaml)
     with pytest.raises(ParseError) as caught:
         decode_raw_doc(doc, DefaultJsonLikeReader())
     location = caught.value.location
     assert location is not None
-    assert location.range == Range.covering(text.decode())
+    assert location.start == location.end == Position(2, 2)
 
 
 # ---------------------------------------------------------------------------

@@ -1,17 +1,23 @@
 """Defines abstract and concrete classes for reading and writing JSON-compatible formats."""
 
+import re
 from abc import ABC, abstractmethod
+from bisect import bisect_right
 from dataclasses import dataclass
+from itertools import count
+from json import JSONDecoder
 from typing import TYPE_CHECKING, cast
 
 import orjson
+import yaml
 from orjson import JSONDecodeError, JSONEncodeError
 from yaml12 import format_yaml, parse_yaml
 
+from schema_to.core import Position, Span, ptr
 from schema_to.io.media_type import MediaType, MediaTypes
 
 if TYPE_CHECKING:
-    from collections.abc import Set
+    from collections.abc import Mapping, Set
 
     from schema_to.core import JsonValue
 
@@ -31,10 +37,15 @@ __all__ = [
 
 
 class ReadError(Exception):
-    def __init__(self, msg: str, *, line: int | None = None, column: int | None = None) -> None:
+    """Content could not be read.
+
+    Attributes:
+        position: Where the reader gave up, or `None` if it did not say.
+    """
+
+    def __init__(self, msg: str, *, position: Position | None) -> None:
         super().__init__(msg)
-        self.line = line
-        self.column = column
+        self.position = position
 
 
 class WriteError(Exception):
@@ -74,6 +85,25 @@ class JsonLikeReader(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def spans(self, content: str | bytes, media_type: MediaType) -> Mapping[str, Span]:
+        """Locates every value of JSON-compatible content that `read` has accepted.
+
+        Args:
+            content: Text or bytes that `read` returned a value for.
+            media_type: IANA media-type of the content.
+
+        Returns:
+            Where each value starts and ends in the text, keyed by its
+            [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901) JSON Pointer.
+            A value that the reader cannot locate is left out,
+            and so is every value if it cannot locate any.
+
+        Raises:
+            UnsupportedMediaTypeError: If the media-type `media_type` is not supported.
+        """
+        raise NotImplementedError
+
 
 @dataclass(frozen=True, slots=True)
 class DefaultJsonLikeReader(JsonLikeReader):
@@ -85,6 +115,16 @@ class DefaultJsonLikeReader(JsonLikeReader):
                 return JsonReader().read(content)
             if media_type.subtype.endswith(("+yaml", "yaml")):
                 return YamlReader().read(content)
+        raise UnsupportedMediaTypeError(
+            media_type=media_type, supported={MediaTypes.json, MediaTypes.yaml}
+        )
+
+    def spans(self, content: str | bytes, media_type: MediaType) -> Mapping[str, Span]:
+        if media_type.type in {"text", "application"}:
+            if media_type.subtype.endswith(("+json", "json")):
+                return JsonReader().spans(content)
+            if media_type.subtype.endswith(("+yaml", "yaml")):
+                return YamlReader().spans(content)
         raise UnsupportedMediaTypeError(
             media_type=media_type, supported={MediaTypes.json, MediaTypes.yaml}
         )
@@ -144,6 +184,10 @@ class DefaultJsonLikeWriter(JsonLikeWriter):
         return self.write_str(data, media_type).encode(encoding=encoding)
 
 
+# How `yaml12` ends the message of a syntax error, as in "... at byte 7 line 2 column 2".
+_YAML12_POSITION = re.compile(r" line (\d+) column (\d+)$")
+
+
 @dataclass(frozen=True, slots=True)
 class YamlReader:
     def read(self, text: str | bytes) -> JsonValue:
@@ -152,7 +196,50 @@ class YamlReader:
         try:
             return cast("JsonValue", parse_yaml(text))  # yaml12.Yaml is structurally compatible
         except (OSError, TypeError, ValueError) as e:
-            raise ReadError(str(e)) from e
+            raise ReadError(str(e), position=self._position_in(str(e))) from e
+
+    def spans(self, text: str | bytes) -> Mapping[str, Span]:
+        """Locate every value of YAML that `read` accepted.
+
+        `yaml12` does not report where values are, so this composes the text again with PyYAML,
+        which does, and reads only the structure.
+        PyYAML implements YAML 1.1, so it can reject text that `yaml12` accepts,
+        in which case nothing is located.
+        """
+        if isinstance(text, bytes):
+            text = text.decode()
+        try:
+            root = yaml.compose(text, Loader=yaml.SafeLoader)
+        except yaml.YAMLError:
+            return {}
+        found: dict[str, Span] = {}
+        if root is not None:
+            self._locate(root, "", found, ancestors=set())
+        return found
+
+    def _locate(
+        self, node: yaml.Node, pointer: str, found: dict[str, Span], *, ancestors: set[int]
+    ) -> None:
+        start, end = node.start_mark, node.end_mark
+        found[pointer] = (
+            Position(start.line + 1, start.column + 1),
+            Position(end.line + 1, end.column + 1),
+        )
+        if id(node) in ancestors:  # An alias that refers to a node it is inside of.
+            return
+        ancestors.add(id(node))
+        if isinstance(node, yaml.MappingNode):
+            for key, value in node.value:
+                if isinstance(key, yaml.ScalarNode):
+                    self._locate(value, ptr(pointer, key.value), found, ancestors=ancestors)
+        elif isinstance(node, yaml.SequenceNode):
+            for index, value in enumerate(node.value):
+                self._locate(value, ptr(pointer, index), found, ancestors=ancestors)
+        ancestors.remove(id(node))
+
+    def _position_in(self, message: str) -> Position | None:
+        found = _YAML12_POSITION.search(message)
+        return Position(int(found[1]), int(found[2])) if found else None
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,7 +257,20 @@ class JsonReader:
         try:
             return orjson.loads(text)
         except JSONDecodeError as e:
-            raise ReadError(str(e), line=e.lineno, column=e.colno) from e
+            raise ReadError(str(e), position=Position(e.lineno, e.colno)) from e
+
+    def spans(self, text: str | bytes) -> Mapping[str, Span]:
+        """Locate every value of JSON that `read` accepted.
+
+        `orjson` does not report where values are, so this scans the text again.
+        The text is known to be valid, so the scan only has to find where each value ends.
+        """
+        if isinstance(text, bytes):
+            text = text.decode()
+        line_starts = [0, *(i + 1 for i, char in enumerate(text) if char == "\n")]
+        scanner = _JsonScanner(text, line_starts, {})
+        scanner.value(0, "")
+        return scanner.found
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,4 +282,66 @@ class JsonWriter:
         try:
             return orjson.dumps(data, option=option).decode()  # type: ignore[return-value]  # orjson lacks precise stubs
         except JSONEncodeError as e:
-            raise ReadError(str(e), line=None, column=None) from e
+            raise ReadError(str(e), position=None) from e
+
+
+_JSON_WHITESPACE = re.compile(r"[ \t\n\r]*")
+_JSON = JSONDecoder()
+
+
+@dataclass(slots=True)
+class _JsonScanner:
+    """Finds where every value in valid JSON text starts and ends.
+
+    Attributes:
+        text: The JSON.
+        line_starts: The offset in `text` at which each line starts.
+        found: Where each value is, keyed by pointer. Filled as the scan goes.
+    """
+
+    text: str
+    line_starts: list[int]
+    found: dict[str, Span]
+
+    def value(self, offset: int, pointer: str) -> int:
+        """Scan the value at or after `offset`, and return the offset just after it."""
+        start = self._skip_whitespace(offset)
+        match self.text[start]:
+            case "{":
+                end = self._object(start + 1, pointer)
+            case "[":
+                end = self._array(start + 1, pointer)
+            case _:  # A string, number, `true`, `false`, or `null`.
+                end = _JSON.raw_decode(self.text, start)[1]
+        self.found[pointer] = (self._position(start), self._position(end))
+        return end
+
+    def _object(self, offset: int, pointer: str) -> int:
+        at = self._skip_whitespace(offset)
+        if self.text[at] == "}":
+            return at + 1
+        while True:
+            key, at = _JSON.raw_decode(self.text, self._skip_whitespace(at))
+            at = self._skip_whitespace(at) + 1  # The colon.
+            at = self._skip_whitespace(self.value(at, ptr(pointer, key)))
+            if self.text[at] == "}":
+                return at + 1
+            at += 1  # The comma.
+
+    def _array(self, offset: int, pointer: str) -> int:
+        at = self._skip_whitespace(offset)
+        if self.text[at] == "]":
+            return at + 1
+        for index in count():
+            at = self._skip_whitespace(self.value(at, ptr(pointer, index)))
+            if self.text[at] == "]":
+                return at + 1
+            at += 1  # The comma.
+        raise AssertionError  # pragma: no cover — `count` does not end.
+
+    def _skip_whitespace(self, offset: int) -> int:
+        return cast("re.Match[str]", _JSON_WHITESPACE.match(self.text, offset)).end()
+
+    def _position(self, offset: int) -> Position:
+        line = bisect_right(self.line_starts, offset)
+        return Position(line, offset - self.line_starts[line - 1] + 1)

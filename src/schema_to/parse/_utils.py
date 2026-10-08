@@ -1,10 +1,10 @@
 """Shared utilities for document parsers."""
 
-from collections.abc import MutableSequence
+from collections.abc import Mapping, MutableSequence
 from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
-from schema_to.core import Range, SourceRef
+from schema_to.core import SourceRef, Span
 from schema_to.errors import ParseError, TranspilationError
 from schema_to.io.core import JsonLikeReader, ReadError
 from schema_to.result import Err, Result
@@ -23,6 +23,7 @@ __all__ = [
     "enum_member",
     "extract",
     "int_field",
+    "locate_raw_doc",
     "num_field",
     "str_field",
     "str_or",
@@ -59,9 +60,24 @@ def _where_it_failed(doc: RawDoc, error: ReadError) -> SourceRef:
     so a reader does not fail on one.
     """
     where = doc.ref("")
-    if error.line is None or error.column is None:
-        return where
-    return replace(where, range=Range.at(error.line, error.column))
+    return (
+        where
+        if error.position is None
+        else replace(where, start=error.position, end=error.position)
+    )
+
+
+def locate_raw_doc(doc: RawDoc, reader: JsonLikeReader) -> Mapping[str, Span]:
+    """Locate every value of a raw document that `decode_raw_doc` has decoded.
+
+    Returns:
+        Where each value is in the file the user wrote, by JSON Pointer.
+        Empty for a document derived from part of a file.
+        Its content was generated, so a position in it means nothing in the file.
+    """
+    if doc.origin.json_pointer:
+        return {}
+    return reader.spans(doc.content, doc.media_type)
 
 
 def extract[T](result: Result[T], errors: MutableSequence[TranspilationError]) -> T | None:

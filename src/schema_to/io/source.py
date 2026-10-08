@@ -14,7 +14,7 @@ from dataclasses import KW_ONLY, dataclass
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Self
 
-from schema_to.core import Range, SourceRef
+from schema_to.core import Position, SourceRef
 from schema_to.io.uri import Uri
 
 if TYPE_CHECKING:
@@ -66,7 +66,9 @@ class RawDoc:
     @classmethod
     def original(cls, uri: str, content: bytes, media_type: MediaType) -> Self:
         """Return a document that is all of the file at `uri`, which holds `content`."""
-        origin = SourceRef(uri, "", Range.covering(content.decode(errors="replace")))
+        lines = content.decode(errors="replace").split("\n")
+        end = Position(len(lines), len(lines[-1]) + 1)
+        origin = SourceRef(uri, "", Position(1, 1), end)
         return cls(uri, content, media_type, origin=origin)
 
     @property
@@ -94,7 +96,10 @@ class RawDoc:
                 Empty for the document as a whole.
         """
         return SourceRef(
-            self.origin.uri, self.origin.json_pointer + json_pointer, self.origin.range
+            self.origin.uri,
+            self.origin.json_pointer + json_pointer,
+            self.origin.start,
+            self.origin.end,
         )
 
 

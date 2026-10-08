@@ -6,7 +6,7 @@ A document carries a media type, and these decide what that means.
 
 import pytest
 
-from schema_to.core import JsonValue
+from schema_to.core import JsonValue, Position
 from schema_to.io.core import (
     DefaultJsonLikeReader,
     DefaultJsonLikeWriter,
@@ -80,8 +80,7 @@ def test_malformed_json_reports_where_it_gave_up() -> None:
     """A parse failure without a position is much harder to act on."""
     with pytest.raises(ReadError) as caught:
         JsonReader().read(b'{"a": }')
-    assert caught.value.line is not None
-    assert caught.value.column is not None
+    assert caught.value.position == Position(1, 7)
 
 
 def test_malformed_yaml_is_a_read_error() -> None:
