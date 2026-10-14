@@ -2,7 +2,7 @@
 
 from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
 from dataclasses import dataclass
-from typing import TypeIs, cast, NamedTuple, Self
+from typing import NamedTuple, Self, TypeIs, cast
 
 __all__ = [
     "JsonArray",
