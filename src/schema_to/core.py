@@ -2,7 +2,7 @@
 
 from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
 from dataclasses import dataclass
-from typing import TypeIs, cast
+from typing import TypeIs, cast, NamedTuple, Self
 
 __all__ = [
     "JsonArray",
@@ -120,8 +120,15 @@ class Position:
         return str(self.line) if self.column is None else f"{self.line}:{self.column}"
 
 
-type Span = tuple[Position, Position]
-"""Where something starts, and the position just after where it ends."""
+class Span(NamedTuple):
+    """Where something starts, and the position just after where it ends."""
+
+    start: Position
+    end: Position
+
+    @classmethod
+    def of(cls, start: tuple[int, int | None], end: tuple[int, int | None]) -> Self:
+        return cls(Position(*start), Position(*end))
 
 
 @dataclass(frozen=True, slots=True)

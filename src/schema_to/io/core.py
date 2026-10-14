@@ -80,7 +80,7 @@ class JsonLikeReader(ABC):
 
         Raises:
             ReadError: If the content is invalid.
-              Implementations MUST raise an instance of this class (or a subtype).
+                Implementations MUST raise an instance of this class (or a subtype).
             UnsupportedMediaTypeError: If the media-type `media_type` is not supported.
         """
         raise NotImplementedError
@@ -96,8 +96,7 @@ class JsonLikeReader(ABC):
         Returns:
             Where each value starts and ends in the text, keyed by its
             [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901) JSON Pointer.
-            A value that the reader cannot locate is left out,
-            and so is every value if it cannot locate any.
+            A value that the reader cannot locate is left out.
 
         Raises:
             UnsupportedMediaTypeError: If the media-type `media_type` is not supported.
@@ -190,6 +189,8 @@ _YAML12_POSITION = re.compile(r" line (\d+) column (\d+)$")
 
 @dataclass(frozen=True, slots=True)
 class YamlReader:
+    """A concrete YAML parser."""
+
     def read(self, text: str | bytes) -> JsonValue:
         if isinstance(text, bytes):
             text = text.decode()
@@ -221,9 +222,9 @@ class YamlReader:
         self, node: yaml.Node, pointer: str, found: dict[str, Span], *, ancestors: set[int]
     ) -> None:
         start, end = node.start_mark, node.end_mark
-        found[pointer] = (
-            Position(start.line + 1, start.column + 1),
-            Position(end.line + 1, end.column + 1),
+        found[pointer] = Span.of(
+            (start.line + 1, start.column + 1),
+            (end.line + 1, end.column + 1),
         )
         if id(node) in ancestors:  # An alias that refers to a node it is inside of.
             return
@@ -244,6 +245,8 @@ class YamlReader:
 
 @dataclass(frozen=True, slots=True)
 class YamlWriter:
+    """A concrete YAML serializer."""
+
     def write(self, data: JsonValue) -> str:
         try:
             return format_yaml(data)  # type: ignore[return-value]  # yaml12 lacks precise stubs
@@ -253,6 +256,8 @@ class YamlWriter:
 
 @dataclass(frozen=True, slots=True)
 class JsonReader:
+    """A concrete JSON parser."""
+
     def read(self, text: str | bytes) -> JsonValue:
         try:
             return orjson.loads(text)
@@ -275,6 +280,8 @@ class JsonReader:
 
 @dataclass(frozen=True, slots=True)
 class JsonWriter:
+    """A concrete JSON serializer."""
+
     pretty: bool = False
 
     def write(self, data: JsonValue) -> str:
@@ -313,7 +320,7 @@ class _JsonScanner:
                 end = self._array(start + 1, pointer)
             case _:  # A string, number, `true`, `false`, or `null`.
                 end = _JSON.raw_decode(self.text, start)[1]
-        self.found[pointer] = (self._position(start), self._position(end))
+        self.found[pointer] = Span(self._position(start), self._position(end))
         return end
 
     def _object(self, offset: int, pointer: str) -> int:
