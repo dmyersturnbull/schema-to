@@ -11,7 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          python-version: 3.14
       - name: Check lock file and install dependencies
         run: uv sync --locked
       - name: Check Ruff rules
