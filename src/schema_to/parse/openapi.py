@@ -21,18 +21,17 @@ node for a later stage to inline.
 Errors are accumulated, so a single parse call yields the complete diagnostic set.
 """
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from schema_to.core import as_object
-from schema_to.cst.base import SourceRef
 from schema_to.cst.openapi import OpenApiDocument
-from schema_to.errors import ParseError, SourceLocation, TranspilationError
+from schema_to.errors import ParseError, TranspilationError
 from schema_to.io.core import DefaultJsonLikeReader
 from schema_to.io.source import OpenApiRawDoc
-from schema_to.parse._build import Cursor, Failed, build_node
+from schema_to.parse._build import Cursor, Failed, build_root
 from schema_to.parse._plan import SpecVersion
-from schema_to.parse._utils import decode_raw_doc
+from schema_to.parse._utils import decode_raw_doc, locate_raw_doc
 from schema_to.pipeline import DocParser
 from schema_to.result import Err, Ok, Result
 
@@ -68,21 +67,18 @@ class OpenApiParser(DocParser[OpenApiRawDoc, OpenApiDocument]):
         root = as_object(data)
         if root is None:
             return Err.of(
-                ParseError(
-                    "OpenAPI document must be a JSON object.",
-                    location=SourceLocation(input.doc_id, ""),
-                )
+                ParseError("OpenAPI document must be a JSON object.", location=input.ref(""))
             )
-        at = Cursor.root(input.doc_id, _declared_version(root))
+        at = Cursor.of(input, locate_raw_doc(input, self.reader), _declared_version(root))
         _check_version(root, at)
-        doc = build_node(OpenApiDocument, data, at)
+        doc = build_root(
+            OpenApiDocument, data, at, source_id=input.uri, display_name=input.display_name
+        )
         if at.errors:
             return Err(tuple(at.errors), warnings=tuple(at.warnings))
         if isinstance(doc, Failed):  # pragma: no cover — a failure always records an error
-            return Err.of(
-                ParseError("Malformed OpenAPI document.", location=SourceLocation(input.doc_id, ""))
-            )
-        return Ok(_with_provenance(doc, input), warnings=tuple(at.warnings))
+            return Err.of(ParseError("Malformed OpenAPI document.", location=input.ref("")))
+        return Ok(doc, warnings=tuple(at.warnings))
 
 
 def _declared_version(root: Mapping[str, JsonValue]) -> SpecVersion | None:
@@ -102,13 +98,3 @@ def _check_version(root: Mapping[str, JsonValue], at: Cursor) -> None:
         return
     if not isinstance(version, str) or not version.startswith(_SUPPORTED_MAJOR):
         at.at("openapi").fail(f"openapi must be a '3.x' version string, got {version!r}.")
-
-
-def _with_provenance(doc: OpenApiDocument, input: OpenApiRawDoc) -> OpenApiDocument:
-    """Fill in the fields that identify the document rather than describe it."""
-    return replace(
-        doc,
-        source_id=input.doc_id,
-        display_name=input.display_name,
-        source_ref=SourceRef(input.doc_id, ""),
-    )

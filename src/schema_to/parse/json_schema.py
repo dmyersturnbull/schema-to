@@ -18,12 +18,11 @@ from typing import TYPE_CHECKING
 
 from schema_to import DefaultJsonLikeReader
 from schema_to.core import as_object
-from schema_to.cst.base import SourceRef
 from schema_to.cst.json_schema import JsonSchema, JsonSchemaDocument, JsonSchemaMapDocument
-from schema_to.errors import ParseError, SourceLocation, TranspilationError
+from schema_to.errors import ParseError, TranspilationError
 from schema_to.io.source import JsonSchemaRawDoc, SchemaMapRawDoc
 from schema_to.parse._build import Cursor, Failed, build_schema
-from schema_to.parse._utils import decode_raw_doc
+from schema_to.parse._utils import decode_raw_doc, locate_raw_doc
 from schema_to.pipeline import DocParser
 from schema_to.result import Err, Ok, Result
 
@@ -47,18 +46,12 @@ class JsonSchemaParser(DocParser[JsonSchemaRawDoc, JsonSchemaDocument]):
             raw = decode_raw_doc(input, self.reader)
         except TranspilationError as exc:
             return Err((exc,))
-        at = Cursor.root(input.doc_id)
+        at = Cursor.of(input, locate_raw_doc(input, self.reader), None)
         root = build_schema(raw, at)
         if isinstance(root, Failed) or at.errors:
             return Err(tuple(at.errors), warnings=tuple(at.warnings))
         return Ok(
-            JsonSchemaDocument(
-                root=root,
-                source_id=input.doc_id,
-                display_name=input.display_name,
-                source_ref=SourceRef(input.doc_id, ""),
-                base_uri=input.base_uri,
-            ),
+            JsonSchemaDocument(root=root, source_id=input.uri, display_name=input.display_name),
             warnings=tuple(at.warnings),
         )
 
@@ -86,10 +79,10 @@ class JsonSchemaMapParser(DocParser[SchemaMapRawDoc, JsonSchemaMapDocument]):
                 ParseError(
                     f"A schema-map document must be an object mapping names to schemas; "
                     f"got {type(raw).__name__!r}.",
-                    location=SourceLocation(input.doc_id, ""),
+                    location=input.ref(""),
                 )
             )
-        at = Cursor.root(input.doc_id)
+        at = Cursor.of(input, locate_raw_doc(input, self.schema_parser.reader), None)
         schemas: dict[str, JsonSchema] = {}
         for name, value in entries.items():
             schema = build_schema(value, at.at(name))
@@ -98,11 +91,5 @@ class JsonSchemaMapParser(DocParser[SchemaMapRawDoc, JsonSchemaMapDocument]):
         if at.errors:
             return Err(tuple(at.errors), warnings=tuple(at.warnings))
         return Ok(
-            JsonSchemaMapDocument(
-                schemas=schemas,
-                source_id=input.doc_id,
-                display_name=input.display_name,
-                source_ref=SourceRef(input.doc_id, ""),
-            ),
-            warnings=tuple(at.warnings),
+            JsonSchemaMapDocument(schemas=schemas, source_id=input.uri), warnings=tuple(at.warnings)
         )

@@ -2,31 +2,7 @@
 
 from dataclasses import dataclass
 
-
-@dataclass(frozen=True, slots=True)
-class SourceLocation:
-    """A position within a source document.
-
-    Attributes:
-        doc_id: Opaque identifier matching `RawDoc.doc_id`.
-        json_pointer: [RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)
-            pointer to the offending node within the parsed document.
-        line: 1-based line number in the raw text, if available.
-        column: 1-based column number in the raw text, if available.
-    """
-
-    doc_id: str
-    json_pointer: str | None = None
-    line: int | None = None
-    column: int | None = None
-
-    def __str__(self) -> str:
-        return (
-            self.doc_id
-            + (f":{self.json_pointer}" if self.json_pointer else "")
-            + (f":{self.line}" if self.line is not None else "")
-            + (f":{self.column}" if self.column is not None else "")
-        )
+from schema_to.core import SourceRef
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,12 +12,12 @@ class TranspilationWarning:
     Attributes:
         message: Human-readable description.
         code: Machine-readable warning code, e.g. `"unsupported-keyword"`.
-        location: Origin in the source document, if known.
+        location: Where in the source document, if known.
     """
 
     message: str
     code: str | None = None
-    location: SourceLocation | None = None
+    location: SourceRef | None = None
 
     def __str__(self) -> str:
         return (
@@ -58,7 +34,7 @@ class TranspilationError(Exception):
     making it easy to determine where a failure occurred without inspecting the stack trace.
     """
 
-    def __init__(self, message: str, *, location: SourceLocation | None = None) -> None:
+    def __init__(self, message: str, *, location: SourceRef | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.location = location

@@ -23,12 +23,13 @@ Each(SchemaMapExpander(resolver=r)).then(Flatten()).then(per_schema_target)
 Each(JsonSchemaMapParser()).then(SchemaMapMerger()).then(whole_set_target)
 ```
 
-A virtual document keeps the file it came from in its ID
+A virtual document keeps the file it came from in its URI
 (`…/catalog.yaml#/author-data`),
+so its ID is unique and still a real address:
+that fragment is also the pointer a sibling file's `$ref` would use.
+It also records the file and pointer as its origin,
 so a diagnostic names the real file *and* the schema in it,
-rather than one at the cost of the other.
-That fragment is also the pointer a sibling file's `$ref` would use,
-so the ID stays a real address.
+rather than the virtual URI, which exists nowhere.
 
 Splitting a file would ordinarily break the references written **within&* it:
 `#/other` means "the `other` member of this document",
@@ -36,7 +37,7 @@ and once the file is split, each schema **is** the document.
 So the unsplit document is registered with the resolver the following stages use;
 it is never handed the file, but its inputs point into it.
 The URI math then works out on its own,
-because a virtual document's ID is the file's URI plus a fragment:
+because a virtual document's URI is the file's URI plus a fragment:
 Resolving `#/other` against
 `…/catalog.yaml#/author-data`
 replaces the fragment and yields
@@ -57,9 +58,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, override
 
 from schema_to.cst.json_schema import JsonSchemaMapDocument
-from schema_to.errors import ResolutionError, SourceLocation
+from schema_to.errors import ResolutionError
 from schema_to.io.core import DefaultJsonLikeWriter, JsonLikeWriter
 from schema_to.io.source import JsonSchemaRawDoc, SchemaMapRawDoc
+from schema_to.io.uri import Uri
 from schema_to.parse.json_schema import JsonSchemaMapParser
 from schema_to.pipeline import Expander, Reducer
 from schema_to.resolve.json_schema import JsonSchemaRefResolver
@@ -112,12 +114,12 @@ class SchemaMapExpander(Expander[SchemaMapRawDoc, JsonSchemaRawDoc]):
         for name, schema in parsed.schemas.items():
             if self.roots is not None and name not in self.roots:
                 continue
+            ref = schema.source_ref
             yield JsonSchemaRawDoc(
-                doc_id=f"{doc.doc_id}#/{name}",
+                uri=str(Uri.parse(ref.uri).with_pointer(ref.json_pointer)),
                 content=self.writer.write_bytes(_SERIALIZER.serialize(schema), doc.media_type),
                 media_type=doc.media_type,
-                display_name=name,
-                base_uri=doc.doc_id,
+                origin=ref,
             )
 
 
@@ -154,7 +156,7 @@ class SchemaMapMerger(Reducer[JsonSchemaMapDocument, JsonSchemaMapDocument]):
             for name, schema in document.schemas.items():
                 clash = origins.get(name)
                 if clash is not None:
-                    errors.append(_duplicate(name, clash, document.source_id))
+                    errors.append(_duplicate(name, clash, schema))
                     continue
                 merged[name] = schema
                 origins[name] = document.source_id
@@ -163,9 +165,9 @@ class SchemaMapMerger(Reducer[JsonSchemaMapDocument, JsonSchemaMapDocument]):
         return Ok(JsonSchemaMapDocument(schemas=merged, source_id=self.source_id))
 
 
-def _duplicate(name: str, first: str, second: str) -> ResolutionError:
+def _duplicate(name: str, first: str, second: JsonSchema) -> ResolutionError:
     msg = (
-        f"Schema {name!r} is declared in both {first!r} and {second!r}; "
+        f"Schema {name!r} is declared in both {first!r} and {second.source_ref.uri!r}; "
         f"a set of schema-map files is one namespace, so a name may be used once."
     )
-    return ResolutionError(msg, location=SourceLocation(second, f"/{name}"))
+    return ResolutionError(msg, location=second.source_ref)

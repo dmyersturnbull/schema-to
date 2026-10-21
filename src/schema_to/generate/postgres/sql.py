@@ -49,7 +49,7 @@ from schema_to.cst.json_schema import (
     ObjectSchema,
     is_object_schema,
 )
-from schema_to.errors import GenerationError, SourceLocation, TranspilationWarning
+from schema_to.errors import GenerationError, TranspilationWarning
 from schema_to.generate.inlining import SchemaFlattener
 from schema_to.generate.postgres._sql_utils import quote_sql_identifier, safe_sql_identifier
 from schema_to.pipeline import Transformer
@@ -129,11 +129,6 @@ def _unwrap_nullable(schema: ObjectSchema) -> tuple[bool, JsonSchema]:
     if JsonSchemaType.NULL in schema.get_types() and non_null_from_type:
         return True, schema
     return False, schema
-
-
-def _base_uri(schema: JsonSchema) -> str:
-    """Return the document a schema came from, for resolving its relative references."""
-    return schema.source_ref.source_id if schema.source_ref else ""
 
 
 def _join_checks(exprs: list[str]) -> str | None:
@@ -237,9 +232,7 @@ class ColumnBuilder:
             return base
         # pg_jsonschema evaluates a literal with no way to fetch a reference,
         # so every `$ref` below this column has to be resolved away first.
-        standalone = SchemaFlattener(resolver=self.resolver).inline(
-            schema, base_uri=_base_uri(schema)
-        )
+        standalone = SchemaFlattener(resolver=self.resolver).inline(schema)
         self._warnings.extend(standalone.warnings)
         schema_json = orjson.dumps(JsonSchemaSerializer().serialize(standalone.schema)).decode(
             "utf-8"
@@ -380,12 +373,7 @@ class ColumnBuilder:
         return DataType(base=PgDataType.CUSTOM, custom=sql_type)
 
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:
-        loc: SourceLocation | None = None
-        if schema.source_ref:
-            loc = SourceLocation(
-                doc_id=schema.source_ref.source_id, json_pointer=schema.source_ref.json_pointer
-            )
-        self._warnings.append(TranspilationWarning(msg, code=code, location=loc))
+        self._warnings.append(TranspilationWarning(msg, code=code, location=schema.source_ref))
 
 
 @dataclass(frozen=True, slots=True)
@@ -434,7 +422,7 @@ class _GenCtx:
             self._schema_to_table(flat, safe_sql_identifier(flat.title or def_name), sid)
             for def_name, def_schema in (root.get_defs()).items()
             if self.roots is None or def_name in self.roots
-            for flat in [self._flatten(def_schema, base_uri=sid)]
+            for flat in [self._flatten(def_schema)]
             if is_object_schema(flat)
         ]
         root_stmt = self._schema_to_table(root, safe_sql_identifier(root.title or sid), sid)
@@ -443,7 +431,7 @@ class _GenCtx:
 
     def _get_as_object_schema(self, input: JsonSchemaDocument) -> ObjectSchema:
         """Return the root as a flattened object schema, or fail with what it is instead."""
-        root = self._flatten(input.root, base_uri=input.source_id)
+        root = self._flatten(input.root)
         if isinstance(root, ObjectSchema) and is_object_schema(root):
             return root
         if isinstance(root, BooleanSchema):
@@ -452,11 +440,11 @@ class _GenCtx:
             types = sorted(str(t) for t in root.get_types())
             found = f"type {', '.join(types)}" if types else "no type and no properties"
         msg = f"A table requires an object schema at the document root; found {found}."
-        raise GenerationError(msg)
+        raise GenerationError(msg, location=input.root.source_ref)
 
-    def _flatten(self, schema: JsonSchema, *, base_uri: str) -> JsonSchema:
+    def _flatten(self, schema: JsonSchema) -> JsonSchema:
         """Merge `allOf` branches and the `$ref` target into a single schema."""
-        result = SchemaFlattener(resolver=self.resolver).flatten(schema, base_uri=base_uri)
+        result = SchemaFlattener(resolver=self.resolver).flatten(schema)
         self.warnings.extend(result.warnings)
         return result.schema
 
@@ -472,7 +460,7 @@ class _GenCtx:
         columns = [
             builder.build(
                 safe_sql_identifier(prop_name),
-                self._flatten(prop_schema, base_uri=source_id),
+                self._flatten(prop_schema),
                 required=prop_name in required_set,
             )
             for prop_name, prop_schema in (schema.properties or {}).items()

@@ -39,13 +39,8 @@ from schema_to.ast.python import (
     VarDef,
 )
 from schema_to.ast.python import Parameter as PyParameter
-from schema_to.cst.json_schema import (
-    BooleanSchema,
-    JsonSchema,
-    JsonSchemaDocument,
-    JsonSchemaType,
-    ObjectSchema,
-)
+from schema_to.core import SourceRef
+from schema_to.cst.json_schema import BooleanSchema, JsonSchema, JsonSchemaType, ObjectSchema
 from schema_to.cst.openapi import (
     HttpMethod,
     MediaTypeObject,
@@ -57,7 +52,7 @@ from schema_to.cst.openapi import (
     concrete_map,
 )
 from schema_to.cst.openapi import Parameter as OasParameter
-from schema_to.errors import SourceLocation, TranspilationWarning
+from schema_to.errors import TranspilationWarning
 from schema_to.generate._python_utils import (
     ANY,
     NONE,
@@ -78,6 +73,7 @@ from schema_to.generate.fastapi.security import build_security_module, route_sec
 from schema_to.generate.pydantic.pydantic import PydanticTransformer
 from schema_to.pipeline import Transformer
 from schema_to.result import Err, Ok, Result
+from schema_to.transpile.extract import OpenApiComponentExtractor
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping, Sequence
@@ -298,7 +294,7 @@ class _GenCtx:
                 name="main",
                 imports=imports,
                 declarations=declarations,
-                source_ids=(self.doc.source_id or "",),
+                source_ids=(self.doc.source_id,),
                 module_doc=f'FastAPI application for "{self.doc.info.title}".',
             )
         )
@@ -307,16 +303,13 @@ class _GenCtx:
 
     def _generate_models(self) -> Sequence[PyDeclaration]:
         decls: list[PyDeclaration] = []
-        for name, schema in self.doc.components.schemas.items():
-            if self.roots is not None and name not in self.roots:
-                continue
-            doc = JsonSchemaDocument(root=schema, source_id=name, display_name=name)
+        for doc in OpenApiComponentExtractor(roots=self.roots).documents(self.doc):
             result = PydanticTransformer().apply(doc)
             self.warnings.extend(result.warnings)
             if isinstance(result, Err):
                 for err in result.errors:
                     self._warn(
-                        f"Could not generate model for {name!r}: {err.message}",
+                        f"Could not generate model for {doc.display_name!r}: {err.message}",
                         code="model-error",
                         location=err.location,
                     )
@@ -366,7 +359,9 @@ class _GenCtx:
     def _security_params(self, op: Operation) -> Sequence[PyParameter]:
         """Build `Security`/`Depends` parameters for the operation's requirements."""
         params, imports, warnings = route_security_params(
-            self._effective_security(op), concrete_map(self.doc.components.security_schemes)
+            self._effective_security(op),
+            concrete_map(self.doc.components.security_schemes),
+            op.source_ref,
         )
         self.extra_imports.extend(imports)
         self.warnings.extend(warnings)
@@ -511,7 +506,7 @@ class _GenCtx:
             args.append(f"response_model={_annotation_str(response_ann)}")
         return Decorator(name=f"app.{method}({', '.join(args)})")
 
-    def _warn(self, message: str, *, code: str, location: SourceLocation | None = None) -> None:
+    def _warn(self, message: str, *, code: str, location: SourceRef | None = None) -> None:
         self.warnings.append(TranspilationWarning(message, code=code, location=location))
 
 

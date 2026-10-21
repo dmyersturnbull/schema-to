@@ -37,7 +37,7 @@ class Artifact(ABC):  # ClassVar[media_type] acts as an abstract class attribute
             typically a relative path such as `"migrations/001_users.sql"`.
         content: Serialised output bytes.
         media_type: Content type of the output; defined as a class variable on each subclass.
-        source_ids: `source_id`s of the `RawDoc`s that contributed to this artifact, for traceability.
+        source_ids: `uri`s of the `RawDoc`s that contributed to this artifact, for traceability.
     """
 
     artifact_id: str

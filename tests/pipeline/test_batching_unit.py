@@ -13,6 +13,7 @@ from typing import override
 from tests.support.docs import json_schema_doc, schema_map_doc
 from tests.support.drive import Route
 
+from schema_to.core import Position, SourceRef
 from schema_to.io.media_type import MediaTypes
 from schema_to.io.memory import InMemoryDataSink
 from schema_to.io.sink import JsonSchemaJsonArtifact
@@ -65,7 +66,7 @@ def _per_doc() -> Transpiler[JsonSchemaRawDoc, JsonSchemaJsonArtifact]:
 
 
 def _schema_doc(name: str) -> JsonSchemaRawDoc:
-    return json_schema_doc({"type": "object"}, f"test://{name}", display_name=name)
+    return json_schema_doc({"type": "object"}, f"test:///{name}")
 
 
 def _run(docs: list[RawDoc], transpilers: list[Transpiler]) -> InMemoryDataSink:
@@ -100,10 +101,12 @@ def test_documents_go_to_the_first_accepting_transpiler() -> None:
 
 def test_unaccepted_documents_warn_without_failing() -> None:
     sink = InMemoryDataSink()
-    doc = SchemaMapRawDoc(doc_id="test://map", content=b"{}", media_type=MediaTypes.json)
+    doc = SchemaMapRawDoc.original("test:///map", b"{}", MediaTypes.json)
     result = Pipeline(sources=[_Listing([doc])], transpilers=[_per_doc()], sink=sink).process()
     assert isinstance(result, Ok)
-    assert [w.code for w in result.value.warnings] == ["no-transpiler"]
+    [warning] = result.value.warnings
+    assert warning.code == "no-transpiler"
+    assert warning.location == SourceRef("test:///map", "", Position(1, 1), Position(1, 3))
     assert not sink.artifacts
 
 

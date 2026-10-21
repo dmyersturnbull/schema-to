@@ -15,7 +15,7 @@ def test_a_source_yields_what_was_added() -> None:
     source: InMemoryDataSource[JsonSchemaRawDoc] = InMemoryDataSource()
     source.add(json_schema_doc({"type": "object"}, "test://a"))
     source.add(json_schema_doc({"type": "string"}, "test://b"))
-    assert [d.doc_id for d in source.documents()] == ["test://a", "test://b"]
+    assert [d.uri for d in source.documents()] == ["test://a", "test://b"]
 
 
 def test_an_empty_source_yields_nothing() -> None:

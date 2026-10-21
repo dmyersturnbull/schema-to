@@ -20,6 +20,7 @@ from schema_to.ast.python import (
     PythonTypeAnnotation,
     VarDef,
 )
+from schema_to.core import SourceRef
 from schema_to.cst.openapi import ApiKeyLocation, SecuritySchemeType
 from schema_to.errors import TranspilationWarning
 from schema_to.generate._python_utils import safe_python_field_name
@@ -101,6 +102,7 @@ def build_security_module(schemes: Mapping[str, SecurityScheme]) -> SecurityModu
                     f"Security scheme {name!r} of type {scheme.type_.value!r} has no FastAPI "
                     "equivalent; skipping.",
                     code="security-unsupported",
+                    location=scheme.source_ref,
                 )
             )
             continue
@@ -145,9 +147,17 @@ def _require_scopes_stub() -> FunctionDef:
 
 
 def route_security_params(
-    requirements: Sequence[SecurityRequirement] | None, schemes: Mapping[str, SecurityScheme]
+    requirements: Sequence[SecurityRequirement] | None,
+    schemes: Mapping[str, SecurityScheme],
+    location: SourceRef,
 ) -> tuple[list[Parameter], list[PyImport], list[TranspilationWarning]]:
-    """Build `Security`/`Depends` parameters enforcing a route's requirements."""
+    """Build `Security`/`Depends` parameters enforcing a route's requirements.
+
+    Args:
+        requirements: The route's effective security requirements.
+        schemes: The security schemes the document declares, by name.
+        location: Where the operation is, for a warning about its requirements.
+    """
     if not requirements:
         return [], [], []
     scopes_by_scheme = _collect_scopes(requirements)
@@ -160,6 +170,7 @@ def route_security_params(
                 TranspilationWarning(
                     f"Security requirement references unknown scheme {scheme_name!r}.",
                     code="security-unknown-scheme",
+                    location=location,
                 )
             )
             continue

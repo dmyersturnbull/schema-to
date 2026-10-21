@@ -73,8 +73,6 @@ class OpenApiReifier(Reifier[OpenApiDocument, OpenApiArtifact]):
         data = self.serializer.serialize(input)
         content = self.writer.write_bytes(data, artifact_cls.media_type)
         artifact = artifact_cls(
-            artifact_id=filename,
-            content=content,
-            source_ids=(input.source_id,) if input.source_id else (),
+            artifact_id=filename, content=content, source_ids=(input.source_id,)
         )
         return Ok([artifact])

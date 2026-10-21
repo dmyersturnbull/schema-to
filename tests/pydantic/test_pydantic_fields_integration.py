@@ -244,7 +244,7 @@ def test_title_becomes_class_name() -> None:
 
 def test_display_name_fallback() -> None:
     """When there is no title, display_name is used as a fallback."""
-    doc = json_schema_doc({"type": "object"}, "test://schema", display_name="user_profile")
+    doc = json_schema_doc({"type": "object"}, "test:///user_profile")
     assert "class UserProfile(BaseModel):" in PYDANTIC.text(doc)
 
 

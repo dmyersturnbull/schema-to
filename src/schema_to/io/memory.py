@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
+from urllib.parse import quote
 
 from schema_to.io.sink import Artifact, DataSink
 from schema_to.io.source import DataSource, RawDoc
@@ -10,7 +11,17 @@ from schema_to.io.source import DataSource, RawDoc
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-__all__ = ["InMemoryDataSink", "InMemoryDataSource"]
+__all__ = ["InMemoryDataSink", "InMemoryDataSource", "memory_uri"]
+
+
+def memory_uri(name: str) -> str:
+    """Return the URI for a document called `name` that exists only in memory.
+
+    It is a valid URI but names nothing that can be fetched,
+    so a relative `$ref` in such a document cannot reach another document.
+    The path is the name, which is what `RawDoc.display_name` is computed from.
+    """
+    return f"memory:///{quote(name)}"
 
 
 @dataclass

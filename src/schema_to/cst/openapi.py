@@ -21,8 +21,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 
-from schema_to.core import JsonValue
-from schema_to.cst.base import SYNTHETIC, CstNode, SourceRef
+from schema_to.core import JsonValue, SourceRef
+from schema_to.cst.base import SYNTHETIC, CstNode
 from schema_to.cst.json_schema import JsonSchema
 
 __all__ = [
@@ -119,7 +119,7 @@ class Contact(CstNode):
     url: str | None = None
     email: str | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,7 +130,7 @@ class License(CstNode):
     identifier: str | None = None
     url: str | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,7 +145,7 @@ class Info(CstNode):
     contact: Contact | None = None
     license_: License | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,7 +156,7 @@ class ServerVariable(CstNode):
     enum: Sequence[str] | None = None
     description: str | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,7 +168,7 @@ class Server(CstNode):
     description: str | None = None
     variables: Mapping[str, ServerVariable] = field(default_factory=dict)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,7 +178,7 @@ class ExternalDocumentation(CstNode):
     url: str
     description: str | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,7 +189,7 @@ class Tag(CstNode):
     description: str | None = None
     external_docs: ExternalDocumentation | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -209,7 +209,7 @@ class Reference(CstNode):
     ref: str = field(metadata={"key": "$ref"})
     summary: str | None = None
     description: str | None = None
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 def concrete[N: CstNode](value: Reference | N) -> N | None:
@@ -236,7 +236,7 @@ class Example(CstNode):
     value: JsonValue | None = None
     external_value: str | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 # ---------------------------------------------------------------------------
@@ -258,7 +258,7 @@ class Header(CstNode):
     example: JsonValue | None = None
     examples: Mapping[str, Reference | Example] = field(default_factory=dict)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,7 +271,7 @@ class Encoding(CstNode):
     explode: bool = False
     allow_reserved: bool = False
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -286,7 +286,7 @@ class MediaTypeObject(CstNode):
     prefix_encoding: Sequence[Encoding] = field(default_factory=list, metadata={"since": "3.2"})
     item_encoding: Encoding | None = field(default=None, metadata={"since": "3.2"})
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -307,7 +307,7 @@ class Parameter(CstNode):
     example: JsonValue | None = None
     examples: Mapping[str, Reference | Example] = field(default_factory=dict)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -318,7 +318,7 @@ class RequestBody(CstNode):
     description: str | None = None
     required: bool = False
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -331,7 +331,7 @@ class Response(CstNode):
     content: Mapping[str, MediaTypeObject] = field(default_factory=dict)
     links: Mapping[str, Reference | Link] = field(default_factory=dict)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -345,7 +345,7 @@ class Link(CstNode):
     description: str | None = None
     server: Server | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 # ---------------------------------------------------------------------------
@@ -370,7 +370,7 @@ class Operation(CstNode):
     security: Sequence[SecurityRequirement] | None = None
     servers: Sequence[Server] = field(default_factory=list)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 type SecurityRequirement = Mapping[str, Sequence[str]]
@@ -408,7 +408,7 @@ class PathItem(CstNode):
     parameters: Sequence[Reference | Parameter] = field(default_factory=list)
     servers: Sequence[Server] = field(default_factory=list)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 # ---------------------------------------------------------------------------
@@ -425,7 +425,7 @@ class OAuthFlow(CstNode):
     token_url: str | None = None
     refresh_url: str | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -437,7 +437,7 @@ class OAuthFlows(CstNode):
     client_credentials: OAuthFlow | None = None
     authorization_code: OAuthFlow | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -453,7 +453,7 @@ class SecurityScheme(CstNode):
     flows: OAuthFlows | None = None
     open_id_connect_url: str | None = None
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
 
 # ---------------------------------------------------------------------------
@@ -479,6 +479,8 @@ class Components(CstNode):
         default_factory=dict, metadata={"since": "3.2"}
     )
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
+    # `None` only for the empty `Components` of a document that has none:
+    # that was never written, so there is nowhere in the file for it to point.
     source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
 
 
@@ -487,7 +489,7 @@ class OpenApiDocument(CstNode):
     """The root of a parsed OpenAPI 3.1 document.
 
     Special attributes:
-      - source_id: Matches `RawDoc.source_id`.
+      - source_id: Matches `RawDoc.uri`.
       - display_name: Short name for the document, carried over from the `RawDoc`.
         It is what a re-emitted file is named after.
       - source_ref: Points to the document root (`""`).
@@ -505,6 +507,6 @@ class OpenApiDocument(CstNode):
     external_docs: ExternalDocumentation | None = None
     webhooks: Mapping[str, Reference | PathItem] = field(default_factory=dict)
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_id: str | None = field(default=None, metadata=SYNTHETIC)
-    display_name: str | None = field(default=None, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_id: str = field(kw_only=True, metadata=SYNTHETIC)
+    display_name: str = field(kw_only=True, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)

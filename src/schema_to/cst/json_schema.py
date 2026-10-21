@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from typing import Literal, TypeGuard, assert_type
 
-from schema_to.core import JsonValue
-from schema_to.cst.base import SYNTHETIC, CstNode, SourceRef
+from schema_to.core import JsonValue, SourceRef
+from schema_to.cst.base import SYNTHETIC, CstNode
 
 __all__ = [
     "DOC_KEYWORDS",
@@ -195,7 +195,7 @@ class BooleanSchema(_JsonSchema):
     """A JSON Schema that is always-valid (`true`) or never-valid (`false`)."""
 
     value: bool
-    source_ref: SourceRef | None = None
+    source_ref: SourceRef
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,7 +290,7 @@ class ObjectSchema(_JsonSchema):
 
     # -- Extensions and provenance ----------------------------------------
     extensions: Mapping[str, JsonValue] = field(default_factory=dict, metadata=SYNTHETIC)
-    source_ref: SourceRef | None = field(default=None, metadata=SYNTHETIC)
+    source_ref: SourceRef = field(kw_only=True, metadata=SYNTHETIC)
 
     def get_boolean_applicator(
         self, *, only: Set[BooleanApplicatorKeyword | BooleanApplicatorLiteral] | None = None
@@ -363,22 +363,17 @@ class JsonSchemaDocument(CstNode):
     """The root of a parsed JSON Schema 2020-12 document.
 
     Attributes:
-        source_id: Identifies this document.
-        base_uri: What a relative `$ref` inside it resolves against.  Usually the same
-            as `source_id`; they differ for a document carved out of a larger one,
-            whose ID must stay unique while its references still mean what they did
-            in the file they were written in.
+        source_id: URI identifying this document,
+            which is also what a relative `$ref` inside it resolves against.
+            A document carved out of a larger one has the original's URI plus a fragment,
+            so that its ID stays unique
+            while a reference written in it still resolves as it would in the file it came from.
+        display_name: Short name, carried over from `RawDoc.display_name`.
     """
 
     root: JsonSchema
     source_id: str
-    display_name: str | None = None
-    source_ref: SourceRef | None = None
-    base_uri: str | None = None
-
-    def get_base_uri(self) -> str:
-        """Return what a relative `$ref` in this document resolves against."""
-        return self.base_uri or self.source_id
+    display_name: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -397,8 +392,6 @@ class JsonSchemaMapDocument(CstNode):
 
     schemas: Mapping[str, JsonSchema]
     source_id: str
-    display_name: str | None = None
-    source_ref: SourceRef | None = None
 
     def get_schema(self, name: str) -> JsonSchema | None:
         """Return the schema named `name`, or `None`."""

@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 from tests.support.docs import json_schema_doc
+from tests.support.locations import source_ref
 
 from schema_to.cst.json_schema import BooleanSchema, ObjectSchema, is_object_schema
 from schema_to.generate.fastapi.resource import json_properties, property_names
@@ -12,7 +13,7 @@ from schema_to.result import Ok
 
 
 def _object_schema(data: dict[str, Any]) -> ObjectSchema:
-    doc = json_schema_doc(data, "t://s", display_name="s")
+    doc = json_schema_doc(data, "t:///s")
     result = JsonSchemaParser().apply(doc)
     assert isinstance(result, Ok)
     root = result.value.root
@@ -55,4 +56,4 @@ def test_is_object_schema() -> None:
     # `object` among a type union still counts.
     assert is_object_schema(_object_schema({"type": ["object", "null"]}))
     assert not is_object_schema(_object_schema({"type": "string"}))
-    assert not is_object_schema(BooleanSchema(value=True))
+    assert not is_object_schema(BooleanSchema(value=True, source_ref=source_ref()))

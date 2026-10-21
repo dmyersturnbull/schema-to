@@ -11,7 +11,11 @@ or another origin.
 
 from abc import ABC, abstractmethod
 from dataclasses import KW_ONLY, dataclass
-from typing import TYPE_CHECKING
+from pathlib import PurePosixPath
+from typing import TYPE_CHECKING, Self
+
+from schema_to.core import Position, SourceRef
+from schema_to.io.uri import Uri
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -30,24 +34,73 @@ class RawDoc:
     This decouples I/O from transformation.
 
     Attributes:
-        doc_id: Globally unique, opaque identifier
-            (e.g. an absolute URI or a content-addressed hash).
-            Used as the key for `$ref` resolution and error reporting.
+        uri: Globally unique identifier, which is also the base for resolving relative `$ref`s.
+            Must be a URI, though not necessarily one that can be fetched:
+            a document from an `InMemoryDataSource` has a custom-scheme URI
+            (e.g. `memory:///users.schema.json`) that resolves nowhere,
+            and so only a `$ref` within it can be followed.
+            The path should be meaningful, since `display_name` is computed from it.
+            A document derived from part of another has a fragment,
+            as in `file:///catalog.yaml#/author-data`.
         content: Raw bytes exactly as supplied by the source.
         media_type: Content type, used to select the appropriate `DocumentParser`.
-        display_name: Short human-readable name for log messages and generated identifiers
-            (e.g. `"users"` from `"users.schema.json"`).
-            A good default is the last path segment of `source_id`.
-        base_uri: Base URI for resolving relative `$ref` values.
-            A good default is `source_id`.
+        origin: Where in the file the user wrote this document's content came from.
+            A document that is a whole file has the file as its origin.
+            A document carved out of one, such as a single schema from a schema-map file,
+            has a new unique URI that exists nowhere,
+            so its origin records the real file and pointer for diagnostics to use.
+
+    Raises:
+        ValueError: If `uri` is not a URI.
     """
 
-    doc_id: str
+    uri: str
     content: bytes
     media_type: MediaType
     _: KW_ONLY
-    display_name: str | None = None
-    base_uri: str | None = None
+    origin: SourceRef
+
+    def __post_init__(self) -> None:
+        Uri.parse(self.uri)
+
+    @classmethod
+    def original(cls, uri: str, content: bytes, media_type: MediaType) -> Self:
+        """Return a document that is all of the file at `uri`, which holds `content`."""
+        lines = content.decode(errors="replace").split("\n")
+        end = Position(len(lines), len(lines[-1]) + 1)
+        origin = SourceRef(uri, "", Position(1, 1), end)
+        return cls(uri, content, media_type, origin=origin)
+
+    @property
+    def display_name(self) -> str:
+        """Short human-readable name for log messages and generated identifiers.
+
+        This is the last segment of the URI's fragment, if there is one,
+        which is how a document carved out of a larger file keeps its own name.
+        Otherwise, it is the last segment of the path, up to its first dot:
+        `file:///dir/users.schema.json` is `users`.
+        It is empty if the URI has neither, as in `test://schema`,
+        whose only name-like part is the authority.
+        """
+        uri = Uri.parse(self.uri)
+        if uri.pointer:
+            name = uri.pointer.rpartition("/")[2]
+            return name.replace("~1", "/").replace("~0", "~")
+        return PurePosixPath(uri.path).name.split(".")[0]
+
+    def ref(self, json_pointer: str) -> SourceRef:
+        """Return the place of a node within this document, in the file the user wrote.
+
+        Args:
+            json_pointer: Pointer to the node, relative to this document.
+                Empty for the document as a whole.
+        """
+        return SourceRef(
+            self.origin.uri,
+            self.origin.json_pointer + json_pointer,
+            self.origin.start,
+            self.origin.end,
+        )
 
 
 @dataclass(frozen=True, slots=True)

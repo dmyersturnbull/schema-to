@@ -15,10 +15,10 @@ only when a field it cannot be constructed without is missing or unusable.
 from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass
 from enum import Enum
-from typing import final
+from typing import TYPE_CHECKING, final
 
-from schema_to.core import JsonValue, as_array, as_object
-from schema_to.cst.base import CstNode, SourceRef
+from schema_to.core import JsonValue, Position, SourceRef, Span, as_array, as_object, ptr
+from schema_to.cst.base import CstNode
 from schema_to.cst.json_schema import (
     BooleanSchema,
     ConstValue,
@@ -26,12 +26,7 @@ from schema_to.cst.json_schema import (
     JsonSchema,
     ObjectSchema,
 )
-from schema_to.errors import (
-    SchemaValidationError,
-    SourceLocation,
-    TranspilationError,
-    TranspilationWarning,
-)
+from schema_to.errors import SchemaValidationError, TranspilationError, TranspilationWarning
 from schema_to.parse._plan import (
     BoolSpec,
     EnumSpec,
@@ -52,7 +47,10 @@ from schema_to.parse._plan import (
     WrapSpec,
     plan_for,
 )
-from schema_to.parse._utils import enum_member, ptr
+from schema_to.parse._utils import enum_member
+
+if TYPE_CHECKING:
+    from schema_to.io.source import RawDoc
 
 __all__ = [
     "FAILED",
@@ -60,6 +58,7 @@ __all__ = [
     "Failed",
     "ParsedValue",
     "build_node",
+    "build_root",
     "build_schema",
     "build_value",
     "describe",
@@ -102,13 +101,17 @@ type ParsedValue = (
 class Cursor:
     """A position in a source document, plus the diagnostics gathered so far.
 
-    Replaces threading `source_id`, `pointer`, and an error list through every builder:
+    Replaces threading `uri`, `pointer`, and an error list through every builder:
     pointer arithmetic happens in `at` alone,
     so an error can only be reported against the node it belongs to.
 
     Attributes:
-        source_id: Identifier matching `RawDoc.doc_id`.
-        pointer: RFC 6901 pointer to the value under construction.
+        uri: URI of the file the user wrote that the value is in, matching `RawDoc.origin`.
+        pointer: RFC 6901 pointer to the value under construction, within that file.
+        start: Where the value begins in that file's raw text, if known.
+        end: The position just after where the value ends, if known.
+        spans: Where each value of the document is, by pointer.
+            A value that is not here is located where the value it is inside of is.
         errors: Accumulator shared by every cursor derived from this one.
         warnings: Accumulator shared by every cursor derived from this one.
         version: The specification version the document declares,
@@ -116,21 +119,40 @@ class Cursor:
             `None` gates nothing.
     """
 
-    source_id: str
+    uri: str
     pointer: str
+    start: Position | None
+    end: Position | None
+    spans: Mapping[str, Span]
     errors: list[TranspilationError]
     warnings: list[TranspilationWarning]
-    version: SpecVersion | None = None
+    version: SpecVersion | None
 
     @classmethod
-    def root(cls, source_id: str, version: SpecVersion | None = None) -> Cursor:
-        """Return a cursor at the document root with fresh accumulators."""
-        return cls(source_id, "", [], [], version)
+    def of(cls, doc: RawDoc, spans: Mapping[str, Span], version: SpecVersion | None) -> Cursor:
+        """Return a cursor at the root of `doc`, in the file the user wrote.
+
+        A node's `SourceRef` then names that file,
+        rather than the URI of a document derived from part of it, which exists nowhere.
+
+        Args:
+            doc: The document.
+            spans: Where each value of `doc` is in that file.
+                Empty for a document derived from part of a file,
+                since it was generated and does not have the file's text,
+                so each of its values is located where the part that it came from is.
+            version: The specification version the document declares.
+        """
+        origin = doc.origin
+        start, end = spans.get(origin.json_pointer, (origin.start, origin.end))
+        return cls(origin.uri, origin.json_pointer, start, end, spans, [], [], version)
 
     def at(self, *segments: str | int) -> Cursor:
         """Return a cursor descended into `segments`, sharing this cursor's accumulators."""
+        pointer = ptr(self.pointer, *segments)
+        start, end = self.spans.get(pointer, (self.start, self.end))
         return Cursor(
-            self.source_id, ptr(self.pointer, *segments), self.errors, self.warnings, self.version
+            self.uri, pointer, start, end, self.spans, self.errors, self.warnings, self.version
         )
 
     def probe(self) -> Cursor:
@@ -140,26 +162,22 @@ class Cursor:
         Everything else — position and declared version — carries over,
         so a rejected alternative is judged under the same rules as an accepted one.
         """
-        return Cursor(self.source_id, self.pointer, [], [], self.version)
+        return Cursor(
+            self.uri, self.pointer, self.start, self.end, self.spans, [], [], self.version
+        )
 
     def fail(self, message: str) -> Failed:
         """Record a validation error here and return `FAILED`, for use in a `return`."""
-        self.errors.append(
-            SchemaValidationError(message, location=SourceLocation(self.source_id, self.pointer))
-        )
+        self.errors.append(SchemaValidationError(message, location=self.ref()))
         return FAILED
 
     def warn(self, message: str, *, code: str | None = None) -> None:
         """Record a non-fatal diagnostic here."""
-        self.warnings.append(
-            TranspilationWarning(
-                message, code=code, location=SourceLocation(self.source_id, self.pointer)
-            )
-        )
+        self.warnings.append(TranspilationWarning(message, code=code, location=self.ref()))
 
     def ref(self) -> SourceRef:
         """Return the provenance link for the value under construction."""
-        return SourceRef(self.source_id, self.pointer)
+        return SourceRef(self.uri, self.pointer, self.start, self.end)
 
     @property
     def label(self) -> str:
@@ -170,6 +188,27 @@ class Cursor:
 
 def build_node[N: CstNode](node: type[N], data: JsonValue, at: Cursor) -> N | Failed:
     """Build one CST node of type `node` from `data`, per its plan."""
+    return _build_node(node, data, at, {})
+
+
+def build_root[N: CstNode](
+    node: type[N], data: JsonValue, at: Cursor, *, source_id: str, display_name: str
+) -> N | Failed:
+    """Build the CST node of type `node` that is a whole document, from `data`, per its plan.
+
+    Args:
+        node: The type of the document's root node.
+        data: The decoded document.
+        at: A cursor at the document root.
+        source_id: URI of the `RawDoc`, which the document records as its own.
+        display_name: Name of the `RawDoc`, which the document records as its own.
+    """
+    return _build_node(node, data, at, {"source_id": source_id, "display_name": display_name})
+
+
+def _build_node[N: CstNode](
+    node: type[N], data: JsonValue, at: Cursor, provenance: Mapping[str, str]
+) -> N | Failed:
     obj = as_object(data)
     if obj is None:
         return at.fail(f"{at.label} must be an object.")
@@ -185,7 +224,7 @@ def build_node[N: CstNode](node: type[N], data: JsonValue, at: Cursor) -> N | Fa
         kwargs["extensions"] = {k: v for k, v in obj.items() if k.startswith("x-")}
     if plan.has_source_ref:
         kwargs["source_ref"] = at.ref()
-    return node(**kwargs)
+    return node(**kwargs, **provenance)
 
 
 def _warn_unrecognized_keys(plan: NodePlan, obj: Mapping[str, JsonValue], at: Cursor) -> None:

@@ -52,7 +52,7 @@ from schema_to.cst.json_schema import (
     ObjectSchema,
     is_object_schema,
 )
-from schema_to.errors import GenerationError, SourceLocation, TranspilationWarning
+from schema_to.errors import GenerationError, TranspilationWarning
 from schema_to.generate._python_utils import (
     ANY,
     NONE,
@@ -213,10 +213,8 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
         try:
             name_overrides = _compute_name_overrides(input)
             ctx = _GenCtx(
-                source_id=input.source_id,
                 resolver=self.resolver,
                 warnings=warnings,
-                base_uri=input.get_base_uri(),
                 split_names=_compute_split_names(input, name_overrides),
                 name_overrides=name_overrides,
             )
@@ -226,7 +224,8 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
 
         if not declarations:
             error = GenerationError(
-                "Root schema is a boolean schema; cannot generate a Pydantic model."
+                "Root schema is a boolean schema; cannot generate a Pydantic model.",
+                location=input.root.source_ref,
             )
             return Err((error,), warnings=tuple(warnings))
 
@@ -247,22 +246,19 @@ class PydanticTransformer(Transformer[JsonSchemaDocument, PythonModule]):
 
 
 def _module_name(doc: JsonSchemaDocument) -> str:
-    """Name the module after the document, then the source ID's last segment.
+    """Name the module after the document's display name.
 
     Unlike the root class, the module is not named after `title`: a title describes
     the schema, whereas the file the models land in is the document they came from,
     and two documents titled alike would otherwise write one file.
     """
-    if doc.display_name:
-        return safe_python_field_name(doc.display_name)
-    return safe_python_field_name(doc.source_id.rstrip("/").rsplit("/", 1)[-1])
+    return safe_python_field_name(doc.display_name)
 
 
 def _root_class_name(doc: JsonSchemaDocument) -> str:
     """Name the root model.
 
-    Prefers `x-pydantic-class`, then `title`, then `display_name`,
-    then the source ID's last segment.
+    Prefers `x-pydantic-class`, then `title`, then the document's display name.
     """
     if isinstance(doc.root, ObjectSchema):
         override = read_class(doc.root.get_extensions(), where="the root schema")
@@ -270,9 +266,7 @@ def _root_class_name(doc: JsonSchemaDocument) -> str:
             return safe_python_class_name(override)
         if doc.root.title:
             return safe_python_class_name(doc.root.title)
-    if doc.display_name:
-        return safe_python_class_name(doc.display_name)
-    return safe_python_class_name(doc.source_id.rstrip("/").rsplit("/", 1)[-1])
+    return safe_python_class_name(doc.display_name)
 
 
 # ---------------------------------------------------------------------------
@@ -284,15 +278,12 @@ def _root_class_name(doc: JsonSchemaDocument) -> str:
 class _GenCtx:
     """Per-document generation state threaded through the CST walk.
 
-    Holds the source document identifier, an optional ref resolver for
-    cross-document `$ref` lookup, and the mutable warnings list that is
+    Holds an optional ref resolver for cross-document `$ref` lookup, and the mutable warnings list that is
     shared with the owning `PydanticGenerator`.
     """
 
-    source_id: str
     resolver: JsonSchemaRefResolver | None
     warnings: list[TranspilationWarning]
-    base_uri: str = ""
     split_names: Set[str] = field(default_factory=frozenset)
     name_overrides: Mapping[str, str] = field(default_factory=dict)
     enum_decls: list[EnumDef] = field(default_factory=list)
@@ -383,9 +374,7 @@ class _GenCtx:
         """
         if not schema.all_of:
             return schema
-        result = SchemaFlattener(resolver=self.resolver).flatten(
-            schema, base_uri=self.base_uri or self.source_id
-        )
+        result = SchemaFlattener(resolver=self.resolver).flatten(schema)
         self.warnings.extend(result.warnings)
         return result.schema if isinstance(result.schema, ObjectSchema) else schema
 
@@ -674,12 +663,7 @@ class _GenCtx:
         return None
 
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:
-        loc: SourceLocation | None = None
-        if schema.source_ref:
-            loc = SourceLocation(
-                doc_id=schema.source_ref.source_id, json_pointer=schema.source_ref.json_pointer
-            )
-        self.warnings.append(TranspilationWarning(msg, code=code, location=loc))
+        self.warnings.append(TranspilationWarning(msg, code=code, location=schema.source_ref))
 
 
 # ---------------------------------------------------------------------------

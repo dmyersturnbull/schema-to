@@ -27,8 +27,7 @@ def test_a_single_file_becomes_one_document(tmp_path: Path) -> None:
     path = write(tmp_path, "thing.schema.json", _SCHEMA)
     source = FileDataSource(path, JsonSchemaRawDoc, MediaTypes.json_schema)
     [doc] = source.documents()
-    assert doc.doc_id == path.as_uri()
-    assert doc.base_uri == path.as_uri()
+    assert doc.uri == path.as_uri()
     assert doc.content == _SCHEMA.encode()
 
 
@@ -157,8 +156,7 @@ def test_a_relative_file_path_gets_an_absolute_uri(
     monkeypatch.chdir(tmp_path)
     source = FileDataSource(Path("thing.schema.json"), JsonSchemaRawDoc, MediaTypes.json_schema)
     [doc] = source.documents()
-    assert doc.doc_id == path.as_uri()
-    assert doc.base_uri == path.as_uri()
+    assert doc.uri == path.as_uri()
     assert source.source_id == path.as_uri()
 
 
@@ -197,7 +195,7 @@ def test_a_relative_directory_yields_absolute_document_uris(
     rel = Path(relative.format(name=root.name))
     source = DirectoryDataSource(rel, recursive=True)
     [doc] = source.documents()
-    assert doc.doc_id == path.as_uri()
+    assert doc.uri == path.as_uri()
     assert source.source_id == root.as_uri()
 
 
@@ -208,4 +206,4 @@ def test_the_factory_accepts_relative_paths(
     monkeypatch.chdir(tmp_path)
     [source] = FileDataSourceFactory(recursive=True).get([Path("d")])
     [doc] = source.documents()
-    assert doc.doc_id.startswith("file:///")
+    assert doc.uri.startswith("file:///")

@@ -27,8 +27,8 @@ from schema_to.result import Err, Ok
 _RESOLVER_INPUT = "3.1.0"
 
 
-def _resolve(doc: JsonObject, doc_id: str = "d") -> Ok[OpenApiDocument] | Err:
-    return OpenApiRefResolver().apply(openapi_cst(doc, doc_id))
+def _resolve(doc: JsonObject, uri: str = "test:///d") -> Ok[OpenApiDocument] | Err:
+    return OpenApiRefResolver().apply(openapi_cst(doc, uri))
 
 
 def _minimal(**extra: JsonValue) -> JsonObject:
@@ -272,7 +272,7 @@ def test_a_reference_cycle_is_reported_rather_than_recursed() -> None:
 def test_a_reference_into_a_registered_document_resolves() -> None:
     shared = openapi_cst(
         _minimal(components={"parameters": {"Id": {"name": "id", "in": "path"}}}),
-        doc_id="shared.yaml",
+        uri="file:///shared.yaml",
     )
     main = openapi_cst(
         _minimal(
@@ -280,7 +280,7 @@ def test_a_reference_into_a_registered_document_resolves() -> None:
                 "/x": {"get": {"parameters": [{"$ref": "shared.yaml#/components/parameters/Id"}]}}
             }
         ),
-        doc_id="main.yaml",
+        uri="file:///main.yaml",
     )
     resolver = OpenApiRefResolver()
     resolver.register(shared)
@@ -300,7 +300,7 @@ def test_a_reference_into_an_unregistered_document_is_an_error() -> None:
                 }
             }
         ),
-        doc_id="main.yaml",
+        uri="file:///main.yaml",
     )
     assert isinstance(result, Err)
     assert "elsewhere.yaml" in result.errors[0].message

@@ -51,7 +51,7 @@ from schema_to.cst.json_schema import (
     JsonSchema,
     ObjectSchema,
 )
-from schema_to.errors import SourceLocation, TranspilationWarning
+from schema_to.errors import TranspilationWarning
 from schema_to.parse._plan import ListSpec, MapSpec, SchemaSpec, sub_schema_fields
 from schema_to.serialize.json_schema import JsonSchemaSerializer
 
@@ -105,17 +105,17 @@ class SchemaFlattener:
     resolver: JsonSchemaRefResolver | None = None
     _warnings: list[TranspilationWarning] = field(default_factory=list, repr=False)
 
-    def flatten(self, schema: JsonSchema, *, base_uri: str) -> FlatteningResult:
+    def flatten(self, schema: JsonSchema) -> FlatteningResult:
         """Merge `schema`'s `allOf` branches and `$ref` target into one schema.
 
         Only this schema's own composition is resolved; sub-schemas are left as written.
         Use `inline` when the result must stand alone.
         """
         self._warnings.clear()
-        merged = self._flatten(schema, base_uri=base_uri, seen=frozenset(), depth=0)
+        merged = self._flatten(schema, seen=frozenset(), depth=0)
         return FlatteningResult(schema=merged, warnings=tuple(self._warnings))
 
-    def inline(self, schema: JsonSchema, *, base_uri: str) -> FlatteningResult:
+    def inline(self, schema: JsonSchema) -> FlatteningResult:
         """Flatten `schema` and every sub-schema, leaving no `$ref` anywhere in the result.
 
         Needed wherever a schema is handed to something that cannot follow a reference.
@@ -123,34 +123,30 @@ class SchemaFlattener:
         and it has no way to fetch `./other-file.yaml#/thing`.
         """
         self._warnings.clear()
-        merged = self._inline(schema, base_uri=base_uri, seen=frozenset(), depth=0)
+        merged = self._inline(schema, seen=frozenset(), depth=0)
         return FlatteningResult(schema=merged, warnings=tuple(self._warnings))
 
     # ------------------------------------------------------------------
     # Traversal
     # ------------------------------------------------------------------
 
-    def _flatten(
-        self, schema: JsonSchema, *, base_uri: str, seen: Set[str], depth: int
-    ) -> JsonSchema:
+    def _flatten(self, schema: JsonSchema, *, seen: Set[str], depth: int) -> JsonSchema:
         if isinstance(schema, BooleanSchema) or depth > _MAX_DEPTH:
             return schema
         own = replace(schema, ref=None, all_of=None)
-        for part, from_ref in self._parts(schema, base_uri=base_uri, seen=seen, depth=depth):
+        for part, from_ref in self._parts(schema, seen=seen, depth=depth):
             own = self._merge(own, part, from_ref=from_ref)
         return own
 
-    def _inline(
-        self, schema: JsonSchema, *, base_uri: str, seen: Set[str], depth: int
-    ) -> JsonSchema:
-        flat = self._flatten(schema, base_uri=base_uri, seen=seen, depth=depth)
+    def _inline(self, schema: JsonSchema, *, seen: Set[str], depth: int) -> JsonSchema:
+        flat = self._flatten(schema, seen=seen, depth=depth)
         if isinstance(flat, BooleanSchema) or depth > _MAX_DEPTH:
             return flat
-        children = self._inline_children(flat, base_uri=base_uri, seen=seen, depth=depth)
+        children = self._inline_children(flat, seen=seen, depth=depth)
         return replace(flat, **children)
 
     def _inline_children(
-        self, schema: ObjectSchema, *, base_uri: str, seen: Set[str], depth: int
+        self, schema: ObjectSchema, *, seen: Set[str], depth: int
     ) -> Mapping[str, _SubSchemaValue]:
         """Inline every keyword whose value holds sub-schemas.
 
@@ -159,7 +155,7 @@ class SchemaFlattener:
         """
 
         def step(sub: JsonSchema) -> JsonSchema:
-            return self._inline(sub, base_uri=_base_of(sub, base_uri), seen=seen, depth=depth + 1)
+            return self._inline(sub, seen=seen, depth=depth + 1)
 
         out: dict[str, _SubSchemaValue] = {}
         for entry in sub_schema_fields(ObjectSchema):
@@ -178,7 +174,7 @@ class SchemaFlattener:
         return out
 
     def _parts(
-        self, schema: ObjectSchema, *, base_uri: str, seen: Set[str], depth: int
+        self, schema: ObjectSchema, *, seen: Set[str], depth: int
     ) -> Sequence[tuple[ObjectSchema, bool]]:
         """Return the flattened `$ref` target and `allOf` branches contributing to `schema`.
 
@@ -187,18 +183,16 @@ class SchemaFlattener:
         """
         sources: list[tuple[JsonSchema, bool]] = []
         if schema.ref is not None:
-            target = self._resolve(schema.ref, base_uri=base_uri, seen=seen, schema=schema)
+            target = self._resolve(schema.ref, seen=seen, schema=schema)
             if target is not None:
                 sources.append((target, True))
                 seen |= {schema.ref}
         sources.extend((branch, False) for branch in schema.all_of or ())
         parts: list[tuple[ObjectSchema, bool]] = []
         for source, from_ref in sources:
-            # A resolved target brings its own document with it: a `$ref` written inside
-            # it is relative to *that* file, not to the one that pointed at it.
-            flat = self._flatten(
-                source, base_uri=_base_of(source, base_uri), seen=seen, depth=depth + 1
-            )
+            # A resolved target is flattened under its own `source_ref`, so a `$ref` written
+            # inside it is relative to *its* file, not to the one that pointed at it.
+            flat = self._flatten(source, seen=seen, depth=depth + 1)
             if isinstance(flat, ObjectSchema):
                 parts.append((flat, from_ref))
             elif not flat.value:
@@ -209,15 +203,13 @@ class SchemaFlattener:
                 )
         return parts
 
-    def _resolve(
-        self, ref: str, *, base_uri: str, seen: Set[str], schema: ObjectSchema
-    ) -> JsonSchema | None:
+    def _resolve(self, ref: str, *, seen: Set[str], schema: ObjectSchema) -> JsonSchema | None:
         if ref in seen:
             self._warn(f"Ignoring recursive $ref {ref!r}.", code="recursive-ref", schema=schema)
             return None
         if self.resolver is None:
             return None
-        target = self.resolver.lookup(ref, base_uri=base_uri)
+        target = self.resolver.lookup(ref, base_uri=schema.source_ref.uri)
         if target is None:
             self._warn(f"Cannot resolve $ref {ref!r}.", code="unresolved-ref", schema=schema)
         return target
@@ -306,24 +298,12 @@ class SchemaFlattener:
         return merged
 
     def _warn(self, msg: str, *, code: str, schema: ObjectSchema) -> None:
-        location = None
-        if schema.source_ref:
-            location = SourceLocation(
-                doc_id=schema.source_ref.source_id, json_pointer=schema.source_ref.json_pointer
-            )
-        self._warnings.append(TranspilationWarning(msg, code=code, location=location))
+        self._warnings.append(TranspilationWarning(msg, code=code, location=schema.source_ref))
 
 
 # ---------------------------------------------------------------------------
 # Keyword-level merge helpers
 # ---------------------------------------------------------------------------
-
-
-def _base_of(schema: JsonSchema, fallback: str) -> str:
-    """Return the document a schema was parsed from, for resolving its relative refs."""
-    if schema.source_ref is not None:
-        return schema.source_ref.source_id
-    return fallback
 
 
 def _same_schema(a: JsonSchema, b: JsonSchema) -> bool:

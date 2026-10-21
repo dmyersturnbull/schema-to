@@ -9,16 +9,16 @@ from dataclasses import replace
 import pytest
 from hypothesis import HealthCheck, given, settings
 from tests.strategies.restricted import object_schema_st, sql_object_schema_st
-from tests.support.docs import DEFAULT_SCHEMA_ID, json_schema_doc
+from tests.support.docs import DEFAULT_SCHEMA_URI, json_schema_doc
 from tests.support.drive import POSTGRES
 from tests.support.types import JsonLike
 
 from schema_to import MediaTypes, OpenApiRawDoc, RawDoc
 
 
-def _transpile(data: JsonLike, doc_id: str = DEFAULT_SCHEMA_ID) -> str:
+def _transpile(data: JsonLike, uri: str = DEFAULT_SCHEMA_URI) -> str:
     """Run the routed postgres target and return the emitted SQL."""
-    return POSTGRES.text(json_schema_doc(data, doc_id))
+    return POSTGRES.text(json_schema_doc(data, uri))
 
 
 @given(schema=object_schema_st())
@@ -56,12 +56,12 @@ def test_accepts_json_schema_document() -> None:
 
 
 def test_rejects_openapi_document() -> None:
-    doc = OpenApiRawDoc(doc_id="test://s", content=b"{}", media_type=MediaTypes.json)
+    doc = OpenApiRawDoc.original("test:///s", b"{}", MediaTypes.json)
     assert not POSTGRES.transpiler().accepts(doc)
 
 
 def test_rejects_raw_document() -> None:
-    doc = RawDoc(doc_id="test://s", content=b"{}", media_type=MediaTypes.json)
+    doc = RawDoc.original("test:///s", b"{}", MediaTypes.json)
     assert not POSTGRES.transpiler().accepts(doc)
 
 

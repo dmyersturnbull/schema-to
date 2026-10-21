@@ -1,9 +1,11 @@
 """Shared utilities for document parsers."""
 
-from collections.abc import MutableSequence
+from collections.abc import Mapping, MutableSequence
+from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
-from schema_to.errors import ParseError, SourceLocation, TranspilationError
+from schema_to.core import SourceRef, Span
+from schema_to.errors import ParseError, TranspilationError
 from schema_to.io.core import JsonLikeReader, ReadError
 from schema_to.result import Err, Result
 
@@ -21,9 +23,8 @@ __all__ = [
     "enum_member",
     "extract",
     "int_field",
-    "loc",
+    "locate_raw_doc",
     "num_field",
-    "ptr",
     "str_field",
     "str_or",
 ]
@@ -38,18 +39,6 @@ def enum_member[E: Enum](enum_cls: type[E], value: object) -> E | None:
     return next((member for member in enum_cls if member.value == value), None)
 
 
-def ptr(parent: str, *segments: str | int) -> str:
-    """Append JSON Pointer segments to `parent` (RFC 6901)."""
-    parts = [
-        s.replace("~", "~0").replace("/", "~1") if isinstance(s, str) else str(s) for s in segments
-    ]
-    return parent + "".join(f"/{p}" for p in parts)
-
-
-def loc(source_id: str, pointer: str) -> SourceLocation:
-    return SourceLocation(doc_id=source_id, json_pointer=pointer)
-
-
 def decode_raw_doc(doc: RawDoc, reader: JsonLikeReader) -> JsonValue:
     """Decode a raw document's bytes to a JSON-compatible value.
 
@@ -59,9 +48,36 @@ def decode_raw_doc(doc: RawDoc, reader: JsonLikeReader) -> JsonValue:
     try:
         return reader.read(doc.content, doc.media_type)
     except ReadError as e:
-        raise ParseError(
-            str(e), location=SourceLocation(doc.doc_id, line=e.line, column=e.column)
-        ) from e
+        raise ParseError(str(e), location=_where_it_failed(doc, e)) from e
+
+
+def _where_it_failed(doc: RawDoc, error: ReadError) -> SourceRef:
+    """Return where `error` is in the file the user wrote.
+
+    A reader reports a position in `doc.content`,
+    which is the text of the file only if `doc` is all of it.
+    A document derived from part of a file is generated rather than written,
+    so a reader does not fail on one.
+    """
+    where = doc.ref("")
+    return (
+        where
+        if error.position is None
+        else replace(where, start=error.position, end=error.position)
+    )
+
+
+def locate_raw_doc(doc: RawDoc, reader: JsonLikeReader) -> Mapping[str, Span]:
+    """Locate every value of a raw document that `decode_raw_doc` has decoded.
+
+    Returns:
+        Where each value is in the file the user wrote, by JSON Pointer.
+        Empty for a document derived from part of a file.
+        Its content was generated, so a position in it means nothing in the file.
+    """
+    if doc.origin.json_pointer:
+        return {}
+    return reader.spans(doc.content, doc.media_type)
 
 
 def extract[T](result: Result[T], errors: MutableSequence[TranspilationError]) -> T | None:
